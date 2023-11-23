@@ -3,7 +3,7 @@ pub enum Token {
 	OpenTag(char),
 	CloseTag(char),
 	Word(String),
-	MacroName(char),
+	MacroName(String),
 	Equals(char),
 	Quote(char),
 	OpenBracket(char),
@@ -15,6 +15,14 @@ pub enum Token {
 	Bar(char),
 }
 
+impl Token {
+	pub fn push_to_string(&self, to: &mut String) {
+		match self {
+			Self::Word(word) | Self::MacroName(word) => to.push_str(word),
+			Self::OpenTag(c) | Self::CloseTag(c) | Self::Equals(c) | Self::Quote(c) | Self::OpenBracket(c) | Self::CloseBracket(c) | Self::Hashtag(c) | Self::Space(c) | Self::Newline(c) | Self::Indent(c) | Self::Bar(c) => to.push(*c),
+		}
+	}
+}
 
 pub fn tokenize(s: &str) -> Result<Vec<Token>, &'static str> {
 	let mut output: Vec<Token> = vec![];
