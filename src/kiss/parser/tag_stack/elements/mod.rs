@@ -1,0 +1,79 @@
+use super::errors::TagStackError;
+
+#[derive(Debug)]
+pub enum BodyElems {
+	ContentTag {
+		name: String,
+		params: Vec<Param>,
+		children: Vec<BodyElems>,
+	},
+	MacroCall {
+		name: String,
+		args: Vec<MacroArg>,
+		children: Vec<BodyElems>,
+	},
+	String(String),
+	ValueTag(String),
+}
+
+impl BodyElems {
+	pub fn new_content_tag() -> Self {
+		Self::ContentTag { name: String::new(), params: vec![], children: vec![] }
+	}
+
+	pub fn get_name_mut(&mut self) -> Option<&mut String> {
+		match self {
+			Self::ContentTag { name, .. } | Self::MacroCall { name, .. } => Some(name),
+			_ => None,
+		}
+	}
+
+	pub fn get_name(&self) -> Option<&String> {
+		match self {
+			Self::ContentTag { name, .. } | Self::MacroCall { name, .. } => Some(name),
+			_ => None,
+		}
+	}
+
+	pub fn add_param(&mut self, param: Param) -> Result<(), TagStackError> {
+		match self {
+			Self::ContentTag { params, ..} => params.push(param),
+			_ => return Err(TagStackError::NonParametricTopTag),
+		}
+		Ok(())
+	}
+}
+
+
+#[derive(Debug, Clone)]
+pub struct Param {
+	pub name: String,
+	pub value: String,
+}
+
+impl Param {
+	pub fn new() -> Self {
+		Self {
+			name: String::new(),
+			value: String::new(),
+		}
+	}
+}
+#[derive(Debug)]
+pub struct MacroArg {
+	pub name: String,
+	pub value: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct MacroDefTag {
+	pub name: String,
+	pub args: Vec<MacroArg>,
+	pub children: Vec<BodyElems>,
+}
+
+#[derive(Debug)]
+pub struct Constant {
+	pub name: String,
+	pub value: String,
+}

@@ -25,7 +25,7 @@ impl Token {
 	}
 }
 
-pub fn tokenize(s: &str) -> Result<Vec<Token>, &'static str> {
+pub fn tokenize(s: &str) -> Vec<Token> {
 	let mut output: Vec<Token> = vec![];
 	
 	let mut current_word: usize = 0;
@@ -72,7 +72,7 @@ pub fn tokenize(s: &str) -> Result<Vec<Token>, &'static str> {
 	}
 	let word = &s[current_word..s.len()];
 	if !word.is_empty() { output.push(Token::Word(word.to_string())) }
-	Ok(output)
+	output
 }
 
 fn push_token(token: Token, list: &mut Vec<Token>, current_word_start: &mut usize, current_word_end: usize, string: &str) {

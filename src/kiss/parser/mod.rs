@@ -1,87 +1,13 @@
-use crate::kiss::ast::lexer::Token;
+pub(crate) mod tag_stack;
 
-use super::compiler_options::CompilerOptions;
+use crate::kiss::parser::lexer::Token;
 
-pub mod lexer;
+use self::tag_stack::elements::{Param, BodyElems, Constant, MacroDefTag};
 
+use super::{compiler_options::CompilerOptions, lexer};
+use tag_stack::TagStack;
+use tag_stack::errors::TagStackError;
 
-#[derive(Debug)]
-pub enum BodyElems {
-	ContentTag {
-		name: String,
-		params: Vec<Param>,
-		children: Vec<BodyElems>,
-	},
-	MacroCall {
-		name: String,
-		args: Vec<MacroArg>,
-		children: Vec<BodyElems>,
-	},
-	String(String),
-	ValueTag(String),
-}
-
-impl BodyElems {
-	fn new_content_tag() -> Self {
-		Self::ContentTag { name: String::new(), params: vec![], children: vec![] }
-	}
-
-	fn get_name_mut(&mut self) -> Option<&mut String> {
-		match self {
-			Self::ContentTag { name, .. } | Self::MacroCall { name, .. } => Some(name),
-			_ => None,
-		}
-	}
-
-	fn get_name(&self) -> Option<&String> {
-		match self {
-			Self::ContentTag { name, .. } | Self::MacroCall { name, .. } => Some(name),
-			_ => None,
-		}
-	}
-
-	fn add_param(&mut self, param: Param) -> Result<(), TagStackError> {
-		match self {
-			Self::ContentTag { params, ..} => params.push(param),
-			_ => return Err(TagStackError::NonParametricTopTag),
-		}
-		Ok(())
-	}
-}
-
-
-#[derive(Debug, Clone)]
-pub struct Param {
-	pub name: String,
-	pub value: String,
-}
-
-impl Param {
-	fn new() -> Self {
-		Self {
-			name: String::new(),
-			value: String::new(),
-		}
-	}
-}
-#[derive(Debug)]
-struct MacroArg {
-	name: String,
-	value: Option<String>,
-}
-
-#[derive(Debug)]
-pub struct MacroDefTag {
-	name: String,
-	args: Vec<MacroArg>,
-	children: Vec<BodyElems>,
-}
-
-#[derive(Debug)]
-pub struct Constant {
-	name: String,
-	value: String,
-}
 
 #[derive(Debug)]
 pub struct ParsedFile {
@@ -112,30 +38,6 @@ enum States {
 enum ParamValueType {
 	Word,
 	MultiWord(char)
-}
-
-pub enum TagStackError {
-	WasEmpty,
-	HadOneTag,
-	NonMergeableTopTag,
-	NonMergeableTopTags,
-	NonParametricTopTag,
-	NonBody,
-	UnusableLastTag,
-}
-
-impl From<TagStackError> for &'static str {
-    fn from(value: TagStackError) -> Self {
-        match value {
-			TagStackError::WasEmpty => "Stack was empty",
-			TagStackError::HadOneTag => "Stack had only one tag",
-			TagStackError::NonMergeableTopTag => "Tried to merge an element which wasn't mergeable",
-			TagStackError::NonMergeableTopTags => "Tried to merge a tag with an element which wasn't mergeable",
-			TagStackError::NonParametricTopTag => "Tried to add a parameter to an element which has no parameters",
-			TagStackError::NonBody => "Tried to get the body of a bodyless tag",
-			TagStackError::UnusableLastTag => "Last tag of the stack was not usable",
-		}
-    }
 }
 
 pub enum ParserStateError {
@@ -227,7 +129,6 @@ impl Parser {
 			}
 			_ => return Err(e),
 		}
-		Ok(())
 	}
 
 	fn finish_current_param(&mut self) -> Result<(), TagStackError> {
@@ -253,59 +154,10 @@ impl Parser {
 }
 
 
-#[derive(Debug)]
-struct TagStack {
-	content: Vec<BodyElems>,
-}
-
-impl TagStack {
-	fn new() -> Self {
-		Self { content: vec![] }
-	}
-	fn add_new_content_tag(&mut self) { self.content.push(BodyElems::new_content_tag()) }
-
-	fn last_mut(&mut self) -> Option<&mut BodyElems> { self.content.last_mut() }
-	fn last(&self) -> Option<&BodyElems> { self.content.last() }
-
-	fn pop(&mut self) -> Option<BodyElems> { self.content.pop() }
-
-	fn merge(&mut self) -> Result<(), TagStackError> {
-		if self.content.len() == 1 { return Err(TagStackError::HadOneTag) }
-
-		let current_tag = match self.content.pop() {
-			Some(x) => {
-				match x {
-					BodyElems::ContentTag {..} => x,
-					BodyElems::MacroCall {..} => x,
-					_ => return Err(TagStackError::NonMergeableTopTag)
-				}
-			},
-			None => return Err(TagStackError::WasEmpty)
-	
-		};
-	
-		match self.last_mut() {
-			Some(x) => {
-				match x {
-					BodyElems::ContentTag { children , ..} => children.push(current_tag),
-					BodyElems::MacroCall { children , ..} => children.push(current_tag),
-					_ => return Err(TagStackError::NonMergeableTopTags)
-				}
-			},
-			None => return Err(TagStackError::HadOneTag),
-		};
-		Ok(())
-	}
-}
-
 pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, &'static str> {
-	let tokens = match lexer::tokenize(&s.replace('\r', "")) {
-		Ok(x) => x,
-		Err(x) => return Err(x),
-	};
+	let tokens = lexer::tokenize(&s.replace('\r', ""));
 
 	let mut parser = Parser::new();
-	;
 	for token in tokens {
 		match parser.state {
 			States::ExpectAnyOpener => {

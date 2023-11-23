@@ -1,13 +1,12 @@
-mod ast;
+mod parser;
 mod compiler_options;
-use ast::BodyElems;
+mod lexer;
 use compiler_options::CompilerOptions;
 
-use self::ast::Param;
-
+use self::parser::tag_stack::elements::{BodyElems, Param};
 
 pub fn kiss_to_html(s: &str) -> Result<String, &'static str>{
-	let parsed_file = ast::get_ast(s, CompilerOptions::default())?;
+	let parsed_file = parser::get_ast(s, CompilerOptions::default())?;
 	let output = String::new();
 
 	for node in parsed_file.body.iter() {
