@@ -13,13 +13,14 @@ pub enum Token {
 	Newline(char),
 	Indent(char),
 	Bar(char),
+	Escape(char),
 }
 
 impl Token {
 	pub fn push_to_string(&self, to: &mut String) {
 		match self {
 			Self::Word(word) | Self::MacroName(word) => to.push_str(word),
-			Self::OpenTag(c) | Self::CloseTag(c) | Self::Equals(c) | Self::Quote(c) | Self::OpenBracket(c) | Self::CloseBracket(c) | Self::Hashtag(c) | Self::Space(c) | Self::Newline(c) | Self::Indent(c) | Self::Bar(c) => to.push(*c),
+			Self::OpenTag(c) | Self::CloseTag(c) | Self::Equals(c) | Self::Quote(c) | Self::OpenBracket(c) | Self::CloseBracket(c) | Self::Hashtag(c) | Self::Space(c) | Self::Newline(c) | Self::Indent(c) | Self::Bar(c) | Self::Escape(c) => to.push(*c),
 		}
 	}
 }
@@ -63,6 +64,9 @@ pub fn tokenize(s: &str) -> Result<Vec<Token>, &'static str> {
 			'|' => {
 				push_token(Token::Bar(character), &mut output, &mut current_word, idx, s);
 			},
+			'\\' => {
+				push_token(Token::Escape(character), &mut output, &mut current_word, idx, s);
+			},
 			_ => (),
 		}
 	}
@@ -73,7 +77,10 @@ pub fn tokenize(s: &str) -> Result<Vec<Token>, &'static str> {
 
 fn push_token(token: Token, list: &mut Vec<Token>, current_word_start: &mut usize, current_word_end: usize, string: &str) {
 	let word = &string[*current_word_start..current_word_end];
-	if !word.is_empty() { list.push(Token::Word(word.to_string())) }
+	if !word.is_empty() { 
+		if !word.ends_with('!') { list.push(Token::Word(word.to_string())) }
+		else { list.push(Token::MacroName(word.to_string())) }
+	}
 	list.push(token);
 	*current_word_start = current_word_end + 1
 }

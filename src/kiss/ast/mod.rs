@@ -1,10 +1,12 @@
 use crate::kiss::ast::lexer::Token;
 
-mod lexer;
+use super::compiler_options::CompilerOptions;
+
+pub mod lexer;
 
 
 #[derive(Debug)]
-enum BodyElems {
+pub enum BodyElems {
 	ContentTag {
 		name: String,
 		params: Vec<Param>,
@@ -31,6 +33,13 @@ impl BodyElems {
 		}
 	}
 
+	fn get_name(&self) -> Option<&String> {
+		match self {
+			Self::ContentTag { name, .. } | Self::MacroCall { name, .. } => Some(name),
+			_ => None,
+		}
+	}
+
 	fn add_param(&mut self, param: Param) -> Result<(), TagStackError> {
 		match self {
 			Self::ContentTag { params, ..} => params.push(param),
@@ -42,9 +51,9 @@ impl BodyElems {
 
 
 #[derive(Debug, Clone)]
-struct Param {
-	name: String,
-	value: String,
+pub struct Param {
+	pub name: String,
+	pub value: String,
 }
 
 impl Param {
@@ -62,23 +71,23 @@ struct MacroArg {
 }
 
 #[derive(Debug)]
-struct MacroDefTag {
+pub struct MacroDefTag {
 	name: String,
 	args: Vec<MacroArg>,
 	children: Vec<BodyElems>,
 }
 
 #[derive(Debug)]
-struct Constant {
+pub struct Constant {
 	name: String,
 	value: String,
 }
 
 #[derive(Debug)]
 pub struct ParsedFile {
-	macros: Vec<MacroDefTag>,
-	body: Vec<BodyElems>,
-	consts: Vec<Constant>,
+	pub macros: Vec<MacroDefTag>,
+	pub body: Vec<BodyElems>,
+	pub consts: Vec<Constant>,
 }
 
 impl ParsedFile {
@@ -105,7 +114,7 @@ enum ParamValueType {
 	MultiWord(char)
 }
 
-enum TagStackError {
+pub enum TagStackError {
 	WasEmpty,
 	HadOneTag,
 	NonMergeableTopTag,
@@ -129,7 +138,7 @@ impl From<TagStackError> for &'static str {
     }
 }
 
-enum ParserStateError {
+pub enum ParserStateError {
 	UndefinedTransition,
 	SetNameEmptyStack,
 	RenameUnnamable,
@@ -149,7 +158,8 @@ struct Parser {
 	state: States,
 	tag_stack: TagStack,
 	current_param: Param,
-	file: ParsedFile
+	file: ParsedFile,
+	escape: bool,
 }
 
 impl Parser {
@@ -159,6 +169,7 @@ impl Parser {
 			tag_stack: TagStack::new(),
 			current_param: Param::new(),
 			file: ParsedFile::new(),
+			escape: false,
 		}
 	}
 
@@ -186,9 +197,11 @@ impl Parser {
 			(States::ExpectParamName, States::ExpectBody) => (),
 			(States::ExpectTagName, States::ExpectBody) => (),
 			(States::ExpectBody, States::ExpectTagName) => (),
+			(States::ExpectBody, States::ExpectAnyOpener) => (),
+			(States::ExpectParamName, States::ExpectAnyOpener) => (),
 			_ => return Err(ParserStateError::UndefinedTransition)
 		}
-
+		self.escape = false;
 		self.state = to;
 		Ok(())
 	}
@@ -199,7 +212,13 @@ impl Parser {
 			TagStackError::HadOneTag => match self.tag_stack.pop() {
 				Some(x) => {
 					match x {
-						BodyElems::ContentTag {..} => self.file.body.push(x),
+						BodyElems::ContentTag {..} => {
+							self.file.body.push(x);
+							match self.change_state_to(States::ExpectAnyOpener) {
+								Err(_) => return Err(TagStackError::UnusableLastTag),
+								_ => return Ok(()),
+							}
+						},
 						BodyElems::MacroCall {..} => todo!("Implement adding tags to the macro list"),
 						_ => return Err(TagStackError::UnusableLastTag),
 					}
@@ -226,6 +245,11 @@ impl Parser {
 		}
 		
 	}
+
+	fn get_top_tag_name(&self) -> Option<&String> {
+		let Some(top_tag) = self.tag_stack.last() else { return None };
+		top_tag.get_name()
+	}
 }
 
 
@@ -241,6 +265,7 @@ impl TagStack {
 	fn add_new_content_tag(&mut self) { self.content.push(BodyElems::new_content_tag()) }
 
 	fn last_mut(&mut self) -> Option<&mut BodyElems> { self.content.last_mut() }
+	fn last(&self) -> Option<&BodyElems> { self.content.last() }
 
 	fn pop(&mut self) -> Option<BodyElems> { self.content.pop() }
 
@@ -273,14 +298,14 @@ impl TagStack {
 	}
 }
 
-pub fn get_ast(s: &str) -> Result<ParsedFile, &'static str> {
+pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, &'static str> {
 	let tokens = match lexer::tokenize(&s.replace('\r', "")) {
 		Ok(x) => x,
 		Err(x) => return Err(x),
 	};
-	println!("{:#?}", tokens);
-	let mut parser = Parser::new();
 
+	let mut parser = Parser::new();
+	;
 	for token in tokens {
 		match parser.state {
 			States::ExpectAnyOpener => {
@@ -306,15 +331,28 @@ pub fn get_ast(s: &str) -> Result<ParsedFile, &'static str> {
 							parser.change_state_to(States::ExpectParamName)?;
 						}
 					}
+					lexer::Token::MacroName(word) => todo!("Macro definitions"),
 					_ => return Err("Expected a name for the tag")
 				}
 			}
 			States::ExpectParamName => {
 				match token {
-					lexer::Token::Newline(_) | lexer::Token::Bar(_) => parser.change_state_to(States::ExpectBody)?,
+					lexer::Token::Newline(_) | lexer::Token::Bar(_) => {
+						let Some(top_tag_name) = parser.get_top_tag_name() else { return Err("No top tag name") };
+						if options.has_body(top_tag_name) {
+							parser.change_state_to(States::ExpectBody)?
+						} else {
+							return Err("Tried to give body to a tag which takes no body")
+						}
+					},
 					lexer::Token::Word(name) => {
-						parser.current_param.name = name;
-						parser.change_state_to(States::ExpectParamEquals)?;
+						let Some(top_tag_name) = parser.get_top_tag_name() else { return Err("No top tag name") };
+						if options.is_parametric(top_tag_name) {
+							parser.current_param.name = name;
+							parser.change_state_to(States::ExpectParamEquals)?;
+						} else {
+							return Err("Tried to give parameters to anon_parametric tag")
+						}
 					},
 					lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
 					lexer::Token::CloseTag(_) => parser.merge_or()?,
@@ -344,24 +382,30 @@ pub fn get_ast(s: &str) -> Result<ParsedFile, &'static str> {
 					}
 					ParamValueType::MultiWord(expecting_closer) => {
 						match token {
-							lexer::Token::Quote(obtained_closer) if obtained_closer == *expecting_closer => {
+							lexer::Token::Quote(obtained_closer) if obtained_closer == *expecting_closer && !parser.escape => {
 								parser.finish_current_param()?;
 								parser.change_state_to(States::ExpectParamName)?;
 							}
 							lexer::Token::Newline(_) => return Err("Expected a continuation to the string or a quotation mark, found newline (multiline parameters are not supported yet)"),
-							_ => token.push_to_string(&mut parser.current_param.name),
+							lexer::Token::Escape(_) if !parser.escape => parser.escape = true,
+							_ => {
+								token.push_to_string(&mut parser.current_param.value);
+								parser.escape = false;
+							},
 						}
 					}
 				}
 			}
 			States::ExpectBody => {
 				match token {
-					lexer::Token::OpenTag(_) => {
+					lexer::Token::OpenTag(_) if !parser.escape => {
 						parser.add_new_content_tag();
 						parser.change_state_to(States::ExpectTagName)?;
 					}
-					lexer::Token::CloseTag(_) => parser.merge_or()?,
+					lexer::Token::CloseTag(_) if !parser.escape => parser.merge_or()?,
+					lexer::Token::Escape(_) if !parser.escape => { parser.escape = true },
 					_ => {
+						parser.escape = false;
 						let top_tag_body = parser.get_top_tag_children_mut()?;					
 						match top_tag_body.last_mut() {
 							None => match token {
