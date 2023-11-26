@@ -2,23 +2,23 @@ pub(crate) mod parser;
 mod compiler_options;
 pub(crate) mod lexer;
 
-use crate::errors::{KismesisError, KissParserErrorState};
+use crate::errors::KissParserErrorState;
 use compiler_options::CompilerOptions;
 
-use self::parser::{tag_stack::elements::{BodyElems, Param}, TokenScanner};
+use self::parser::{tag_stack::elements::{BodyElems, Param}, TokenScanner, MacroArray};
 
 pub fn kiss_to_html(s: &str) -> Result<String, (TokenScanner, Option<KissParserErrorState>, Vec<KissParserErrorState>)>{
 	let parsed_file = parser::get_ast(s, CompilerOptions::default())?;
 	let output = String::new();
 
 	for node in parsed_file.body.iter() {
-		println!("{}", ast_to_html(node, 0, &CompilerOptions::default()));
+		println!("{}", ast_to_html(node, &parsed_file.macros, 0, &CompilerOptions::default()));
 	}
 
 	Ok(output)
 }
 
-pub fn ast_to_html(el: &BodyElems, indent_level: usize, compiler_options: &CompilerOptions) -> String {
+pub fn ast_to_html(el: &BodyElems, macros: &MacroArray, indent_level: usize, compiler_options: &CompilerOptions) -> String {
 	let mut output = String::new();
 	for _ in 0..indent_level { output.push('\t') }
 	match el {
@@ -43,7 +43,7 @@ pub fn ast_to_html(el: &BodyElems, indent_level: usize, compiler_options: &Compi
 				for child in children.iter() {
 					if !compiler_options.is_inline(&name) { output.push('\n') }
 					let new_indent_level = if compiler_options.is_inline(&name) {0} else {indent_level + 1};
-					output.push_str(&ast_to_html(child, new_indent_level, compiler_options));
+					output.push_str(&ast_to_html(child, &macros, new_indent_level, compiler_options));
 				}
 			}
 
@@ -59,7 +59,17 @@ pub fn ast_to_html(el: &BodyElems, indent_level: usize, compiler_options: &Compi
 		},
 		BodyElems::String(s) => output.push_str(s),
 		BodyElems::MacroDef { .. } => todo!("Error messages for the html builder"),
-		BodyElems::MacroCall { .. } => todo!("Macro call into html"),
+		BodyElems::MacroCall { name, .. } => {
+			let macro_template = macros.get_content().iter().filter(|x| x.get_name() == Some(name)).last();
+			let children = match macro_template {
+				Some(BodyElems::MacroDef { children, .. }) => children,
+				_ => todo!("Error messages for the html builder")
+			};
+			for child in children.iter() {
+				output = String::new();
+				output.push_str(&ast_to_html(child, &macros, indent_level, compiler_options));
+			}
+		},
 		BodyElems::ValueTag(_) => todo!("Value tags into html"),
 	}
 	output

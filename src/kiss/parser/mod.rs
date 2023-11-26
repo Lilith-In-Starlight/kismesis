@@ -89,6 +89,10 @@ impl MacroArray {
 	pub fn last_mut(&mut self) -> Option<&mut BodyElems>{
 		self.content.last_mut()
 	}
+
+	pub fn get_content(&self) -> &Vec<BodyElems> {
+		&self.content
+	}
 }
 
 struct Parser {
@@ -153,6 +157,7 @@ impl Parser {
 			(States::ExpectArgNameOrBody, States::ExpectAnyOpener) => (),
 			(States::ExpectEquals(AfterEquals::Arg), States::ExpectArgNameOrBody) => (),
 			(States::ExpectEquals(AfterEquals::Arg), States::ExpectAnyOpener) => (),
+			(States::ExpectTagName, States::ExpectArgNameOrBody) => (),
 			(a, b) => return Err(UnrecoverableError::UndefinedStateTransition { from: a.clone(), to: b.clone() })
 		}
 		self.escape = false;
@@ -207,7 +212,7 @@ impl Parser {
 	fn get_top_tag_children_mut(&mut self) -> Result<&mut Vec<BodyElems>, UnrecoverableError> {
 		let Some(top_tag) = self.tag_stack.last_mut() else { return Err(UnrecoverableError::ImpossibleEmpty) };
 		match top_tag {
-			BodyElems::ContentTag { children, .. } | BodyElems::MacroCall { children, .. } => Ok(children),
+			BodyElems::ContentTag { children, .. } | BodyElems::MacroCall { children, .. } | BodyElems::MacroDef { children, .. }=> Ok(children),
 			_ => Err(UnrecoverableError::ImpossibleNotTag),
 		}
 		
@@ -328,7 +333,11 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenSc
 								parser.change_state_to(States::ExpectParamName)?;
 							}
 						},
-						lexer::Token::MacroName(word) => todo!("Macro definitions"),
+						lexer::Token::MacroName(word) => {
+							parser.add_new_macro_call();
+							parser.set_top_tag_name(word.trim_end_matches('!').to_string())?;
+							parser.change_state_to(States::ExpectArgNameOrBody)?;
+						},
 						_ => {
 							recovered_errors.push(KismesisError::ExpectedTagName.state(&token_scanner));
 							parser.change_state_to(States::ExpectParamName)?;
