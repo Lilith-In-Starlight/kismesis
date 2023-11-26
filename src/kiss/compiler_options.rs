@@ -4,6 +4,7 @@ pub struct CompilerOptions {
 	pub only_opener: Vec<String>,
 	pub no_params: Vec<String>,
 	pub quote_mode: OutputQuotePreference,
+	pub lambda_macros: Vec<String>,
 }
 
 pub enum OutputQuotePreference {
@@ -22,11 +23,12 @@ pub enum QuotePreferences {
 impl CompilerOptions {
 	pub fn default() -> Self{
 		Self {
-			inline: vec!["h1", "h2", "h3", "h4"].into_iter().map(|x| String::from(x)).collect(),
+			inline: vec!["h1", "h2", "h3", "h4", "b"].into_iter().map(|x| String::from(x)).collect(),
 			only_closer: vec!["br"].into_iter().map(|x| String::from(x)).collect(),
 			only_opener: vec!["meta", "base", "img"].into_iter().map(|x| String::from(x)).collect(),
 			no_params: vec!["br"].into_iter().map(|x| String::from(x)).collect(),
 			quote_mode: OutputQuotePreference::Default,
+			lambda_macros: vec![],
 		}
 	}
 
@@ -40,5 +42,17 @@ impl CompilerOptions {
 
 	pub fn is_inline(&self, name: &String) -> bool {
 		self.inline.iter().any(|x| x == name)
+	}
+
+	pub fn is_only_closer(&self, name: &String) -> bool {
+		self.only_closer.iter().any(|x| x == name)
+	}
+
+	pub fn is_only_opener(&self, name: &String) -> bool {
+		self.only_opener.iter().any(|x| x == name)
+	}
+
+	pub fn is_one_sided(&self, name: &String) -> bool {
+		!self.has_body(name)
 	}
 }

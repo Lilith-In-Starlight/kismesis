@@ -1,0 +1,4 @@
+[[language]]
+name = "rust"
+auto-format = false
+indent = {unit="\t", tab-width=4}
