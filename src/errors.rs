@@ -1,4 +1,4 @@
-use crate::{kiss::{parser::{States, TokenScanner}, lexer}};
+use crate::kiss::{parser::{States, TokenScanner}, lexer};
 use colored::*;
 
 #[derive(Debug)]
@@ -17,16 +17,49 @@ pub enum KismesisError {
 	ExpectedMacroBodyOrArg,
 	ExpectedArgValue,
 	TriedMacroDefInTag,
+	ExpectedVariableName,
+	UseOfUndefinedVariable,
 }
 
-pub struct KissParserErrorState {
-	error: KismesisError,
+#[derive(Debug)]
+pub enum HtmlGenerationError {
+	UnrecoverableError(UnrecoverableError),
+	KismesisError(KismesisError),
+}
+
+impl Error for HtmlGenerationError {
+	fn get_error_text(&self) -> String {
+        match self {
+			Self::UnrecoverableError(x) => x.get_error_text(),
+			Self::KismesisError(x) => x.get_error_text(),
+		}
+    }
+}
+
+impl From<KismesisError> for HtmlGenerationError {
+	fn from(val: KismesisError) -> Self{
+		Self::KismesisError(val)
+	}
+}
+
+impl From<UnrecoverableError> for HtmlGenerationError {
+	fn from(val: UnrecoverableError) -> Self {
+		Self::UnrecoverableError(val)
+	}
+}
+
+pub struct ErrorState<T: Error> {
+	error: T,
 	position: usize,
 	line_position: usize,
 	line: usize,
 }
 
-impl KissParserErrorState {
+pub trait Error {
+	fn get_error_text(&self) -> String;
+}
+
+impl<T: Error> ErrorState<T> {
 	fn report(&self, scanner: &TokenScanner) -> String {
 		self.report_error_line(scanner, self.error.get_error_text())
 	}
@@ -55,11 +88,8 @@ impl KissParserErrorState {
 	}
 }
 
-impl KismesisError {
-	pub fn state(self, scanner: &TokenScanner) -> KissParserErrorState {
-		KissParserErrorState { error: self, position: scanner.get_position(), line_position: scanner.get_position_in_line(), line: scanner.get_current_line_number() }
-	}
-	pub fn get_error_text(&self) -> String {
+impl Error for KismesisError {
+	fn get_error_text(&self) -> String {
 		match self {
 			Self::ClosedTooManyTags => "This > is unnecessary as there are no more tags to close".into(),
 			Self::ExpectedTagName => "Expected a tag name here".into(),
@@ -75,7 +105,15 @@ impl KismesisError {
 			Self::ExpectedMacroBodyOrArg => "Expected a macro body or argument name".into(),
 			Self::ExpectedArgValue => "Expected a value for this argument".into(),
 			Self::TriedMacroDefInTag => "Body tags cannot have macro definitions".into(),
+			Self::ExpectedVariableName => "Expected a variable name here".into(),
+			Self::UseOfUndefinedVariable => "Tried to use an undefined variable".into(),
 		}
+	}
+}
+
+impl KismesisError {
+	pub fn state(self, scanner: &TokenScanner) -> ErrorState<KismesisError> {
+		ErrorState { error: self, position: scanner.get_position(), line_position: scanner.get_position_in_line(), line: scanner.get_current_line_number() }
 	}
 }
 
@@ -91,6 +129,8 @@ impl UnrecoverableError {
 			Self::UnmetExpectancy => "Tag stack had insufficient tags.".into(),
 			Self::NonMacroIntoMacroArray => "Tried to push a non-macro into a macro array".into(),
 			Self::ImpossibleNoMacroDefs => "Defining a macro argument, but the parser recognizes no macro being currently defined".into(),
+			Self::VariableInWrongPlace => "It should be impossible to have variables here".into(),
+			Self::CannotMakeIntoScope => "Tried to create a scope out of something that cannot create one".into(),
 		}
 	}
 }
@@ -107,6 +147,8 @@ pub enum UnrecoverableError {
 	UnmetExpectancy,
 	NonMacroIntoMacroArray,
 	ImpossibleNoMacroDefs,
+	VariableInWrongPlace,
+	CannotMakeIntoScope,
 }
 
 impl From<UnrecoverableError> for KismesisError {
@@ -115,7 +157,7 @@ impl From<UnrecoverableError> for KismesisError {
 	}
 }
 
-pub fn report_error(token_scanner: TokenScanner, unrecoverable_error: Option<KissParserErrorState>, recovered_errors: Vec<KissParserErrorState>) -> String {
+pub fn report_error(token_scanner: TokenScanner, unrecoverable_error: Option<ErrorState<HtmlGenerationError>>, recovered_errors: Vec<ErrorState<HtmlGenerationError>>) -> String {
 	let mut output = String::from("Couldn't compile due to the following errors:\n");
 	for error in recovered_errors {
 		output.push_str(&format!(" At line {} ", error.line).on_red().black().to_string());
@@ -200,4 +242,31 @@ pub fn get_line_number(n: usize, mexn: usize) -> String {
 	out.push_str(&ns);
 	out.push_str(" | ");
 	return out
+}
+
+pub struct CompilerErrorReport<T: Error> {
+	pub scanner: TokenScanner,
+	pub unresolved: Option<ErrorState<T>>,
+	pub resolved: Vec<ErrorState<T>>
+}
+
+impl From<CompilerErrorReport<KismesisError>> for CompilerErrorReport<HtmlGenerationError> {
+	fn from(val: CompilerErrorReport<KismesisError>) -> CompilerErrorReport<HtmlGenerationError> {
+		CompilerErrorReport {
+			scanner: val.scanner,
+			unresolved: val.unresolved.map(|x| x.into()),
+			resolved: val.resolved.into_iter().map(|x| x.into()).collect(),
+		}
+	}
+}
+
+impl From<ErrorState<KismesisError>> for ErrorState<HtmlGenerationError> {
+	fn from (val:ErrorState<KismesisError>) -> ErrorState<HtmlGenerationError> {
+		ErrorState {
+			error: val.error.into(),
+			position: val.position,
+			line_position: val.line_position,
+			line: val.line,
+		}
+	}
 }

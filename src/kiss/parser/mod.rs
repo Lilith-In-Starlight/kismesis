@@ -1,7 +1,9 @@
 pub(crate) mod tag_stack;
 
+use std::sync::Arc;
+
 use crate::kiss::parser::lexer::Token;
-use crate::errors::{KismesisError, UnrecoverableError, KissParserErrorState};
+use crate::errors::{KismesisError, UnrecoverableError, ErrorState, CompilerErrorReport};
 
 use self::tag_stack::elements::{Param, BodyElems, Constant, MacroArg};
 
@@ -43,6 +45,7 @@ pub enum States {
 	ExpectBody,
 	ExpectMacroName,
 	ExpectArgNameOrBody,
+	ExpectVariable(Arc<States>),
 }
 
 #[derive(Debug, Clone)]
@@ -133,36 +136,9 @@ impl Parser {
 		Ok(())
 	}
 
-	fn change_state_to(&mut self, to: States) -> Result<(), UnrecoverableError>{
-		match (&self.state, &to) {
-			(States::ExpectAnyOpener, States::ExpectTagName) => (),
-			(States::ExpectTagName, States::ExpectParamName) => self.current_param = Param::new(),
-			(States::ExpectParamName, States::ExpectEquals(AfterEquals::Param)) => (),
-			(States::ExpectEquals(AfterEquals::Param), States::ExpectParamValue(_, AfterEquals::Param)) => (),
-			(States::ExpectParamValue(_, AfterEquals::Param), States::ExpectParamName) => self.current_param = Param::new(),
-			(States::ExpectParamValue(ParamValueType::Word, AfterEquals::Param), States::ExpectParamValue(_, AfterEquals::Param)) => (),
-			(States::ExpectParamName, States::ExpectBody) => (),
-			(States::ExpectTagName, States::ExpectBody) => (),
-			(States::ExpectBody, States::ExpectTagName) => (),
-			(States::ExpectBody, States::ExpectAnyOpener) => (),
-			(States::ExpectParamName, States::ExpectAnyOpener) => (),
-			(States::ExpectAnyOpener, States::ExpectMacroName) => (),
-			(States::ExpectMacroName, States::ExpectArgNameOrBody) => (),
-			(States::ExpectArgNameOrBody, States::ExpectEquals(AfterEquals::Arg)) => (),
-			(States::ExpectEquals(AfterEquals::Arg), States::ExpectParamValue(ParamValueType::Word, AfterEquals::Arg)) => (),
-			(States::ExpectParamValue(ParamValueType::Word, AfterEquals::Arg), States::ExpectParamValue(ParamValueType::MultiWord(_), AfterEquals::Arg)) => (),
-			(States::ExpectParamValue(_, AfterEquals::Arg), States::ExpectArgNameOrBody) => (),
-			(States::ExpectArgNameOrBody, States::ExpectBody) => (),
-			(States::ExpectTagName, States::ExpectMacroName) => (),
-			(States::ExpectArgNameOrBody, States::ExpectAnyOpener) => (),
-			(States::ExpectEquals(AfterEquals::Arg), States::ExpectArgNameOrBody) => (),
-			(States::ExpectEquals(AfterEquals::Arg), States::ExpectAnyOpener) => (),
-			(States::ExpectTagName, States::ExpectArgNameOrBody) => (),
-			(a, b) => return Err(UnrecoverableError::UndefinedStateTransition { from: a.clone(), to: b.clone() })
-		}
+	fn change_state_to(&mut self, to: States) {
 		self.escape = false;
 		self.state = to;
-		Ok(())
 	}
 
 	fn merge_or(&mut self) -> Result<(), KismesisError> {
@@ -173,17 +149,17 @@ impl Parser {
 					match x {
 						BodyElems::ContentTag {..} => {
 							self.file.body.push(x);
-							self.change_state_to(States::ExpectAnyOpener)?;
+							self.change_state_to(States::ExpectAnyOpener);
 							Ok(())
 						},
 						BodyElems::MacroDef { .. } => {
 							self.file.macros.push(x)?;
-							self.change_state_to(States::ExpectAnyOpener)?;
+							self.change_state_to(States::ExpectAnyOpener);
 							Ok(())
 						}
 						BodyElems::MacroCall {..} => {
 							self.file.body.push(x);
-							self.change_state_to(States::ExpectArgNameOrBody)?;
+							self.change_state_to(States::ExpectArgNameOrBody);
 							Ok(())
 						},
 						_ => return Err(KismesisError::UnrecoverableError(UnrecoverableError::TagStackHadNonTag)),
@@ -298,23 +274,23 @@ impl TokenScanner {
 	}
 }
 
-pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenScanner, Option<KissParserErrorState>, Vec<KissParserErrorState>)> {
+pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, CompilerErrorReport<KismesisError>> {
 	let tokens = lexer::tokenize(&s.replace('\r', ""));
 
 	let mut parser = Parser::new();
 	let mut token_idx: usize = 0;
 	let mut token_scanner = TokenScanner::new(tokens);
-	let mut recovered_errors: Vec<KissParserErrorState> = Vec::new();
+	let mut recovered_errors: Vec<ErrorState<KismesisError>> = Vec::new();
 	let iterate = | | -> Result<ParsedFile, KismesisError> {
 		while let Some(token) = token_scanner.next() {
 			match parser.state {
 				States::ExpectAnyOpener => {
 					match token {
 						lexer::Token::OpenTag(_) => {
-							parser.change_state_to(States::ExpectTagName)?;
+							parser.change_state_to(States::ExpectTagName);
 						}
 						lexer::Token::Hashtag(_) => {
-							todo!("Handle variable definitions")
+							parser.change_state_to(States::ExpectVariable(Arc::new(parser.state.clone())));
 						}
 						lexer::Token::Space(_) | lexer::Token::Newline(_) | lexer::Token::Indent(_) => continue,
 						lexer::Token::CloseTag(_) => recovered_errors.push(KismesisError::ClosedTooManyTags.state(&token_scanner)),
@@ -326,21 +302,21 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenSc
 						lexer::Token::Word(word) => {
 							if word == "macro" {
 								parser.add_new_macro_def()?;
-								parser.change_state_to(States::ExpectMacroName)?;
+								parser.change_state_to(States::ExpectMacroName);
 							} else {
 								parser.add_new_content_tag();
 								parser.set_top_tag_name(word.clone())?;
-								parser.change_state_to(States::ExpectParamName)?;
+								parser.change_state_to(States::ExpectParamName);
 							}
 						},
 						lexer::Token::MacroName(word) => {
 							parser.add_new_macro_call();
 							parser.set_top_tag_name(word.trim_end_matches('!').to_string())?;
-							parser.change_state_to(States::ExpectArgNameOrBody)?;
+							parser.change_state_to(States::ExpectArgNameOrBody);
 						},
 						_ => {
 							recovered_errors.push(KismesisError::ExpectedTagName.state(&token_scanner));
-							parser.change_state_to(States::ExpectParamName)?;
+							parser.change_state_to(States::ExpectParamName);
 						},
 					}
 				}
@@ -349,7 +325,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenSc
 						lexer::Token::Newline(_) | lexer::Token::Bar(_) => {
 							let Some(top_tag_name) = parser.get_top_tag_name() else { return Err(KismesisError::UnrecoverableError(UnrecoverableError::ImpossibleEmpty)) };
 							if options.has_body(top_tag_name) {
-								parser.change_state_to(States::ExpectBody)?
+								parser.change_state_to(States::ExpectBody)
 							} else {
 								return Err(KismesisError::UnrecoverableError(UnrecoverableError::TagStackHadNonTag))
 							}
@@ -361,7 +337,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenSc
 							} else {
 								recovered_errors.push(KismesisError::ParametersNotAllowed.state(&token_scanner));
 							}
-							parser.change_state_to(States::ExpectEquals(AfterEquals::Param))?;
+							parser.change_state_to(States::ExpectEquals(AfterEquals::Param));
 						},
 						lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
 						lexer::Token::CloseTag(_) => parser.merge_or()?,
@@ -371,15 +347,15 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenSc
 				States::ExpectEquals(ref what) => {
 					match what {
 						AfterEquals::Param => match token {
-							lexer::Token::Equals(_) => parser.change_state_to(States::ExpectParamValue(ParamValueType::Word, what.clone()))?,
+							lexer::Token::Equals(_) => parser.change_state_to(States::ExpectParamValue(ParamValueType::Word, what.clone())),
 							lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
 							_ => return Err(KismesisError::ExpectedCharacter { character: '=' })
 						}
 						AfterEquals::Arg => match token {
-							lexer::Token::Equals(_) => parser.change_state_to(States::ExpectParamValue(ParamValueType::Word, what.clone()))?,
+							lexer::Token::Equals(_) => parser.change_state_to(States::ExpectParamValue(ParamValueType::Word, what.clone())),
 							lexer::Token::Space(_) | lexer::Token::Indent(_) => {
 								parser.finish_current_arg()?;
-								parser.change_state_to(States::ExpectArgNameOrBody)?;
+								parser.change_state_to(States::ExpectArgNameOrBody);
 							},
 							lexer::Token::CloseTag(_) => {
 								parser.finish_current_arg()?;
@@ -393,29 +369,30 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenSc
 					match wordicity {
 						ParamValueType::Word => {
 							match token {
-								lexer::Token::Quote(opener) => parser.change_state_to(States::ExpectParamValue(ParamValueType::MultiWord(*opener), kind.clone()))?,
+								lexer::Token::Hashtag(_) => parser.change_state_to(States::ExpectVariable(Arc::new(parser.state.clone()))),
+								lexer::Token::Quote(opener) => parser.change_state_to(States::ExpectParamValue(ParamValueType::MultiWord(*opener), kind.clone())),
 								lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
 								lexer::Token::Word(word) => match kind {
 									AfterEquals::Param => {
 										parser.current_param.value = word.clone();
 										parser.finish_current_param()?;
-										parser.change_state_to(States::ExpectParamName)?;
+										parser.change_state_to(States::ExpectParamName);
 									},
 									AfterEquals::Arg => {
 										parser.current_arg.value = Some(word.clone());
 										parser.finish_current_arg()?;
-										parser.change_state_to(States::ExpectArgNameOrBody)?;
+										parser.change_state_to(States::ExpectArgNameOrBody);
 									}
 								}
 								_ => {
 									match kind {
 										AfterEquals::Param => {
 											recovered_errors.push(KismesisError::ExpectedParameterValue.state(&token_scanner));
-											parser.change_state_to(States::ExpectParamName)?;
+											parser.change_state_to(States::ExpectParamName);
 										}
 										AfterEquals::Arg => {
 											recovered_errors.push(KismesisError::ExpectedArgValue.state(&token_scanner));
-											parser.change_state_to(States::ExpectArgNameOrBody)?;
+											parser.change_state_to(States::ExpectArgNameOrBody);
 										}
 									}
 								}
@@ -423,15 +400,16 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenSc
 						}
 						ParamValueType::MultiWord(expecting_closer) => {
 							match token {
+								lexer::Token::Hashtag(_) if !parser.escape => parser.change_state_to(States::ExpectVariable(Arc::new(parser.state.clone()))),
 								lexer::Token::Quote(obtained_closer) if obtained_closer == expecting_closer && !parser.escape => {
 									match kind {
 										AfterEquals::Param => {
 											parser.finish_current_param()?;
-											parser.change_state_to(States::ExpectParamName)?;
+											parser.change_state_to(States::ExpectParamName);
 										},
 										AfterEquals::Arg => {
 											parser.finish_current_arg()?;
-											parser.change_state_to(States::ExpectArgNameOrBody)?;
+											parser.change_state_to(States::ExpectArgNameOrBody);
 										}
 									}
 								}
@@ -450,19 +428,20 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenSc
 									parser.escape = false;
 								},
 							}
-						}
+						},
 					}
 				}
 				States::ExpectBody => {
 					match token {
+						lexer::Token::Hashtag(_) if !parser.escape => parser.change_state_to(States::ExpectVariable(Arc::new(parser.state.clone()))),
 						lexer::Token::OpenTag(_) if !parser.escape => {
-							parser.change_state_to(States::ExpectTagName)?;
+							parser.change_state_to(States::ExpectTagName);
 						}
 						lexer::Token::CloseTag(_) if !parser.escape => parser.merge_or()?,
 						lexer::Token::Escape(_) if !parser.escape => { parser.escape = true },
 						_ => {
 							parser.escape = false;
-							let top_tag_body = parser.get_top_tag_children_mut()?;					
+							let top_tag_body = parser.get_top_tag_children_mut()?;
 							match top_tag_body.last_mut() {
 								None => match token {
 									lexer::Token::Space(_) | lexer::Token::Newline(_) | Token::Indent(_) => continue,
@@ -492,11 +471,11 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenSc
 						lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
 						lexer::Token::Word(name) | lexer::Token::MacroName(name) => {
 							parser.set_top_tag_name(name.clone())?;
-							parser.change_state_to(States::ExpectArgNameOrBody)?;
+							parser.change_state_to(States::ExpectArgNameOrBody);
 						}
 						_ => {
 							recovered_errors.push(KismesisError::ExpectedMacroName.state(&token_scanner));
-							parser.change_state_to(States::ExpectArgNameOrBody)?;
+							parser.change_state_to(States::ExpectArgNameOrBody);
 						}
 					}
 				}
@@ -505,13 +484,24 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenSc
 						lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
 						lexer::Token::Word(name) => {
 							parser.current_arg.name = name.clone();
-							parser.change_state_to(States::ExpectEquals(AfterEquals::Arg))?;
+							parser.change_state_to(States::ExpectEquals(AfterEquals::Arg));
 						}
 						lexer::Token::Bar(_) | lexer::Token::Newline(_) => {
-							parser.change_state_to(States::ExpectBody)?;
+							parser.change_state_to(States::ExpectBody);
 						}
 						lexer::Token::CloseTag(_) => parser.merge_or()?,
 						_ => return Err(KismesisError::ExpectedMacroBodyOrArg),
+					}
+				},
+				States::ExpectVariable(ref prev) => {
+					let lexer::Token::Word(name) = token else { return Err(KismesisError::ExpectedVariableName) };
+					match *prev.to_owned() {
+						States::ExpectBody => {
+							let top_tag = parser.get_top_tag_children_mut()?;
+							top_tag.push(BodyElems::ValueTag(name.clone()));
+							parser.change_state_to(States::ExpectBody);
+						}
+						_ => return Err(UnrecoverableError::VariableInWrongPlace.into()),
 					}
 				}
 			}
@@ -523,14 +513,24 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, (TokenSc
 	match iterate() {
 		Ok(x) => {
 			if !recovered_errors.is_empty() {
-				Err((token_scanner, None, recovered_errors))
+				let report = CompilerErrorReport {
+					scanner: token_scanner,
+					unresolved: None,
+					resolved: recovered_errors,
+				};
+				Err(report)
 			} else {
 				Ok(x)
 			}
  		},
 		Err(x) => {
 			let final_err = x.state(&token_scanner);
-			Err((token_scanner, Some(final_err), recovered_errors))
+			let report = CompilerErrorReport {
+				scanner: token_scanner,
+				unresolved: final_err.into(),
+				resolved: recovered_errors,
+			};
+			Err(report)
 		}
 	}
 }

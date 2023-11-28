@@ -17,7 +17,7 @@ fn generate() {
 		Ok(input_text) => {
 			println!("{}", match kiss::kiss_to_html(&input_text){
 				Ok(x) => x,
-				Err((scanner, unrecoverable, recovered)) => report_error(scanner, unrecoverable, recovered),
+				Err(error_report) => report_error(error_report.scanner, error_report.unresolved, error_report.resolved),
 			});
 		}
 		_ => {

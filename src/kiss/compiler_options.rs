@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct CompilerOptions {
 	pub inline: Vec<String>,
 	pub only_closer: Vec<String>,
@@ -7,6 +8,7 @@ pub struct CompilerOptions {
 	pub lambda_macros: Vec<String>,
 }
 
+#[derive(Debug)]
 pub enum OutputQuotePreference {
 	Default,
 	ReverseDefault,
@@ -15,6 +17,7 @@ pub enum OutputQuotePreference {
 	Shorter(QuotePreferences),
 }
 
+#[derive(Debug)]
 pub enum QuotePreferences {
 	Single,
 	Double,

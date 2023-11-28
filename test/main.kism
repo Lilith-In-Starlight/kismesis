@@ -2,8 +2,8 @@
 	<head>
 	<body
 		<h1 class="uwu" | things><br>
-		<uwu!>
+		<uwu! var1="owo">
 	>
 >
 
-<macro uwu | <h1 | test>>
+<macro uwu var1="asvas" | <h1 | #var1>>
