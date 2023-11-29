@@ -1,6 +1,4 @@
-use crate::errors::UnrecoverableError;
-
-use super::errors::TagStackError;
+use crate::{errors::UnrecoverableError, kiss::parser::TokenScanner};
 
 #[derive(Debug)]
 pub enum BodyElems {
@@ -8,45 +6,55 @@ pub enum BodyElems {
 		name: String,
 		params: Vec<Param>,
 		children: Vec<BodyElems>,
+		line: usize,
+		pos_in_line: usize,
 	},
 	MacroCall {
 		name: String,
 		args: Vec<MacroArg>,
 		children: Vec<BodyElems>,
+		line: usize,
+		pos_in_line: usize,
 	},
 	MacroDef {
 		name: String,
 		args: Vec<MacroArg>,
 		children: Vec<BodyElems>,
+		line: usize,
+		pos_in_line: usize,
 	},
 	String(String),
-	ValueTag(String),
+	ValueTag {
+		name: String,
+		line: usize,
+		pos_in_line: usize,
+	},
 }
 
 impl BodyElems {
-	pub fn new_content_tag() -> Self {
-		Self::ContentTag { name: String::new(), params: vec![], children: vec![] }
+	pub fn new_content_tag(scanner: &TokenScanner) -> Self {
+		Self::ContentTag { name: String::new(), params: vec![], children: vec![] , line: scanner.current_line, pos_in_line: scanner.token_in_line}
 	}
 
-	pub fn new_macro_def() -> Self {
-		Self::MacroDef { name: String::new(), args: vec![], children: vec![] }
+	pub fn new_macro_def(scanner: &TokenScanner) -> Self {
+		Self::MacroDef { name: String::new(), args: vec![], children: vec![], line: scanner.current_line, pos_in_line: scanner.token_in_line }
 	}
 
-	pub fn new_macro_call() -> Self {
-		Self::MacroCall { name: String::new(), args: vec![], children: vec![] }
+	pub fn new_macro_call(scanner: &TokenScanner) -> Self {
+		Self::MacroCall { name: String::new(), args: vec![], children: vec![], line: scanner.current_line, pos_in_line: scanner.token_in_line }
 	}
 
 	pub fn get_name_mut(&mut self) -> Option<&mut String> {
 		match self {
 			Self::ContentTag { name, .. } | Self::MacroCall { name, .. } | Self::MacroDef { name, .. } => Some(name),
-			Self::ValueTag(_) | Self::String(_) => None,
+			Self::ValueTag {..} | Self::String(_) => None,
 		}
 	}
 
 	pub fn get_name(&self) -> Option<&String> {
 		match self {
 			Self::ContentTag { name, .. } | Self::MacroCall { name, .. } | Self::MacroDef {name, ..} => Some(name),
-			Self::ValueTag(_) | Self::String(_) => None,
+			Self::ValueTag {..} | Self::String(_) => None,
 		}
 	}
 

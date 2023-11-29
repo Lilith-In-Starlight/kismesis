@@ -6,6 +6,8 @@ use crate::errors::KismesisError;
 
 use self::errors::TagStackError;
 
+use super::TokenScanner;
+
 #[derive(Debug)]
 pub struct TagStack {
 	pub content: Vec<BodyElems>,
@@ -15,11 +17,11 @@ impl TagStack {
 	pub fn new() -> Self {
 		Self { content: vec![] }
 	}
-	pub fn add_new_content_tag(&mut self) { self.content.push(BodyElems::new_content_tag()) }
-	pub fn add_new_macro_call(&mut self) { self.content.push(BodyElems::new_macro_call()) }
-	pub fn add_new_macro_def(&mut self) -> Result<(), KismesisError> {
+	pub fn add_new_content_tag(&mut self, scanner: &TokenScanner) { self.content.push(BodyElems::new_content_tag(scanner)) }
+	pub fn add_new_macro_call(&mut self, scanner: &TokenScanner) { self.content.push(BodyElems::new_macro_call(scanner)) }
+	pub fn add_new_macro_def(&mut self, scanner: &TokenScanner) -> Result<(), KismesisError> {
 		if self.content.is_empty() {
-			self.content.push(BodyElems::new_macro_def());
+			self.content.push(BodyElems::new_macro_def(scanner));
 			Ok(())
 		} else {
 			Err(KismesisError::TriedMacroDefInTag)

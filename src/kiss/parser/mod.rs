@@ -121,9 +121,9 @@ impl Parser {
 		}
 	}
 
-	fn add_new_content_tag(&mut self) { self.tag_stack.add_new_content_tag() }
-	fn add_new_macro_call(&mut self) { self.tag_stack.add_new_macro_call() }
-	fn add_new_macro_def(&mut self) -> Result<(), KismesisError> { Ok(self.tag_stack.add_new_macro_def()?) }
+	fn add_new_content_tag(&mut self, scanner: &TokenScanner) { self.tag_stack.add_new_content_tag(scanner) }
+	fn add_new_macro_call(&mut self, scanner: &TokenScanner) { self.tag_stack.add_new_macro_call(scanner) }
+	fn add_new_macro_def(&mut self, scanner: &TokenScanner) -> Result<(), KismesisError> { Ok(self.tag_stack.add_new_macro_def(scanner)?) }
 
 	fn set_top_tag_name(&mut self, to: String) -> Result<(), UnrecoverableError> {
 		match self.tag_stack.last_mut() {
@@ -274,7 +274,7 @@ impl TokenScanner {
 	}
 }
 
-pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, CompilerErrorReport<KismesisError>> {
+pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, ParsedFile), CompilerErrorReport<KismesisError>> {
 	let tokens = lexer::tokenize(&s.replace('\r', ""));
 
 	let mut parser = Parser::new();
@@ -301,17 +301,23 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, Compiler
 					match token {
 						lexer::Token::Word(word) => {
 							if word == "macro" {
-								parser.add_new_macro_def()?;
+								parser.add_new_macro_def(&token_scanner)?;
 								parser.change_state_to(States::ExpectMacroName);
 							} else {
-								parser.add_new_content_tag();
-								parser.set_top_tag_name(word.clone())?;
+								let clone_word = word.clone();
+								if options.is_deprecated(&clone_word) {
+									recovered_errors.push(KismesisError::UseOfDeprecatedTag.state(&token_scanner));
+								}
+								parser.add_new_content_tag(&token_scanner);
+								parser.set_top_tag_name(clone_word)?;
 								parser.change_state_to(States::ExpectParamName);
 							}
 						},
 						lexer::Token::MacroName(word) => {
-							parser.add_new_macro_call();
-							parser.set_top_tag_name(word.trim_end_matches('!').to_string())?;
+							let clone_word = word.clone();
+							let clone_word = clone_word.trim_end_matches('!');
+							parser.add_new_macro_call(&token_scanner);
+							parser.set_top_tag_name(clone_word.to_string())?;
 							parser.change_state_to(States::ExpectArgNameOrBody);
 						},
 						_ => {
@@ -498,7 +504,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, Compiler
 					match *prev.to_owned() {
 						States::ExpectBody => {
 							let top_tag = parser.get_top_tag_children_mut()?;
-							top_tag.push(BodyElems::ValueTag(name.clone()));
+							top_tag.push(BodyElems::ValueTag {name: name.clone(), line: token_scanner.current_line, pos_in_line: token_scanner.token_in_line});
 							parser.change_state_to(States::ExpectBody);
 						}
 						_ => return Err(UnrecoverableError::VariableInWrongPlace.into()),
@@ -507,7 +513,6 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, Compiler
 			}
 			token_idx += 1;
 		}
-		println!("{:#?}", parser.file.macros);
 		Ok(parser.file)
 	};
 	match iterate() {
@@ -520,7 +525,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<ParsedFile, Compiler
 				};
 				Err(report)
 			} else {
-				Ok(x)
+				Ok((token_scanner, x))
 			}
  		},
 		Err(x) => {

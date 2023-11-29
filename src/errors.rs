@@ -19,6 +19,10 @@ pub enum KismesisError {
 	TriedMacroDefInTag,
 	ExpectedVariableName,
 	UseOfUndefinedVariable,
+	UndefinedMacroVariables(Vec<String>),
+	UnsetMacroVariable(String),
+	UseOfDeprecatedTag,
+	NoContentArg,
 }
 
 #[derive(Debug)]
@@ -48,11 +52,12 @@ impl From<UnrecoverableError> for HtmlGenerationError {
 	}
 }
 
+#[derive(Debug)]
 pub struct ErrorState<T: Error> {
-	error: T,
-	position: usize,
-	line_position: usize,
-	line: usize,
+	pub error: T,
+	pub line_position: usize,
+	pub line: usize,
+	pub sub_errors: Option<Vec<ErrorState<T>>>,
 }
 
 pub trait Error {
@@ -107,18 +112,25 @@ impl Error for KismesisError {
 			Self::TriedMacroDefInTag => "Body tags cannot have macro definitions".into(),
 			Self::ExpectedVariableName => "Expected a variable name here".into(),
 			Self::UseOfUndefinedVariable => "Tried to use an undefined variable".into(),
+			Self::UndefinedMacroVariables(val) => match val.len() {
+				1 => format!("The argument {} has no default value", display_string_list(&val)),
+				_ => format!("The arguments {} have no default value", display_string_list(&val)),
+			},
+			Self::UnsetMacroVariable(val) => format!("{} has no default value and is unset", val),
+			Self::UseOfDeprecatedTag => "This tag is deprecated".into(),
+			Self::NoContentArg => "This macro has content, but its definition has no content argument".into(),
 		}
 	}
 }
 
 impl KismesisError {
 	pub fn state(self, scanner: &TokenScanner) -> ErrorState<KismesisError> {
-		ErrorState { error: self, position: scanner.get_position(), line_position: scanner.get_position_in_line(), line: scanner.get_current_line_number() }
+		ErrorState { error: self, line_position: scanner.get_position_in_line(), line: scanner.get_current_line_number(), sub_errors: None }
 	}
 }
 
-impl UnrecoverableError {
-	pub fn get_error_text(&self) -> String {
+impl Error for UnrecoverableError {
+	fn get_error_text(&self) -> String {
 		match self {
 			Self::ImpossibleEmpty => "Tag stack was unexpectedly empty".into(),
 			Self::UndefinedStateTransition {from, to} => format!("Parser transitioned from state {:?} to {:?}, which has not been manually allowed", from, to),
@@ -133,6 +145,22 @@ impl UnrecoverableError {
 			Self::CannotMakeIntoScope => "Tried to create a scope out of something that cannot create one".into(),
 		}
 	}
+}
+
+pub fn display_string_list(l: &Vec<String>) -> String{
+	let mut out = String::new();
+	let mut idx = 0;
+	for i in l.iter() {
+		if idx == l.len() - 1 && l.len() != 1 {
+			out.push_str("and ");
+		}
+		out.push_str(i);
+		if idx < l.len() - 1 {
+			out.push_str(", ");
+		}
+		idx += 1;
+	}
+	out
 }
 
 
@@ -161,8 +189,15 @@ pub fn report_error(token_scanner: TokenScanner, unrecoverable_error: Option<Err
 	let mut output = String::from("Couldn't compile due to the following errors:\n");
 	for error in recovered_errors {
 		output.push_str(&format!(" At line {} ", error.line).on_red().black().to_string());
-		output.push('\n');
+ 		output.push('\n');
 		output.push_str(&error.report(&token_scanner));
+		match error.error {
+			HtmlGenerationError::UnrecoverableError(_) => {
+				output.push_str("The previous error was caused due to an internal issue with the Kismesis Compiler");
+				output.push_str("Please report this issue");
+			}
+			HtmlGenerationError::KismesisError(_) => (),
+		}
 		output.push('\n');
 		output.push('\n');
 	}
@@ -183,7 +218,7 @@ pub fn turn_to_chars(s: &String, c: char) -> String {
 	for k in s.chars() {
 		match k {
 			'\t' => {
-				out.push('\t');
+				for _ in 0..4 { out.push(c) }
 			},
 			_ => out.push(c),
 		}
@@ -208,7 +243,7 @@ pub fn report_line(line: &[lexer::Token], line_number: usize, max_line_number: u
 		} else { 
 			match error_char {
 				Some((n, _)) if n == cidx => output.push_str(&token.get_as_string().red().to_string()),
-				_ => output.push_str(&token.get_as_string()),
+				_ => output.push_str(&token.get_as_string().replace("\t", "    ")),
 			}
 		}
 		if let Some((idx, message)) = error_char {
@@ -264,9 +299,9 @@ impl From<ErrorState<KismesisError>> for ErrorState<HtmlGenerationError> {
 	fn from (val:ErrorState<KismesisError>) -> ErrorState<HtmlGenerationError> {
 		ErrorState {
 			error: val.error.into(),
-			position: val.position,
 			line_position: val.line_position,
 			line: val.line,
+			sub_errors: val.sub_errors.map(|x| x.into_iter().map(|x| x.into()).collect()),
 		}
 	}
 }
