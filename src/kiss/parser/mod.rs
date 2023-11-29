@@ -274,7 +274,7 @@ impl TokenScanner {
 	}
 }
 
-pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, ParsedFile), CompilerErrorReport<KismesisError>> {
+pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, ParsedFile, Option<Vec<ErrorState<KismesisError>>>), (TokenScanner, Vec<ErrorState<KismesisError>>, ErrorState<KismesisError>)> {
 	let tokens = lexer::tokenize(&s.replace('\r', ""));
 
 	let mut parser = Parser::new();
@@ -518,24 +518,14 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 	match iterate() {
 		Ok(x) => {
 			if !recovered_errors.is_empty() {
-				let report = CompilerErrorReport {
-					scanner: token_scanner,
-					unresolved: None,
-					resolved: recovered_errors,
-				};
-				Err(report)
+				Ok((token_scanner, x, Some(recovered_errors)))
 			} else {
-				Ok((token_scanner, x))
+				Ok((token_scanner, x, None))
 			}
  		},
 		Err(x) => {
 			let final_err = x.state(&token_scanner);
-			let report = CompilerErrorReport {
-				scanner: token_scanner,
-				unresolved: final_err.into(),
-				resolved: recovered_errors,
-			};
-			Err(report)
+			Err((token_scanner, recovered_errors, final_err))
 		}
 	}
 }

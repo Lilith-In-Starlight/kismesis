@@ -305,3 +305,18 @@ impl From<ErrorState<KismesisError>> for ErrorState<HtmlGenerationError> {
 		}
 	}
 }
+
+pub trait SpecialFrom<F: Error, T: Error> {
+	fn from(self) -> ErrorState<T>;
+}
+
+impl<F: Error, T: Error + From<F>> SpecialFrom<F, T> for ErrorState<F> {
+	fn from(self) -> ErrorState<T> {
+		ErrorState {
+			error: self.error.into(),
+			line_position: self.line_position,
+			line: self.line,
+			sub_errors: self.sub_errors.map(|x| x.into_iter().map(|x| x.from()).collect()),
+		}
+	}
+}

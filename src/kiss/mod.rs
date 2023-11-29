@@ -4,17 +4,26 @@ pub(crate) mod lexer;
 
 use std::collections::HashMap;
 
-use crate::errors::{UnrecoverableError, KismesisError, HtmlGenerationError, CompilerErrorReport, ErrorState};
+use crate::errors::{UnrecoverableError, KismesisError, HtmlGenerationError, CompilerErrorReport, ErrorState, SpecialFrom};
 use compiler_options::CompilerOptions;
 
 use self::parser::{tag_stack::elements::{BodyElems, Param}, MacroArray};
 
 pub fn kiss_to_html(s: &str) -> Result<String, CompilerErrorReport<HtmlGenerationError>> {
-	let (token_scanner, parsed_file) = parser::get_ast(s, CompilerOptions::default())?;
+	let (token_scanner, parsed_file, errors) = match parser::get_ast(s, CompilerOptions::default()) {
+		Ok(x) => x,
+		Err((scanner, recovered, unrecovered)) => return Err(CompilerErrorReport {
+			scanner: scanner,
+			unresolved: Some(unrecovered.from()),
+			resolved: recovered.into_iter().map(|x| x.from()).collect(),
+		}),
+	};
 	let mut output = String::new();
+	let mut errors = match errors {
+		Some(x) => x.into_iter().map(|x|x.from()).collect(),
+		None => Vec::new(),
+	};
 
-	let mut errors: Vec<ErrorState<HtmlGenerationError>> = Vec::new();
- 
 	for node in parsed_file.body.iter() {
 		let state = HtmlCreationState {
 			macros: &parsed_file.macros,
