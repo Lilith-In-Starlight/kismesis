@@ -4,7 +4,7 @@ pub(crate) mod lexer;
 
 use std::collections::HashMap;
 
-use crate::errors::{UnrecoverableError, KismesisError, HtmlGenerationError, CompilerErrorReport, ErrorState, SpecialFrom};
+use crate::errors::{ImplementationError, ParsingError, HtmlGenerationError, CompilerErrorReport, ErrorState, SpecialFrom};
 use compiler_options::CompilerOptions;
 
 use self::parser::{tag_stack::elements::{Param, ContentTag, Macro, ContentChild, Variable}, MacroArray};
@@ -87,7 +87,7 @@ fn variable_to_html(valtag: &Variable, state: &HtmlCreationState) -> ParserVecRe
 				return Ok((output, vec![]));
 			} else {
 				return Err(vec![ErrorState {
-					error: KismesisError::UnsetMacroVariable(valtag.name.clone()).into(),
+					error: ParsingError::UnsetMacroVariable(valtag.name.clone()).into(),
 					line: valtag.line,
 					line_position: valtag.pos_in_line,
 					sub_errors: None,
@@ -96,7 +96,7 @@ fn variable_to_html(valtag: &Variable, state: &HtmlCreationState) -> ParserVecRe
 		}
 	}
 	Err(vec![ErrorState {
-		error: KismesisError::UseOfUndefinedVariable.into(),
+		error: ParsingError::UseOfUndefinedVariable.into(),
 		line_position: valtag.pos_in_line,
 		line: valtag.line,
 		sub_errors: None
@@ -144,7 +144,7 @@ fn macro_call_to_html(call: &Macro, state: &HtmlCreationState) -> ParserVecResul
 		}
 		maccall_scope.insert("kisscontent".to_string(), Some(content_arg));
 	} else if !macro_template.children.is_empty() {
-		errors.push(ErrorState { error: KismesisError::CallBodyNotDeclared.into(), line_position: call.pos_in_line, line: call.line, sub_errors: None })
+		errors.push(ErrorState { error: ParsingError::CallBodyNotDeclared.into(), line_position: call.pos_in_line, line: call.line, sub_errors: None })
 	}
 
 	let mut undefined_macro_args: Vec<String> = Vec::new();
@@ -163,14 +163,14 @@ fn macro_call_to_html(call: &Macro, state: &HtmlCreationState) -> ParserVecResul
 		};
 		for err in result_errors {
 			match &err.error {
-				HtmlGenerationError::KismesisError(KismesisError::UnsetMacroVariable(x)) => undefined_macro_args.push(x.clone()),
+				HtmlGenerationError::KismesisError(ParsingError::UnsetMacroVariable(x)) => undefined_macro_args.push(x.clone()),
 				_ => errors.push(err),
 			}
 		}
 	}
 
 	if !undefined_macro_args.is_empty() {
-		errors.push(ErrorState { error: KismesisError::UndefinedMacroVariables(undefined_macro_args).into(), line_position: call.pos_in_line, line: call.line, sub_errors: None });
+		errors.push(ErrorState { error: ParsingError::UndefinedMacroVariables(undefined_macro_args).into(), line_position: call.pos_in_line, line: call.line, sub_errors: None });
 	}
 	Ok((output, errors))
 }
@@ -228,7 +228,7 @@ fn content_tag_to_html(tag: &ContentTag, state: &HtmlCreationState) -> ParserVec
 	Ok((output, errors))
 }
 
-fn create_scope_from(elem: &Macro) -> Result<HashMap<String, Option<String>>, UnrecoverableError> {
+fn create_scope_from(elem: &Macro) -> Result<HashMap<String, Option<String>>, ImplementationError> {
 	let mut new_scope: HashMap<String, Option<String>> = HashMap::new();
 	for arg in elem.args.iter() {
 		new_scope.insert(arg.name.clone(), arg.value.clone());

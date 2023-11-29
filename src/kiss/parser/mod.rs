@@ -3,7 +3,7 @@ pub(crate) mod tag_stack;
 use std::sync::Arc;
 
 use crate::kiss::parser::lexer::Token;
-use crate::errors::{KismesisError, UnrecoverableError, ErrorState};
+use crate::errors::{ParsingError, ImplementationError, ErrorState};
 
 use self::tag_stack::elements::{Param, Tag, Constant, MacroArg, Macro, OnlyTags, ContentChild, Variable};
 
@@ -113,11 +113,11 @@ impl Parser {
 
 	fn add_new_content_tag(&mut self, scanner: &TokenScanner) { self.tag_stack.new_content_tag(scanner) }
 	fn add_new_macro_call(&mut self, scanner: &TokenScanner) { self.tag_stack.new_macro_call(scanner) }
-	fn add_new_macro_def(&mut self, scanner: &TokenScanner) -> Result<(), KismesisError> { self.tag_stack.new_macro_def(scanner) }
+	fn add_new_macro_def(&mut self, scanner: &TokenScanner) -> Result<(), ParsingError> { self.tag_stack.new_macro_def(scanner) }
 
-	fn set_top_tag_name(&mut self, to: String) -> Result<(), UnrecoverableError> {
+	fn set_top_tag_name(&mut self, to: String) -> Result<(), ImplementationError> {
 		match self.tag_stack.last_mut() {
-			None => return Err(UnrecoverableError::ImpossibleEmpty),
+			None => return Err(ImplementationError::ImpossibleEmpty),
 			Some(x) => x.set_name(&to),
 		}
 		Ok(())
@@ -128,7 +128,7 @@ impl Parser {
 		self.state = to;
 	}
 
-	fn merge_or(&mut self) -> Result<(), KismesisError> {
+	fn merge_or(&mut self) -> Result<(), ParsingError> {
 		let Err(e) = self.tag_stack.merge() else { return Ok(()) };
 		match e {
 			TagStackError::HadOneTag => match self.tag_stack.pop() {
@@ -146,34 +146,34 @@ impl Parser {
 						}
 					}
 				},
-				None => Err(KismesisError::ClosedTooManyTags),
+				None => Err(ParsingError::ClosedTooManyTags),
 			}
 			x => Err(x.into()),
 		}
 	}
 
-	fn finish_current_param(&mut self) -> Result<(), UnrecoverableError> {
-		let Some(top_tag) = self.tag_stack.last_mut() else { return Err(UnrecoverableError::ImpossibleEmpty) };
+	fn finish_current_param(&mut self) -> Result<(), ImplementationError> {
+		let Some(top_tag) = self.tag_stack.last_mut() else { return Err(ImplementationError::ImpossibleEmpty) };
 		match top_tag {
-			Tag::MacroCall(_) | Tag::MacroDef(_) => return Err(UnrecoverableError::AddedParamToMacro),
+			Tag::MacroCall(_) | Tag::MacroDef(_) => return Err(ImplementationError::AddedParamToMacro),
 			Tag::ContentTag(c) => c.add_param(self.current_param.clone()),
 		}
 		self.current_param = Param::new();
 		Ok(())
 	}
 
-	fn finish_current_arg(&mut self) -> Result<(), UnrecoverableError> {
-		let Some(top_tag) = self.tag_stack.last_mut() else { return Err(UnrecoverableError::ImpossibleEmpty) };
+	fn finish_current_arg(&mut self) -> Result<(), ImplementationError> {
+		let Some(top_tag) = self.tag_stack.last_mut() else { return Err(ImplementationError::ImpossibleEmpty) };
 		match top_tag {
 			Tag::MacroCall(m) | Tag::MacroDef(m) => m.add_arg(self.current_arg.clone()),
-			Tag::ContentTag(_) => return Err(UnrecoverableError::AddedArgToTag),
+			Tag::ContentTag(_) => return Err(ImplementationError::AddedArgToTag),
 		}
 		self.current_arg = MacroArg::new();
 		Ok(())
 	}
 
-	fn get_top_tag_children_mut(&mut self) -> Result<&mut Vec<ContentChild>, UnrecoverableError> {
-		let Some(top_tag) = self.tag_stack.last_mut() else { return Err(UnrecoverableError::ImpossibleEmpty) };
+	fn get_top_tag_children_mut(&mut self) -> Result<&mut Vec<ContentChild>, ImplementationError> {
+		let Some(top_tag) = self.tag_stack.last_mut() else { return Err(ImplementationError::ImpossibleEmpty) };
 		Ok(top_tag.get_children_mut())
 	}
 
@@ -257,14 +257,14 @@ impl TokenScanner {
 	}
 }
 
-pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, ParsedFile, Option<Vec<ErrorState<KismesisError>>>), (TokenScanner, Vec<ErrorState<KismesisError>>, ErrorState<KismesisError>)> {
+pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, ParsedFile, Option<Vec<ErrorState<ParsingError>>>), (TokenScanner, Vec<ErrorState<ParsingError>>, ErrorState<ParsingError>)> {
 	let tokens = lexer::tokenize(&s.replace('\r', ""));
 
 	let mut parser = Parser::new();
 	let mut token_idx: usize = 0;
 	let mut token_scanner = TokenScanner::new(tokens);
-	let mut recovered_errors: Vec<ErrorState<KismesisError>> = Vec::new();
-	let iterate = | | -> Result<ParsedFile, KismesisError> {
+	let mut recovered_errors: Vec<ErrorState<ParsingError>> = Vec::new();
+	let iterate = | | -> Result<ParsedFile, ParsingError> {
 		while let Some(token) = token_scanner.next() {
 			match parser.state {
 				States::ExpectAnyOpener => {
@@ -273,8 +273,8 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 							parser.change_state_to(States::ExpectTagName);
 						},
 						lexer::Token::Space(_) | lexer::Token::Newline(_) | lexer::Token::Indent(_) => continue,
-						lexer::Token::CloseTag(_) => recovered_errors.push(KismesisError::ClosedTooManyTags.state(&token_scanner)),
-						_ => recovered_errors.push(KismesisError::ExpectedAnyOpener.state(&token_scanner)),
+						lexer::Token::CloseTag(_) => recovered_errors.push(ParsingError::ClosedTooManyTags.state(&token_scanner)),
+						_ => recovered_errors.push(ParsingError::ExpectedAnyOpener.state(&token_scanner)),
 					}
 				}
 				States::ExpectTagName => {
@@ -286,7 +286,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 							} else {
 								let clone_word = word.clone();
 								if options.is_deprecated(&clone_word) {
-									recovered_errors.push(KismesisError::UseOfDeprecatedTag.state(&token_scanner));
+									recovered_errors.push(ParsingError::UseOfDeprecatedTag.state(&token_scanner));
 								}
 								parser.add_new_content_tag(&token_scanner);
 								parser.set_top_tag_name(clone_word)?;
@@ -301,7 +301,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 							parser.change_state_to(States::ExpectArgNameOrBody);
 						},
 						_ => {
-							recovered_errors.push(KismesisError::ExpectedTagName.state(&token_scanner));
+							recovered_errors.push(ParsingError::ExpectedTagName.state(&token_scanner));
 							parser.change_state_to(States::ExpectParamName);
 						},
 					}
@@ -312,17 +312,17 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 							parser.change_state_to(States::ExpectBody)
 						},
 						lexer::Token::Word(name) => {
-							let Some(top_tag_name) = parser.get_top_tag_name() else { return Err(KismesisError::UnrecoverableError(UnrecoverableError::ImpossibleEmpty)) };
+							let Some(top_tag_name) = parser.get_top_tag_name() else { return Err(ParsingError::UnrecoverableError(ImplementationError::ImpossibleEmpty)) };
 							if options.is_parametric(top_tag_name) {
 								parser.current_param.name = name.clone();
 							} else {
-								recovered_errors.push(KismesisError::ParametersNotAllowed.state(&token_scanner));
+								recovered_errors.push(ParsingError::ParametersNotAllowed.state(&token_scanner));
 							}
 							parser.change_state_to(States::ExpectEquals(AfterEquals::Param));
 						},
 						lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
 						lexer::Token::CloseTag(_) => parser.merge_or()?,
-						_ => return Err(KismesisError::ExpectedTagBodyOrParam)
+						_ => return Err(ParsingError::ExpectedTagBodyOrParam)
 					}
 				}
 				States::ExpectEquals(ref what) => {
@@ -330,7 +330,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 						AfterEquals::Param => match token {
 							lexer::Token::Equals(_) => parser.change_state_to(States::ExpectParamValue(ParamValueType::Word, what.clone())),
 							lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
-							_ => return Err(KismesisError::ExpectedCharacter { character: '=' })
+							_ => return Err(ParsingError::ExpectedCharacter { character: '=' })
 						}
 						AfterEquals::Arg => match token {
 							lexer::Token::Newline(_) | lexer::Token::Bar(_) => {
@@ -347,7 +347,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 								parser.finish_current_arg()?;
 								parser.merge_or()?;
 							}
-							_ => return Err(KismesisError::ExpectedCharacter { character: '=' })
+							_ => return Err(ParsingError::ExpectedCharacter { character: '=' })
 						}
 					}
 				}
@@ -373,11 +373,11 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 								_ => {
 									match kind {
 										AfterEquals::Param => {
-											recovered_errors.push(KismesisError::ExpectedParameterValue.state(&token_scanner));
+											recovered_errors.push(ParsingError::ExpectedParameterValue.state(&token_scanner));
 											parser.change_state_to(States::ExpectParamName);
 										}
 										AfterEquals::Arg => {
-											recovered_errors.push(KismesisError::ExpectedArgValue.state(&token_scanner));
+											recovered_errors.push(ParsingError::ExpectedArgValue.state(&token_scanner));
 											parser.change_state_to(States::ExpectArgNameOrBody);
 										}
 									}
@@ -399,7 +399,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 										}
 									}
 								}
-								lexer::Token::Newline(_) => recovered_errors.push(KismesisError::NewlineInParameter.state(&token_scanner)),
+								lexer::Token::Newline(_) => recovered_errors.push(ParsingError::NewlineInParameter.state(&token_scanner)),
 								lexer::Token::Escape(_) if !parser.escape => parser.escape = true,
 								_ => {
 									match kind {
@@ -458,7 +458,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 							parser.change_state_to(States::ExpectArgNameOrBody);
 						}
 						_ => {
-							recovered_errors.push(KismesisError::ExpectedMacroName.state(&token_scanner));
+							recovered_errors.push(ParsingError::ExpectedMacroName.state(&token_scanner));
 							parser.change_state_to(States::ExpectArgNameOrBody);
 						}
 					}
@@ -474,11 +474,11 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 							parser.change_state_to(States::ExpectBody);
 						}
 						lexer::Token::CloseTag(_) => parser.merge_or()?,
-						_ => return Err(KismesisError::ExpectedMacroBodyOrArg),
+						_ => return Err(ParsingError::ExpectedMacroBodyOrArg),
 					}
 				},
 				States::ExpectVariable(ref prev) => {
-					let lexer::Token::Word(name) = token else { return Err(KismesisError::ExpectedVariableName) };
+					let lexer::Token::Word(name) = token else { return Err(ParsingError::ExpectedVariableName) };
 					match *prev.to_owned() {
 						States::ExpectBody => {
 							let top_tag = parser.get_top_tag_children_mut()?;
@@ -489,8 +489,8 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 							}.into());
 							parser.change_state_to(States::ExpectBody);
 						}
-						States::ExpectParamValue(ref _wordicity, ref _kind) => return Err(UnrecoverableError::VariableInUnimplementedPlace.into()),
-						_ => return Err(UnrecoverableError::VariableInWrongPlace.into()),
+						States::ExpectParamValue(ref _wordicity, ref _kind) => return Err(ImplementationError::VariableInUnimplementedPlace.into()),
+						_ => return Err(ImplementationError::VariableInWrongPlace.into()),
 					}
 				}
 			}

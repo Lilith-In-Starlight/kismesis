@@ -2,7 +2,7 @@ pub(crate) mod elements;
 pub(crate) mod errors;
 use elements::{Tag, ContentTag};
 
-use crate::errors::KismesisError;
+use crate::errors::ParsingError;
 
 use self::{errors::TagStackError, elements::{Macro, ContentChildTag}};
 
@@ -29,12 +29,12 @@ impl TagStack {
 	pub fn new_macro_call(&mut self, scanner: &TokenScanner) {
 		self.push(Macro::new_call(scanner))
 	}
-	pub fn new_macro_def(&mut self, scanner: &TokenScanner) -> Result<(), KismesisError> {
+	pub fn new_macro_def(&mut self, scanner: &TokenScanner) -> Result<(), ParsingError> {
 		if self.content.is_empty() {
 			self.push(Macro::new_def(scanner));
 			Ok(())
 		} else {
-			Err(KismesisError::TriedMacroDefInTag)
+			Err(ParsingError::TriedMacroDefInTag)
 		}
 	}
 

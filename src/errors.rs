@@ -4,13 +4,13 @@ use crate::kiss::{parser::{States, TokenScanner}, lexer};
 use colored::*;
 
 #[derive(Debug)]
-pub enum KismesisError {
+pub enum ParsingError {
 	ClosedTooManyTags,
 	ExpectedTagName,
 	ExpectedCharacter { character: char },
 	ExpectedParameterValue,
 	ExpectedAnyOpener,
-	UnrecoverableError(UnrecoverableError),
+	UnrecoverableError(ImplementationError),
 	ParametersNotAllowed,
 	NewlineInParameter,
 	ExpectedTagBodyOrParam,
@@ -30,8 +30,8 @@ pub enum KismesisError {
 
 #[derive(Debug)]
 pub enum HtmlGenerationError {
-	UnrecoverableError(UnrecoverableError),
-	KismesisError(KismesisError),
+	UnrecoverableError(ImplementationError),
+	KismesisError(ParsingError),
 }
 
 impl Error for HtmlGenerationError {
@@ -43,14 +43,14 @@ impl Error for HtmlGenerationError {
     }
 }
 
-impl From<KismesisError> for HtmlGenerationError {
-	fn from(val: KismesisError) -> Self{
+impl From<ParsingError> for HtmlGenerationError {
+	fn from(val: ParsingError) -> Self{
 		Self::KismesisError(val)
 	}
 }
 
-impl From<UnrecoverableError> for HtmlGenerationError {
-	fn from(val: UnrecoverableError) -> Self {
+impl From<ImplementationError> for HtmlGenerationError {
+	fn from(val: ImplementationError) -> Self {
 		Self::UnrecoverableError(val)
 	}
 }
@@ -96,7 +96,7 @@ impl<T: Error> ErrorState<T> {
 	}
 }
 
-impl Error for KismesisError {
+impl Error for ParsingError {
 	fn get_error_text(&self) -> String {
 		match self {
 			Self::ClosedTooManyTags => "This > is unnecessary as there are no more tags to close".into(),
@@ -127,13 +127,13 @@ impl Error for KismesisError {
 	}
 }
 
-impl KismesisError {
-	pub fn state(self, scanner: &TokenScanner) -> ErrorState<KismesisError> {
+impl ParsingError {
+	pub fn state(self, scanner: &TokenScanner) -> ErrorState<ParsingError> {
 		ErrorState { error: self, line_position: scanner.get_position_in_line(), line: scanner.get_current_line_number(), sub_errors: None }
 	}
 }
 
-impl Error for UnrecoverableError {
+impl Error for ImplementationError {
 	fn get_error_text(&self) -> String {
 		match self {
 			Self::ImpossibleEmpty => "Tag stack was unexpectedly empty".into(),
@@ -168,7 +168,7 @@ pub fn display_string_list(l: &Vec<String>) -> String{
 
 
 #[derive(Debug)]
-pub enum UnrecoverableError {
+pub enum ImplementationError {
 	TagStackHadNonTag,
 	UndefinedStateTransition {from: States, to: States},
 	ImpossibleEmpty,
@@ -183,9 +183,9 @@ pub enum UnrecoverableError {
 	VariableInUnimplementedPlace,
 }
 
-impl From<UnrecoverableError> for KismesisError {
-	fn from(val: UnrecoverableError) -> KismesisError {
-		KismesisError::UnrecoverableError(val)
+impl From<ImplementationError> for ParsingError {
+	fn from(val: ImplementationError) -> ParsingError {
+		ParsingError::UnrecoverableError(val)
 	}
 }
 
@@ -289,23 +289,12 @@ pub struct CompilerErrorReport<T: Error> {
 	pub resolved: Vec<ErrorState<T>>
 }
 
-impl From<CompilerErrorReport<KismesisError>> for CompilerErrorReport<HtmlGenerationError> {
-	fn from(val: CompilerErrorReport<KismesisError>) -> CompilerErrorReport<HtmlGenerationError> {
+impl From<CompilerErrorReport<ParsingError>> for CompilerErrorReport<HtmlGenerationError> {
+	fn from(val: CompilerErrorReport<ParsingError>) -> CompilerErrorReport<HtmlGenerationError> {
 		CompilerErrorReport {
 			scanner: val.scanner,
-			unresolved: val.unresolved.map(|x| x.into()),
-			resolved: val.resolved.into_iter().map(|x| x.into()).collect(),
-		}
-	}
-}
-
-impl From<ErrorState<KismesisError>> for ErrorState<HtmlGenerationError> {
-	fn from (val:ErrorState<KismesisError>) -> ErrorState<HtmlGenerationError> {
-		ErrorState {
-			error: val.error.into(),
-			line_position: val.line_position,
-			line: val.line,
-			sub_errors: val.sub_errors.map(|x| x.into_iter().map(|x| x.into()).collect()),
+			unresolved: val.unresolved.map(|x| x.from()),
+			resolved: val.resolved.into_iter().map(|x| x.from()).collect(),
 		}
 	}
 }

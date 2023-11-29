@@ -1,4 +1,4 @@
-use crate::errors::{KismesisError, UnrecoverableError};
+use crate::errors::{ParsingError, ImplementationError};
 
 pub enum TagStackError {
 	WasEmpty,
@@ -7,13 +7,13 @@ pub enum TagStackError {
 	CantMergeFromMacroDef,
 }
 
-impl From<TagStackError> for KismesisError {
-	fn from(val: TagStackError) -> KismesisError {
+impl From<TagStackError> for ParsingError {
+	fn from(val: TagStackError) -> ParsingError {
 		match val {
-			TagStackError::WasEmpty => UnrecoverableError::ImpossibleEmpty.into(),
-			TagStackError::HadOneTag => UnrecoverableError::UnmetExpectancy.into(),
-			TagStackError::CantMergeFromMacroDef => KismesisError::TriedMacroDefMerge,
-			TagStackError::HadNonTag => UnrecoverableError::ImpossibleNotTag.into(),
+			TagStackError::WasEmpty => ImplementationError::ImpossibleEmpty.into(),
+			TagStackError::HadOneTag => ImplementationError::UnmetExpectancy.into(),
+			TagStackError::CantMergeFromMacroDef => ParsingError::TriedMacroDefMerge,
+			TagStackError::HadNonTag => ImplementationError::ImpossibleNotTag.into(),
 		}
 	}
 }
