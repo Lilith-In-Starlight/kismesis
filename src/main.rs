@@ -1,7 +1,6 @@
 use std::fs;
 
 use crate::errors::report_error;
-use colored;
 
 pub mod kiss;
 pub mod errors;

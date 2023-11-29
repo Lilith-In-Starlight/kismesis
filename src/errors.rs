@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::kiss::{parser::{States, TokenScanner}, lexer};
 use colored::*;
 
@@ -98,7 +100,7 @@ impl Error for KismesisError {
 		match self {
 			Self::ClosedTooManyTags => "This > is unnecessary as there are no more tags to close".into(),
 			Self::ExpectedTagName => "Expected a tag name here".into(),
-			Self::ExpectedCharacter { character } => format!("Expected a {} here", character).into(),
+			Self::ExpectedCharacter { character } => format!("Expected a {} here", character),
 			Self::ExpectedParameterValue => "Expected a parameter value here".into(),
 			Self::ExpectedAnyOpener => "Expected the start of a tag, a macro definition, or a variable declaration".into(),
 			Self::UnrecoverableError(err) => err.get_error_text(),
@@ -113,8 +115,8 @@ impl Error for KismesisError {
 			Self::ExpectedVariableName => "Expected a variable name here".into(),
 			Self::UseOfUndefinedVariable => "Tried to use an undefined variable".into(),
 			Self::UndefinedMacroVariables(val) => match val.len() {
-				1 => format!("The argument {} has no default value", display_string_list(&val)),
-				_ => format!("The arguments {} have no default value", display_string_list(&val)),
+				1 => format!("The argument {} has no default value", display_string_list(val)),
+				_ => format!("The arguments {} have no default value", display_string_list(val)),
 			},
 			Self::UnsetMacroVariable(val) => format!("{} has no default value and is unset", val),
 			Self::UseOfDeprecatedTag => "This tag is deprecated".into(),
@@ -149,8 +151,7 @@ impl Error for UnrecoverableError {
 
 pub fn display_string_list(l: &Vec<String>) -> String{
 	let mut out = String::new();
-	let mut idx = 0;
-	for i in l.iter() {
+	for (idx, i) in l.iter().enumerate() {
 		if idx == l.len() - 1 && l.len() != 1 {
 			out.push_str("and ");
 		}
@@ -158,7 +159,6 @@ pub fn display_string_list(l: &Vec<String>) -> String{
 		if idx < l.len() - 1 {
 			out.push_str(", ");
 		}
-		idx += 1;
 	}
 	out
 }
@@ -213,7 +213,7 @@ pub fn report_error(token_scanner: TokenScanner, unrecoverable_error: Option<Err
 }
 
 
-pub fn turn_to_chars(s: &String, c: char) -> String {
+pub fn turn_to_chars(s: &str, c: char) -> String {
 	let mut out = String::new();
 	for k in s.chars() {
 		match k {
@@ -233,8 +233,7 @@ pub fn report_line(line: &[lexer::Token], line_number: usize, max_line_number: u
 		None => output = output.bright_black().to_string(),
 		Some(_) => output = output.yellow().to_string(),
 	}
-	let mut cidx = 0;
-	for token in line.iter() {
+	for (cidx, token) in line.iter().enumerate() {
 		if let lexer::Token::Newline(_) = token {
 			match error_char {
 				Some((n, _)) if n == cidx => output.push_str(&"~".red().to_string()),
@@ -243,19 +242,20 @@ pub fn report_line(line: &[lexer::Token], line_number: usize, max_line_number: u
 		} else { 
 			match error_char {
 				Some((n, _)) if n == cidx => output.push_str(&token.get_as_string().red().to_string()),
-				_ => output.push_str(&token.get_as_string().replace("\t", "    ")),
+				_ => output.push_str(&token.get_as_string().replace('\t', "    ")),
 			}
 		}
 		if let Some((idx, message)) = error_char {
-			if cidx == idx {
-				error_decoration.push_str(&turn_to_chars(&token.get_as_string(), '^').yellow().to_string());
-				error_decoration.push(' ');
-				error_decoration.push_str(&message.yellow().to_string());
-			} else if cidx < idx {
-				error_decoration.push_str(&turn_to_chars(&token.get_as_string(), ' '));
+			match cidx.cmp(&idx) {
+				Ordering::Less => error_decoration.push_str(&turn_to_chars(&token.get_as_string(), ' ')),
+				Ordering::Equal => {
+					error_decoration.push_str(&turn_to_chars(&token.get_as_string(), '^').yellow().to_string());
+					error_decoration.push(' ');
+					error_decoration.push_str(&message.yellow().to_string());
+				},
+				_ => ()
 			}
 		}
-		cidx += 1;
 	}
 	match error_char {
 		None => (),
@@ -276,7 +276,7 @@ pub fn get_line_number(n: usize, mexn: usize) -> String {
 	}
 	out.push_str(&ns);
 	out.push_str(" | ");
-	return out
+	out
 }
 
 pub struct CompilerErrorReport<T: Error> {

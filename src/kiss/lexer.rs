@@ -26,7 +26,7 @@ impl Token {
 	pub fn get_as_string(&self) -> String {
 		match self {
 			Self::Word(word) | Self::MacroName(word) => word.clone(),
-			Self::OpenTag(c) | Self::CloseTag(c) | Self::Equals(c) | Self::Quote(c) | Self::OpenBracket(c) | Self::CloseBracket(c) | Self::Hashtag(c) | Self::Space(c) | Self::Newline(c) | Self::Indent(c) | Self::Bar(c) | Self::Escape(c) => c.clone().into(),
+			Self::OpenTag(c) | Self::CloseTag(c) | Self::Equals(c) | Self::Quote(c) | Self::OpenBracket(c) | Self::CloseBracket(c) | Self::Hashtag(c) | Self::Space(c) | Self::Newline(c) | Self::Indent(c) | Self::Bar(c) | Self::Escape(c) => (*c).into(),
 		}
 	}
 }

@@ -27,11 +27,11 @@ pub enum QuotePreferences {
 impl CompilerOptions {
 	pub fn default() -> Self{
 		Self {
-			inline: vec!["h1", "h2", "h3", "h4", "b"].into_iter().map(|x| String::from(x)).collect(),
-			only_closer: vec!["br"].into_iter().map(|x| String::from(x)).collect(),
-			only_opener: vec!["meta", "base", "img"].into_iter().map(|x| String::from(x)).collect(),
-			deprecated: vec!["marquee"].into_iter().map(|x| String::from(x)).collect(),
-			no_params: vec!["br"].into_iter().map(|x| String::from(x)).collect(),
+			inline: vec!["h1", "h2", "h3", "h4", "b"].into_iter().map(String::from).collect(),
+			only_closer: vec!["br"].into_iter().map(String::from).collect(),
+			only_opener: vec!["meta", "base", "img"].into_iter().map(String::from).collect(),
+			deprecated: vec!["marquee"].into_iter().map(String::from).collect(),
+			no_params: vec!["br"].into_iter().map(String::from).collect(),
 			quote_mode: OutputQuotePreference::Default,
 			lambda_macros: vec![],
 		}

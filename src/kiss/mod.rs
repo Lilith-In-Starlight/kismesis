@@ -13,7 +13,7 @@ pub fn kiss_to_html(s: &str) -> Result<String, CompilerErrorReport<HtmlGeneratio
 	let (token_scanner, parsed_file, errors) = match parser::get_ast(s, CompilerOptions::default()) {
 		Ok(x) => x,
 		Err((scanner, recovered, unrecovered)) => return Err(CompilerErrorReport {
-			scanner: scanner,
+			scanner,
 			unresolved: Some(unrecovered.from()),
 			resolved: recovered.into_iter().map(|x| x.from()).collect(),
 		}),
@@ -61,10 +61,10 @@ pub fn ast_to_html(el: &BodyElems, state: &HtmlCreationState) -> Result<(String,
 		BodyElems::ContentTag { name, params, children, .. } => {
 			for _ in 0..state.indent_level { output.push('\t') }
 			output.push('<');
-			if state.compiler_options.is_only_closer(&name) {
+			if state.compiler_options.is_only_closer(name) {
 				output.push_str("/ ");
 			}
-			output.push_str(&name);
+			output.push_str(name);
 
 			if !params.is_empty() {
 				output.push(' ');
@@ -74,12 +74,12 @@ pub fn ast_to_html(el: &BodyElems, state: &HtmlCreationState) -> Result<(String,
 			output.push('>');
 
 			// In case not having a body and being one sided ever stop being opposites
-			if state.compiler_options.is_one_sided(&name) && !state.compiler_options.has_body(&name) { return Ok((output, errors)) }
+			if state.compiler_options.is_one_sided(name) && !state.compiler_options.has_body(name) { return Ok((output, errors)) }
 			
-			if state.compiler_options.has_body(&name) {
+			if state.compiler_options.has_body(name) {
 				for child in children.iter() {
 					let mut new_state = state.clone();
-					if !state.compiler_options.is_inline(&name) {
+					if !state.compiler_options.is_inline(name) {
 						output.push('\n');
 						new_state.indent_level += 1;
 					}
@@ -94,14 +94,14 @@ pub fn ast_to_html(el: &BodyElems, state: &HtmlCreationState) -> Result<(String,
 				}
 			}
 
-			if state.compiler_options.is_one_sided(&name) { return Ok((output, errors)) }
+			if state.compiler_options.is_one_sided(name) { return Ok((output, errors)) }
 
-			if !children.is_empty() && !state.compiler_options.is_inline(&name) { 
-				if !state.compiler_options.is_inline(&name) { output.push('\n') }
+			if !children.is_empty() && !state.compiler_options.is_inline(name) { 
+				if !state.compiler_options.is_inline(name) { output.push('\n') }
 				for _ in 0..state.indent_level { output.push('\t') }
 			}
 			output.push_str("</");
-			output.push_str(&name);
+			output.push_str(name);
 			output.push('>');
 		},
 		BodyElems::String(s) => output.push_str(s),
@@ -118,7 +118,7 @@ pub fn ast_to_html(el: &BodyElems, state: &HtmlCreationState) -> Result<(String,
 			let macro_template = state.macros.get_content().iter().filter(|x| x.get_name() == Some(name)).last();
 			let Some(macro_template) = macro_template else { todo!("Create error display for undefined macros") };
 			
-			let mactemp_scope = match create_scope_from(&macro_template) {
+			let mactemp_scope = match create_scope_from(macro_template) {
 				Ok(x) => x,
 				Err(err) => return Err(vec![ErrorState {
 					error: err.into(),
@@ -127,7 +127,7 @@ pub fn ast_to_html(el: &BodyElems, state: &HtmlCreationState) -> Result<(String,
 					sub_errors: None,
 				}])
 			};
-			let mut maccall_scope = match create_scope_from(&el) {
+			let mut maccall_scope = match create_scope_from(el) {
 				Ok(x) => x,
 				Err(err) => return Err(vec![ErrorState {
 					error: err.into(),
@@ -224,7 +224,7 @@ fn create_scope_from(elem: &BodyElems) -> Result<HashMap<String, Option<String>>
 	Ok(new_scope)
 }
 
-fn get_param_string(params: &Vec<Param>) -> String {
+fn get_param_string(params: &[Param]) -> String {
 	let mut output = String::new();
 	for param in params.iter() {
 		output.push(' ');

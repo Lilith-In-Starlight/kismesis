@@ -3,7 +3,7 @@ pub(crate) mod tag_stack;
 use std::sync::Arc;
 
 use crate::kiss::parser::lexer::Token;
-use crate::errors::{KismesisError, UnrecoverableError, ErrorState, CompilerErrorReport};
+use crate::errors::{KismesisError, UnrecoverableError, ErrorState};
 
 use self::tag_stack::elements::{Param, BodyElems, Constant, MacroArg};
 
@@ -123,7 +123,7 @@ impl Parser {
 
 	fn add_new_content_tag(&mut self, scanner: &TokenScanner) { self.tag_stack.add_new_content_tag(scanner) }
 	fn add_new_macro_call(&mut self, scanner: &TokenScanner) { self.tag_stack.add_new_macro_call(scanner) }
-	fn add_new_macro_def(&mut self, scanner: &TokenScanner) -> Result<(), KismesisError> { Ok(self.tag_stack.add_new_macro_def(scanner)?) }
+	fn add_new_macro_def(&mut self, scanner: &TokenScanner) -> Result<(), KismesisError> { self.tag_stack.add_new_macro_def(scanner) }
 
 	fn set_top_tag_name(&mut self, to: String) -> Result<(), UnrecoverableError> {
 		match self.tag_stack.last_mut() {
@@ -162,12 +162,12 @@ impl Parser {
 							self.change_state_to(States::ExpectArgNameOrBody);
 							Ok(())
 						},
-						_ => return Err(KismesisError::UnrecoverableError(UnrecoverableError::TagStackHadNonTag)),
+						_ => Err(KismesisError::UnrecoverableError(UnrecoverableError::TagStackHadNonTag)),
 					}
 				},
-				None => return Err(KismesisError::ClosedTooManyTags),
+				None => Err(KismesisError::ClosedTooManyTags),
 			}
-			x => return Err(x.into()),
+			x => Err(x.into()),
 		}
 	}
 
@@ -244,13 +244,13 @@ impl TokenScanner {
 	}
 
 	pub fn get_position(&self) -> usize {
-		match self.position { None => 0, Some(x) => x }
+		self.position.unwrap_or(0)
 	}
 
 	pub fn get_position_in_line(&self) -> usize { self.token_in_line }
 
 	pub fn get_all_current_line(&self) -> Vec<(&Token, usize)> {
-		let mut position = match self.position {None=>0,Some(x)=>x};
+		let mut position = self.position.unwrap_or(0);
 		let mut output = Vec::new();
 		while let Some(token) = self.tokens.get(position) {
 			if position == 0 { break }
@@ -270,7 +270,7 @@ impl TokenScanner {
 		output
 	}
 	pub fn get_lines_slices(&self) -> Vec<&[lexer::Token]> {
-		self.tokens.split_inclusive(|x| if let lexer::Token::Newline(_) = x {true} else {false}).collect()
+		self.tokens.split_inclusive(|x| matches!(x, Token::Newline(_))).collect()
 	}
 }
 

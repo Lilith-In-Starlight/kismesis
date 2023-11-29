@@ -120,3 +120,15 @@ pub struct Constant {
 	pub name: String,
 	pub value: String,
 }
+
+impl Default for Param {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
+impl Default for MacroArg {
+	fn default() -> Self {
+		Self::new()
+	}
+}

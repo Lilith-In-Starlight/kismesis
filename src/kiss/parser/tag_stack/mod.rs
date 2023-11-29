@@ -64,22 +64,10 @@ impl TagStack {
 	}
 
 	pub fn is_top_tag(&self) -> bool {
-		match self.content.first() {
-			None => false,
-			Some(elem) => match elem {
-				BodyElems::ContentTag { .. } => true,
-				_ => false,
-			}
-		}
+		matches!(self.content.first(), Some(BodyElems::ContentTag {..}))
 	}
 	
 	pub fn is_top_macro(&self) -> bool {
-		match self.content.first() {
-			None => false,
-			Some(elem) => match elem {
-				BodyElems::ContentTag { .. } => true,
-				_ => false,
-			}
-		}
+		matches!(self.content.first(), Some(BodyElems::MacroDef {..}) | Some(BodyElems::MacroCall { .. }))
 	}
 }
