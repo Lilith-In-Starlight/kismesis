@@ -7,9 +7,13 @@ use std::collections::HashMap;
 use crate::errors::{UnrecoverableError, KismesisError, HtmlGenerationError, CompilerErrorReport, ErrorState, SpecialFrom};
 use compiler_options::CompilerOptions;
 
-use self::parser::{tag_stack::elements::{BodyElems, Param}, MacroArray};
+use self::parser::{tag_stack::elements::{Param, ContentTag, Macro, ContentChild, Variable}, MacroArray};
 
-pub fn kiss_to_html(s: &str) -> Result<String, CompilerErrorReport<HtmlGenerationError>> {
+type HtmlErrorVec = Vec<ErrorState<HtmlGenerationError>>;
+type ParserResult = Result<String, CompilerErrorReport<HtmlGenerationError>>;
+type ParserVecResult = Result<(String, HtmlErrorVec), HtmlErrorVec>;
+
+pub fn kiss_to_html(s: &str) -> ParserResult {
 	let (token_scanner, parsed_file, errors) = match parser::get_ast(s, CompilerOptions::default()) {
 		Ok(x) => x,
 		Err((scanner, recovered, unrecovered)) => return Err(CompilerErrorReport {
@@ -54,175 +58,180 @@ pub struct HtmlCreationState<'a> {
 	variable_scopes: Vec<HashMap<String, Option<String>>>,
 }
 
-pub fn ast_to_html(el: &BodyElems, state: &HtmlCreationState) -> Result<(String, Vec<ErrorState<HtmlGenerationError>>), Vec<ErrorState<HtmlGenerationError>>> {
+pub fn ast_to_html(el: &ContentChild, state: &HtmlCreationState) -> ParserVecResult {
 	let mut output = String::new();
-	let mut errors: Vec<ErrorState<HtmlGenerationError>> = Vec::new();
-	match el {
-		BodyElems::ContentTag { name, params, children, .. } => {
-			for _ in 0..state.indent_level { output.push('\t') }
-			output.push('<');
-			if state.compiler_options.is_only_closer(name) {
-				output.push_str("/ ");
-			}
-			output.push_str(name);
-
-			if !params.is_empty() {
-				output.push(' ');
-				output.push_str(&get_param_string(params));
-			}
-
-			output.push('>');
-
-			// In case not having a body and being one sided ever stop being opposites
-			if state.compiler_options.is_one_sided(name) && !state.compiler_options.has_body(name) { return Ok((output, errors)) }
-			
-			if state.compiler_options.has_body(name) {
-				for child in children.iter() {
-					let mut new_state = state.clone();
-					if !state.compiler_options.is_inline(name) {
-						output.push('\n');
-						new_state.indent_level += 1;
-					}
-					let new_state = new_state;
-					match ast_to_html(child, &new_state) {
-						Ok(mut x) => {
-							output.push_str(&x.0);
-							errors.append(&mut x.1);
-						},
-						Err(mut x) => errors.append(&mut x),
-					}
-				}
-			}
-
-			if state.compiler_options.is_one_sided(name) { return Ok((output, errors)) }
-
-			if !children.is_empty() && !state.compiler_options.is_inline(name) { 
-				if !state.compiler_options.is_inline(name) { output.push('\n') }
-				for _ in 0..state.indent_level { output.push('\t') }
-			}
-			output.push_str("</");
-			output.push_str(name);
-			output.push('>');
+	let result = match el {
+		ContentChild::ContentTag(tag) => content_tag_to_html(tag, state),
+		ContentChild::MacroCall(m) => macro_call_to_html(m, state),
+		ContentChild::String(string) => Ok((string.clone(), HtmlErrorVec::new())),
+		ContentChild::Variable(variable) => variable_to_html(variable, state)
+	};
+	let errors = match result {
+		Ok(x) => {
+			output.push_str(&x.0);
+			x.1
 		},
-		BodyElems::String(s) => output.push_str(s),
-		BodyElems::MacroDef { line, pos_in_line, .. } => {
-			return Err(vec![ErrorState {
-				error: KismesisError::TriedMacroDefInTag.into(),
-				line_position: *pos_in_line,
-				line: *line,
-				sub_errors: None,
-			}])
-		},
-		BodyElems::MacroCall { name, line, pos_in_line, children: call_children, .. } => {
-			for _ in 0..state.indent_level { output.push('\t') }
-			let macro_template = state.macros.get_content().iter().filter(|x| x.get_name() == Some(name)).last();
-			let Some(macro_template) = macro_template else { todo!("Create error display for undefined macros") };
-			
-			let mactemp_scope = match create_scope_from(macro_template) {
-				Ok(x) => x,
-				Err(err) => return Err(vec![ErrorState {
-					error: err.into(),
-					line_position: *pos_in_line,
-					line: *line,
+		Err(x) => {
+			x
+		}
+	};
+	Ok((output, errors))
+}
+
+fn variable_to_html(valtag: &Variable, state: &HtmlCreationState) -> ParserVecResult {
+	let mut output = String::new();
+	for scope in state.variable_scopes.iter().rev() {
+		if let Some(value) = scope.get(&valtag.name) {
+			if let Some(value) = value {
+				output.push_str(value);
+				return Ok((output, vec![]));
+			} else {
+				return Err(vec![ErrorState {
+					error: KismesisError::UnsetMacroVariable(valtag.name.clone()).into(),
+					line: valtag.line,
+					line_position: valtag.pos_in_line,
 					sub_errors: None,
 				}])
-			};
-			let mut maccall_scope = match create_scope_from(el) {
-				Ok(x) => x,
-				Err(err) => return Err(vec![ErrorState {
-					error: err.into(),
-					line_position: *pos_in_line,
-					line: *line,
-					sub_errors: None,
-				}])
-			};
-			let children = match macro_template {
-				BodyElems::MacroDef { children, args, .. } => {
-					if args.iter().any(|x| x.name == "kisscontent") {
-						let mut content_arg = String::new();
-						for child in call_children.iter() {
-							let res = ast_to_html(child, state);
-							match res {
-								Ok((html, mut errs)) => {
-									content_arg.push_str(&html);
-									errors.append(&mut errs);
-								},
-								Err(mut errs) => {
-									errors.append(&mut errs);
-								}
-							}
-						}
-						maccall_scope.insert("kisscontent".to_string(), Some(content_arg));
-					} else if !children.is_empty() {
-						errors.push(ErrorState { error: KismesisError::CallBodyNotDeclared.into(), line_position: *pos_in_line, line: *line, sub_errors: None })
-					}
-					children
+			}
+		}
+	}
+	Err(vec![ErrorState {
+		error: KismesisError::UseOfUndefinedVariable.into(),
+		line_position: valtag.pos_in_line,
+		line: valtag.line,
+		sub_errors: None
+	}])
+}
+
+fn macro_call_to_html(call: &Macro, state: &HtmlCreationState) -> ParserVecResult {
+	let mut output = String::new();
+	let mut errors: HtmlErrorVec = Vec::new();
+	for _ in 0..state.indent_level { output.push('\t') }
+	let macro_template = state.macros.get_content().iter().filter(|x| x.name == call.name).last();
+	let Some(macro_template) = macro_template else { todo!("Create error display for undefined macros") };
+	
+	let mactemp_scope = match create_scope_from(macro_template) {
+		Ok(x) => x,
+		Err(err) => return Err(vec![ErrorState {
+			error: err.into(),
+			line_position: call.pos_in_line,
+			line: call.line,
+			sub_errors: None,
+		}])
+	};
+	let mut maccall_scope = match create_scope_from(call) {
+		Ok(x) => x,
+		Err(err) => return Err(vec![ErrorState {
+			error: err.into(),
+			line_position: call.pos_in_line,
+			line: call.line,
+			sub_errors: None,
+		}])
+	};
+	if call.args.iter().any(|x| x.name == "kisscontent") {
+		let mut content_arg = String::new();
+		for child in call.children.iter() {
+			let res = ast_to_html(child, state);
+			match res {
+				Ok((html, mut errs)) => {
+					content_arg.push_str(&html);
+					errors.append(&mut errs);
 				},
-				_ => todo!("Create error display for non-macro template in macro array"),
-			};
-
-			let mut undefined_macro_args: Vec<String> = Vec::new();
-			output = String::new();
-			for child in children.iter() {
-				let mut new_state = state.clone();
-				new_state.variable_scopes = vec![mactemp_scope.clone(), maccall_scope.clone()];
-				let res = ast_to_html(child, &new_state);
-				let result_errors = match res {
-					Ok(x) => {
-						output.push_str(&x.0);
-						output.push('\n');
-						x.1
-					},
-					Err(errs) => errs,
-				};
-				for err in result_errors {
-					match &err.error {
-						HtmlGenerationError::KismesisError(KismesisError::UnsetMacroVariable(x)) => undefined_macro_args.push(x.clone()),
-						_ => errors.push(err),
-					}
+				Err(mut errs) => {
+					errors.append(&mut errs);
 				}
 			}
+		}
+		maccall_scope.insert("kisscontent".to_string(), Some(content_arg));
+	} else if !macro_template.children.is_empty() {
+		errors.push(ErrorState { error: KismesisError::CallBodyNotDeclared.into(), line_position: call.pos_in_line, line: call.line, sub_errors: None })
+	}
 
-			if !undefined_macro_args.is_empty() {
-				errors.push(ErrorState { error: KismesisError::UndefinedMacroVariables(undefined_macro_args).into(), line_position: *pos_in_line, line: *line, sub_errors: None });
+	let mut undefined_macro_args: Vec<String> = Vec::new();
+	output = String::new();
+	for child in macro_template.children.iter() {
+		let mut new_state = state.clone();
+		new_state.variable_scopes = vec![mactemp_scope.clone(), maccall_scope.clone()];
+		let res = ast_to_html(child, &new_state);
+		let result_errors = match res {
+			Ok(x) => {
+				output.push_str(&x.0);
+				output.push('\n');
+				x.1
+			},
+			Err(errs) => errs,
+		};
+		for err in result_errors {
+			match &err.error {
+				HtmlGenerationError::KismesisError(KismesisError::UnsetMacroVariable(x)) => undefined_macro_args.push(x.clone()),
+				_ => errors.push(err),
 			}
-		},
-		BodyElems::ValueTag {name, line, pos_in_line} => {
-			for scope in state.variable_scopes.iter().rev() {
-				if let Some(value) = scope.get(name) {
-					if let Some(value) = value {
-						output.push_str(value);
-						return Ok((output, errors));
-					} else {
-						return Err(vec![ErrorState {
-							error: KismesisError::UnsetMacroVariable(name.clone()).into(),
-							line: *line,
-							line_position: *pos_in_line,
-							sub_errors: None,
-						}])
-					}
-				}
-			}
-			return Err(vec![ErrorState {
-				error: KismesisError::UseOfUndefinedVariable.into(),
-				line_position: *pos_in_line,
-				line: *line,
-				sub_errors: None
-			}])
-		},
+		}
+	}
+
+	if !undefined_macro_args.is_empty() {
+		errors.push(ErrorState { error: KismesisError::UndefinedMacroVariables(undefined_macro_args).into(), line_position: call.pos_in_line, line: call.line, sub_errors: None });
 	}
 	Ok((output, errors))
 }
 
-fn create_scope_from(elem: &BodyElems) -> Result<HashMap<String, Option<String>>, UnrecoverableError> {
-	let mut new_scope: HashMap<String, Option<String>> = HashMap::new();
-	match elem {
-		BodyElems::MacroCall { args, .. } | BodyElems::MacroDef { args, .. }=> {
-			for arg in args.iter() {
-				new_scope.insert(arg.name.clone(), arg.value.clone());
+fn content_tag_to_html(tag: &ContentTag, state: &HtmlCreationState) -> ParserVecResult {
+	let mut output = String::new();
+	let mut errors: Vec<ErrorState<HtmlGenerationError>> = Vec::new();
+	for _ in 0..state.indent_level { output.push('\t') }
+	output.push('<');
+	if state.compiler_options.is_only_closer(&tag.name) {
+		output.push_str("/ ");
+	}
+	output.push_str(&tag.name);
+
+	if !tag.params.is_empty() {
+		output.push(' ');
+		output.push_str(&get_param_string(&tag.params));
+	}
+
+	output.push('>');
+
+	// In case not having a body and being one sided ever stop being opposites
+	if state.compiler_options.is_one_sided(&tag.name) && !state.compiler_options.has_body(&tag.name) { return Ok((output, errors)) }
+	
+	if state.compiler_options.has_body(&tag.name) {
+		for child in tag.children.iter() {
+			let mut new_state = state.clone();
+			if !state.compiler_options.is_inline(&tag.name) {
+				output.push('\n');
+				new_state.indent_level += 1;
 			}
-		},
-		_ => return Err(UnrecoverableError::CannotMakeIntoScope),
+			let new_state = new_state;
+			match ast_to_html(child, &new_state) {
+				Ok(mut x) => {
+					output.push_str(&x.0);
+					errors.append(&mut x.1);
+				},
+				Err(mut x) => errors.append(&mut x),
+			}
+		}
+	}
+
+	if state.compiler_options.is_one_sided(&tag.name) { return Ok((output, errors)) }
+
+	if !tag.children.is_empty() && !state.compiler_options.is_inline(&tag.name) { 
+		if !state.compiler_options.is_inline(&tag.name) { output.push('\n') }
+		for _ in 0..state.indent_level { output.push('\t') }
+	}
+
+	if !state.compiler_options.is_only_opener(&tag.name) {
+		output.push_str("</");
+		output.push_str(&tag.name);
+		output.push('>');
+	}
+	Ok((output, errors))
+}
+
+fn create_scope_from(elem: &Macro) -> Result<HashMap<String, Option<String>>, UnrecoverableError> {
+	let mut new_scope: HashMap<String, Option<String>> = HashMap::new();
+	for arg in elem.args.iter() {
+		new_scope.insert(arg.name.clone(), arg.value.clone());
 	}
 	Ok(new_scope)
 }

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::kiss::parser::lexer::Token;
 use crate::errors::{KismesisError, UnrecoverableError, ErrorState};
 
-use self::tag_stack::elements::{Param, BodyElems, Constant, MacroArg};
+use self::tag_stack::elements::{Param, Tag, Constant, MacroArg, Macro, OnlyTags, ContentChild, Variable};
 
 use super::{compiler_options::CompilerOptions, lexer};
 use tag_stack::TagStack;
@@ -15,7 +15,7 @@ use tag_stack::errors::TagStackError;
 #[derive(Debug)]
 pub struct ParsedFile {
 	pub macros: MacroArray,
-	pub body: Vec<BodyElems>,
+	pub body: Vec<ContentChild>,
 	pub consts: Vec<Constant>,
 }
 
@@ -72,7 +72,7 @@ impl From<ParserStateError> for &'static str {
 
 #[derive(Debug)]
 pub struct MacroArray {
-	content: Vec<BodyElems>,
+	content: Vec<Macro>,
 }
 
 impl MacroArray {
@@ -81,19 +81,11 @@ impl MacroArray {
 			content: vec![],
 		}
 	}
-	pub fn push(&mut self, el: BodyElems) -> Result<(), UnrecoverableError> {
-		match el {
-			BodyElems::MacroDef { .. } => self.content.push(el),
-			_ => return Err(UnrecoverableError::NonMacroIntoMacroArray),
-		}
-		Ok(())
+	pub fn push<T: Into<Macro>>(&mut self, el: T) {
+		self.content.push(el.into())
 	}
 
-	pub fn last_mut(&mut self) -> Option<&mut BodyElems>{
-		self.content.last_mut()
-	}
-
-	pub fn get_content(&self) -> &Vec<BodyElems> {
+	pub fn get_content(&self) -> &Vec<Macro> {
 		&self.content
 	}
 }
@@ -101,7 +93,6 @@ impl MacroArray {
 struct Parser {
 	state: States,
 	tag_stack: TagStack,
-	macros: MacroArray,
 	current_param: Param,
 	current_arg: MacroArg,
 	file: ParsedFile,
@@ -116,22 +107,18 @@ impl Parser {
 			current_param: Param::new(),
 			file: ParsedFile::new(),
 			escape: false,
-			macros: MacroArray::new(),
 			current_arg: MacroArg::new(),
 		}
 	}
 
-	fn add_new_content_tag(&mut self, scanner: &TokenScanner) { self.tag_stack.add_new_content_tag(scanner) }
-	fn add_new_macro_call(&mut self, scanner: &TokenScanner) { self.tag_stack.add_new_macro_call(scanner) }
-	fn add_new_macro_def(&mut self, scanner: &TokenScanner) -> Result<(), KismesisError> { self.tag_stack.add_new_macro_def(scanner) }
+	fn add_new_content_tag(&mut self, scanner: &TokenScanner) { self.tag_stack.new_content_tag(scanner) }
+	fn add_new_macro_call(&mut self, scanner: &TokenScanner) { self.tag_stack.new_macro_call(scanner) }
+	fn add_new_macro_def(&mut self, scanner: &TokenScanner) -> Result<(), KismesisError> { self.tag_stack.new_macro_def(scanner) }
 
 	fn set_top_tag_name(&mut self, to: String) -> Result<(), UnrecoverableError> {
 		match self.tag_stack.last_mut() {
 			None => return Err(UnrecoverableError::ImpossibleEmpty),
-			Some(x) => match x.get_name_mut() {
-				Some(previous_name) => *previous_name = to,
-				None => return Err(UnrecoverableError::TagStackHadNonTag),
-			},
+			Some(x) => x.set_name(&to),
 		}
 		Ok(())
 	}
@@ -147,22 +134,16 @@ impl Parser {
 			TagStackError::HadOneTag => match self.tag_stack.pop() {
 				Some(x) => {
 					match x {
-						BodyElems::ContentTag {..} => {
-							self.file.body.push(x);
+						Tag::ContentTag(tag) => {
+							self.file.body.push(tag.into());
 							self.change_state_to(States::ExpectAnyOpener);
 							Ok(())
 						},
-						BodyElems::MacroDef { .. } => {
-							self.file.macros.push(x)?;
+						Tag::MacroDef(m) | Tag::MacroCall(m)=> {
+							self.file.macros.push(m);
 							self.change_state_to(States::ExpectAnyOpener);
 							Ok(())
 						}
-						BodyElems::MacroCall {..} => {
-							self.file.body.push(x);
-							self.change_state_to(States::ExpectArgNameOrBody);
-							Ok(())
-						},
-						_ => Err(KismesisError::UnrecoverableError(UnrecoverableError::TagStackHadNonTag)),
 					}
 				},
 				None => Err(KismesisError::ClosedTooManyTags),
@@ -173,30 +154,32 @@ impl Parser {
 
 	fn finish_current_param(&mut self) -> Result<(), UnrecoverableError> {
 		let Some(top_tag) = self.tag_stack.last_mut() else { return Err(UnrecoverableError::ImpossibleEmpty) };
-		top_tag.add_param(self.current_param.clone())?;
+		match top_tag {
+			Tag::MacroCall(_) | Tag::MacroDef(_) => return Err(UnrecoverableError::AddedParamToMacro),
+			Tag::ContentTag(c) => c.add_param(self.current_param.clone()),
+		}
 		self.current_param = Param::new();
 		Ok(())
 	}
 
 	fn finish_current_arg(&mut self) -> Result<(), UnrecoverableError> {
 		let Some(top_tag) = self.tag_stack.last_mut() else { return Err(UnrecoverableError::ImpossibleEmpty) };
-		top_tag.add_arg(self.current_arg.clone())?;
+		match top_tag {
+			Tag::MacroCall(m) | Tag::MacroDef(m) => m.add_arg(self.current_arg.clone()),
+			Tag::ContentTag(_) => return Err(UnrecoverableError::AddedArgToTag),
+		}
 		self.current_arg = MacroArg::new();
 		Ok(())
 	}
 
-	fn get_top_tag_children_mut(&mut self) -> Result<&mut Vec<BodyElems>, UnrecoverableError> {
+	fn get_top_tag_children_mut(&mut self) -> Result<&mut Vec<ContentChild>, UnrecoverableError> {
 		let Some(top_tag) = self.tag_stack.last_mut() else { return Err(UnrecoverableError::ImpossibleEmpty) };
-		match top_tag {
-			BodyElems::ContentTag { children, .. } | BodyElems::MacroCall { children, .. } | BodyElems::MacroDef { children, .. }=> Ok(children),
-			_ => Err(UnrecoverableError::ImpossibleNotTag),
-		}
-		
+		Ok(top_tag.get_children_mut())
 	}
 
-	fn get_top_tag_name(&self) -> Option<&String> {
+	fn get_top_tag_name(&self) -> Option<&str> {
 		let Some(top_tag) = self.tag_stack.last() else { return None };
-		top_tag.get_name()
+		Some(top_tag.get_name())
 	}
 }
 
@@ -288,10 +271,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 					match token {
 						lexer::Token::OpenTag(_) => {
 							parser.change_state_to(States::ExpectTagName);
-						}
-						lexer::Token::Hashtag(_) => {
-							parser.change_state_to(States::ExpectVariable(Arc::new(parser.state.clone())));
-						}
+						},
 						lexer::Token::Space(_) | lexer::Token::Newline(_) | lexer::Token::Indent(_) => continue,
 						lexer::Token::CloseTag(_) => recovered_errors.push(KismesisError::ClosedTooManyTags.state(&token_scanner)),
 						_ => recovered_errors.push(KismesisError::ExpectedAnyOpener.state(&token_scanner)),
@@ -329,12 +309,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 				States::ExpectParamName => {
 					match token {
 						lexer::Token::Newline(_) | lexer::Token::Bar(_) => {
-							let Some(top_tag_name) = parser.get_top_tag_name() else { return Err(KismesisError::UnrecoverableError(UnrecoverableError::ImpossibleEmpty)) };
-							if options.has_body(top_tag_name) {
-								parser.change_state_to(States::ExpectBody)
-							} else {
-								return Err(KismesisError::UnrecoverableError(UnrecoverableError::TagStackHadNonTag))
-							}
+							parser.change_state_to(States::ExpectBody)
 						},
 						lexer::Token::Word(name) => {
 							let Some(top_tag_name) = parser.get_top_tag_name() else { return Err(KismesisError::UnrecoverableError(UnrecoverableError::ImpossibleEmpty)) };
@@ -457,19 +432,17 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 								None => match token {
 									lexer::Token::Space(_) | lexer::Token::Newline(_) | Token::Indent(_) => continue,
 									_ => {
-										let mut new = String::new();
-										token.push_to_string(&mut new);
-										top_tag_body.push(BodyElems::String(new));
+										let new = token.get_as_string();
+										top_tag_body.push(new.into());
 									}
 								},
 								Some(last_body_child) => match last_body_child {
-									BodyElems::String(text) => token.push_to_string(text),
+									ContentChild::String(text) => token.push_to_string(text),
 									_ => match token {
 										lexer::Token::Space(_) | lexer::Token::Newline(_) | Token::Indent(_) => continue,
 										_ => {
-											let mut new = String::new();
-											token.push_to_string(&mut new);
-											top_tag_body.push(BodyElems::String(new));
+											let new = token.get_as_string();
+											top_tag_body.push(new.into());
 										}
 									},
 								},
@@ -509,9 +482,14 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 					match *prev.to_owned() {
 						States::ExpectBody => {
 							let top_tag = parser.get_top_tag_children_mut()?;
-							top_tag.push(BodyElems::ValueTag {name: name.clone(), line: token_scanner.current_line, pos_in_line: token_scanner.token_in_line});
+							top_tag.push(Variable {
+								name: name.clone(),
+								line: token_scanner.current_line, 
+								pos_in_line: token_scanner.token_in_line
+							}.into());
 							parser.change_state_to(States::ExpectBody);
 						}
+						States::ExpectParamValue(ref _wordicity, ref _kind) => return Err(UnrecoverableError::VariableInUnimplementedPlace.into()),
 						_ => return Err(UnrecoverableError::VariableInWrongPlace.into()),
 					}
 				}

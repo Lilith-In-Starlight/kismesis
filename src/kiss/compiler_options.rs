@@ -1,3 +1,5 @@
+use super::parser::tag_stack::elements::ContentChild;
+
 #[derive(Debug)]
 pub struct CompilerOptions {
 	pub inline: Vec<String>,
@@ -37,31 +39,37 @@ impl CompilerOptions {
 		}
 	}
 
-	pub fn is_parametric(&self, name: &String) -> bool {
+	pub fn is_parametric(&self, name: &str) -> bool {
 		!self.no_params.iter().any(|x| x == name)
 	}
 
-	pub fn has_body(&self, name: &String) -> bool {
+	pub fn has_body(&self, name: &str) -> bool {
 		!(self.only_closer.iter().any(|x| x == name) || self.only_opener.iter().any(|x| x == name))
 	}
 
-	pub fn is_inline(&self, name: &String) -> bool {
+	pub fn is_inline(&self, name: &str) -> bool {
 		self.inline.iter().any(|x| x == name)
 	}
 
-	pub fn is_only_closer(&self, name: &String) -> bool {
+	pub fn is_only_closer(&self, name: &str) -> bool {
 		self.only_closer.iter().any(|x| x == name)
 	}
 
-	pub fn is_only_opener(&self, name: &String) -> bool {
+	pub fn is_only_opener(&self, name: &str) -> bool {
 		self.only_opener.iter().any(|x| x == name)
 	}
 
-	pub fn is_one_sided(&self, name: &String) -> bool {
+	pub fn is_one_sided(&self, name: &str) -> bool {
 		!self.has_body(name)
 	}
 
-	pub fn is_deprecated(&self, name: &String) -> bool {
+	pub fn is_deprecated(&self, name: &str) -> bool {
 		self.deprecated.iter().any(|x| x == name)
+	}
+}
+
+impl From<String> for ContentChild {
+	fn from(val: String) -> Self {
+		Self::String(val)
 	}
 }

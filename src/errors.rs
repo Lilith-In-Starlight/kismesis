@@ -147,6 +147,7 @@ impl Error for UnrecoverableError {
 			Self::ImpossibleNoMacroDefs => "Defining a macro argument, but the parser recognizes no macro being currently defined".into(),
 			Self::VariableInWrongPlace => "It should be impossible to have variables here".into(),
 			Self::CannotMakeIntoScope => "Tried to create a scope out of something that cannot create one".into(),
+			Self::VariableInUnimplementedPlace => "Variables in this place have not yet been implemented".into()
 		}
 	}
 }
@@ -179,6 +180,7 @@ pub enum UnrecoverableError {
 	ImpossibleNoMacroDefs,
 	VariableInWrongPlace,
 	CannotMakeIntoScope,
+	VariableInUnimplementedPlace,
 }
 
 impl From<UnrecoverableError> for KismesisError {
