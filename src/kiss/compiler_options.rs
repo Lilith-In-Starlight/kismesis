@@ -27,7 +27,7 @@ pub enum QuotePreferences {
 impl CompilerOptions {
 	pub fn default() -> Self{
 		Self {
-			inline: vec!["h1", "h2", "h3", "h4", "b"].into_iter().map(String::from).collect(),
+			inline: vec!["h1", "h2", "h3", "h4", "b", "p"].into_iter().map(String::from).collect(),
 			only_closer: vec!["br"].into_iter().map(String::from).collect(),
 			only_opener: vec!["meta", "base", "img"].into_iter().map(String::from).collect(),
 			deprecated: vec!["marquee"].into_iter().map(String::from).collect(),

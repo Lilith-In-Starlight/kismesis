@@ -153,6 +153,8 @@ pub fn ast_to_html(el: &BodyElems, state: &HtmlCreationState) -> Result<(String,
 							}
 						}
 						maccall_scope.insert("kisscontent".to_string(), Some(content_arg));
+					} else if !children.is_empty() {
+						errors.push(ErrorState { error: KismesisError::CallBodyNotDeclared.into(), line_position: *pos_in_line, line: *line, sub_errors: None })
 					}
 					children
 				},
@@ -160,14 +162,15 @@ pub fn ast_to_html(el: &BodyElems, state: &HtmlCreationState) -> Result<(String,
 			};
 
 			let mut undefined_macro_args: Vec<String> = Vec::new();
+			output = String::new();
 			for child in children.iter() {
-				output = String::new();
 				let mut new_state = state.clone();
 				new_state.variable_scopes = vec![mactemp_scope.clone(), maccall_scope.clone()];
 				let res = ast_to_html(child, &new_state);
 				let result_errors = match res {
 					Ok(x) => {
 						output.push_str(&x.0);
+						output.push('\n');
 						x.1
 					},
 					Err(errs) => errs,

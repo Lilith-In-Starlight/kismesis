@@ -358,11 +358,16 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 							_ => return Err(KismesisError::ExpectedCharacter { character: '=' })
 						}
 						AfterEquals::Arg => match token {
-							lexer::Token::Equals(_) => parser.change_state_to(States::ExpectParamValue(ParamValueType::Word, what.clone())),
-							lexer::Token::Space(_) | lexer::Token::Indent(_) => {
+							lexer::Token::Newline(_) | lexer::Token::Bar(_) => {
 								parser.finish_current_arg()?;
-								parser.change_state_to(States::ExpectArgNameOrBody);
+								parser.change_state_to(States::ExpectBody);
 							},
+							lexer::Token::Equals(_) => parser.change_state_to(States::ExpectParamValue(ParamValueType::Word, what.clone())),
+							lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
+							lexer::Token::Word(name) => {
+								parser.finish_current_arg()?;
+								parser.current_arg.name = name.clone();
+							}
 							lexer::Token::CloseTag(_) => {
 								parser.finish_current_arg()?;
 								parser.merge_or()?;

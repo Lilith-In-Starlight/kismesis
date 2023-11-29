@@ -25,6 +25,7 @@ pub enum KismesisError {
 	UnsetMacroVariable(String),
 	UseOfDeprecatedTag,
 	NoContentArg,
+	CallBodyNotDeclared,
 }
 
 #[derive(Debug)]
@@ -121,6 +122,7 @@ impl Error for KismesisError {
 			Self::UnsetMacroVariable(val) => format!("{} has no default value and is unset", val),
 			Self::UseOfDeprecatedTag => "This tag is deprecated".into(),
 			Self::NoContentArg => "This macro has content, but its definition has no content argument".into(),
+			Self::CallBodyNotDeclared => "For a macro call to have a body it must have a kisscontent argument".into()
 		}
 	}
 }

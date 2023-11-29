@@ -1,10 +1,14 @@
 <html
 	<head>
 	<body
-		<h1 class="uwu" | things><br>
-		<uwu! var2="ueu">
-		<marquee | awa>
+		<article! title="This is a title" class="idk man this is a test"
+			<p | This is the content of an article>
+		>
 	>
 >
 
-<macro uwu var1 var2 | <h1 | #var1 #var2>>
+<macro article title kisscontent
+	<h1 class=
+	#class | #title>
+	#kisscontent
+>
