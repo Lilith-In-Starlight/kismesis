@@ -11,12 +11,12 @@ fn main() {
 }
 
 fn generate() {
-	let input_file = fs::read_to_string("test/main.kism");
-	match input_file {
-		Ok(input_text) => {
-			println!("{}", match kiss::kiss_to_html(&input_text){
+	let main_template_file = fs::read_to_string("test/main.kism");
+	match main_template_file {
+		Ok(main_template_file) => {
+			println!("{}", match kiss::kiss_to_html(&main_template_file){
 				Ok(x) => x,
-				Err(error_report) => report_error(error_report.scanner, error_report.unresolved, error_report.resolved),
+				Err(error_report) => report_error("main.kism".to_string(), error_report.scanner, error_report.unresolved, error_report.resolved),
 			});
 		}
 		_ => {

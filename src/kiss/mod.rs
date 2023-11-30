@@ -4,17 +4,18 @@ pub(crate) mod lexer;
 
 use std::collections::HashMap;
 
-use crate::errors::{ImplementationError, ParsingError, HtmlGenerationError, CompilerErrorReport, ErrorState, SpecialFrom};
+use crate::errors::{ImplementationError, ParsingError, HtmlGenerationError, CompilerErrorReport, ErrorState, SpecialFrom, ErrorReport};
 use compiler_options::CompilerOptions;
 
 use self::parser::{tag_stack::elements::{Param, ContentTag, Macro, ContentChild, Variable}, MacroArray};
 
-type HtmlErrorVec = Vec<ErrorState<HtmlGenerationError>>;
+type HtmlErrorVec = Vec<ErrorReport<HtmlGenerationError>>;
 type ParserResult = Result<String, CompilerErrorReport<HtmlGenerationError>>;
 type ParserVecResult = Result<(String, HtmlErrorVec), HtmlErrorVec>;
 
+
 pub fn kiss_to_html(s: &str) -> ParserResult {
-	let (token_scanner, parsed_file, errors) = match parser::get_ast(s, CompilerOptions::default()) {
+	let (token_scanner, parsed_file, errors) = match parser::get_ast(s, CompilerOptions::for_templates()) {
 		Ok(x) => x,
 		Err((scanner, recovered, unrecovered)) => return Err(CompilerErrorReport {
 			scanner,
@@ -62,7 +63,11 @@ pub fn ast_to_html(el: &ContentChild, state: &HtmlCreationState) -> ParserVecRes
 	let mut output = String::new();
 	let result = match el {
 		ContentChild::ContentTag(tag) => content_tag_to_html(tag, state),
-		ContentChild::MacroCall(m) => macro_call_to_html(m, state),
+		ContentChild::MacroCall(m) => if state.compiler_options.is_lambda(&m.name) {
+			macro_call_to_html(m, state)
+		} else {
+			Ok((String::new(), vec![]))
+		},
 		ContentChild::String(string) => Ok((string.clone(), HtmlErrorVec::new())),
 		ContentChild::Variable(variable) => variable_to_html(variable, state)
 	};
@@ -91,7 +96,7 @@ fn variable_to_html(valtag: &Variable, state: &HtmlCreationState) -> ParserVecRe
 					line: valtag.line,
 					line_position: valtag.pos_in_line,
 					sub_errors: None,
-				}])
+				}.into()])
 			}
 		}
 	}
@@ -100,7 +105,7 @@ fn variable_to_html(valtag: &Variable, state: &HtmlCreationState) -> ParserVecRe
 		line_position: valtag.pos_in_line,
 		line: valtag.line,
 		sub_errors: None
-	}])
+	}.into()])
 }
 
 fn macro_call_to_html(call: &Macro, state: &HtmlCreationState) -> ParserVecResult {
@@ -117,7 +122,7 @@ fn macro_call_to_html(call: &Macro, state: &HtmlCreationState) -> ParserVecResul
 			line_position: call.pos_in_line,
 			line: call.line,
 			sub_errors: None,
-		}])
+		}.into()])
 	};
 	let mut maccall_scope = match create_scope_from(call) {
 		Ok(x) => x,
@@ -126,7 +131,7 @@ fn macro_call_to_html(call: &Macro, state: &HtmlCreationState) -> ParserVecResul
 			line_position: call.pos_in_line,
 			line: call.line,
 			sub_errors: None,
-		}])
+		}.into()])
 	};
 	if call.args.iter().any(|x| x.name == "kisscontent") {
 		let mut content_arg = String::new();
@@ -144,7 +149,7 @@ fn macro_call_to_html(call: &Macro, state: &HtmlCreationState) -> ParserVecResul
 		}
 		maccall_scope.insert("kisscontent".to_string(), Some(content_arg));
 	} else if !macro_template.children.is_empty() {
-		errors.push(ErrorState { error: ParsingError::CallBodyNotDeclared.into(), line_position: call.pos_in_line, line: call.line, sub_errors: None })
+		errors.push(ErrorState { error: ParsingError::CallBodyNotDeclared.into(), line_position: call.pos_in_line, line: call.line, sub_errors: None }.into())
 	}
 
 	let mut undefined_macro_args: Vec<String> = Vec::new();
@@ -161,23 +166,23 @@ fn macro_call_to_html(call: &Macro, state: &HtmlCreationState) -> ParserVecResul
 			},
 			Err(errs) => errs,
 		};
-		for err in result_errors {
-			match &err.error {
+		for erra in result_errors {
+		if let ErrorReport::Stateful(ref err) = erra { match &err.error {
 				HtmlGenerationError::KismesisError(ParsingError::UnsetMacroVariable(x)) => undefined_macro_args.push(x.clone()),
-				_ => errors.push(err),
-			}
+				_ => errors.push(erra),
+			} }
 		}
 	}
 
 	if !undefined_macro_args.is_empty() {
-		errors.push(ErrorState { error: ParsingError::UndefinedMacroVariables(undefined_macro_args).into(), line_position: call.pos_in_line, line: call.line, sub_errors: None });
+		errors.push(ErrorState { error: ParsingError::UndefinedMacroVariables(undefined_macro_args).into(), line_position: call.pos_in_line, line: call.line, sub_errors: None }.into());
 	}
 	Ok((output, errors))
 }
 
 fn content_tag_to_html(tag: &ContentTag, state: &HtmlCreationState) -> ParserVecResult {
 	let mut output = String::new();
-	let mut errors: Vec<ErrorState<HtmlGenerationError>> = Vec::new();
+	let mut errors: Vec<ErrorReport<HtmlGenerationError>> = Vec::new();
 	for _ in 0..state.indent_level { output.push('\t') }
 	output.push('<');
 	if state.compiler_options.is_only_closer(&tag.name) {

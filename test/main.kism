@@ -1,13 +1,4 @@
 <html
 	<head>
-	<body
-		<article! title="This is a title" class="idk man this is a test"
-			<p | This is the content of an article>
-		>
-	>
->
-
-<macro article title kisscontent
-	<h1 class=#class | #title>
-	#kisscontent
+	<body>
 >

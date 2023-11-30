@@ -39,6 +39,13 @@ impl CompilerOptions {
 		}
 	}
 
+	pub fn for_templates() -> Self {
+		Self {
+			lambda_macros: vec!["content"].into_iter().map(String::from).collect(),
+			..Self::default()
+		}
+	}
+
 	pub fn is_parametric(&self, name: &str) -> bool {
 		!self.no_params.iter().any(|x| x == name)
 	}
@@ -65,6 +72,10 @@ impl CompilerOptions {
 
 	pub fn is_deprecated(&self, name: &str) -> bool {
 		self.deprecated.iter().any(|x| x == name)
+	}
+
+	pub fn is_lambda(&self, name: &str) -> bool {
+		self.lambda_macros.iter().any(|x| x == name)
 	}
 }
 

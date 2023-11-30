@@ -3,7 +3,7 @@ pub(crate) mod tag_stack;
 use std::sync::Arc;
 
 use crate::kiss::parser::lexer::Token;
-use crate::errors::{ParsingError, ImplementationError, ErrorState};
+use crate::errors::{ParsingError, ImplementationError, ErrorReport};
 
 use self::tag_stack::elements::{Param, Tag, Constant, MacroArg, Macro, OnlyTags, ContentChild, Variable};
 
@@ -257,13 +257,14 @@ impl TokenScanner {
 	}
 }
 
-pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, ParsedFile, Option<Vec<ErrorState<ParsingError>>>), (TokenScanner, Vec<ErrorState<ParsingError>>, ErrorState<ParsingError>)> {
+pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, ParsedFile, Option<Vec<ErrorReport<ParsingError>>>), (TokenScanner, Vec<ErrorReport<ParsingError>>, ErrorReport<ParsingError>)> {
 	let tokens = lexer::tokenize(&s.replace('\r', ""));
+	let mut filled_lambdas: Vec<String> = Vec::new();
 
 	let mut parser = Parser::new();
 	let mut token_idx: usize = 0;
 	let mut token_scanner = TokenScanner::new(tokens);
-	let mut recovered_errors: Vec<ErrorState<ParsingError>> = Vec::new();
+	let mut recovered_errors: Vec<ErrorReport<ParsingError>> = Vec::new();
 	let iterate = | | -> Result<ParsedFile, ParsingError> {
 		while let Some(token) = token_scanner.next() {
 			match parser.state {
@@ -454,6 +455,10 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 					match token {
 						lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
 						lexer::Token::Word(name) | lexer::Token::MacroName(name) => {
+							let lambdname = name.trim_end_matches('!');
+							if options.is_lambda(lambdname) && !filled_lambdas.iter().any(|x| lambdname == x) {
+								filled_lambdas.push(lambdname.to_string());
+							}
 							parser.set_top_tag_name(name.clone())?;
 							parser.change_state_to(States::ExpectArgNameOrBody);
 						}
@@ -496,8 +501,12 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 			}
 			token_idx += 1;
 		}
+		if filled_lambdas.len() != options.lambda_macros.len() {
+			recovered_errors.push(ErrorReport::Stateless(ParsingError::UncalledLambdas(options.lambda_macros.clone())))
+		}
 		Ok(parser.file)
 	};
+
 	match iterate() {
 		Ok(x) => {
 			if !recovered_errors.is_empty() {

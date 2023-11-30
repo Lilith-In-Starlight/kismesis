@@ -26,6 +26,7 @@ pub enum ParsingError {
 	UseOfDeprecatedTag,
 	NoContentArg,
 	CallBodyNotDeclared,
+	UncalledLambdas(Vec<String>)
 }
 
 #[derive(Debug)]
@@ -122,14 +123,15 @@ impl Error for ParsingError {
 			Self::UnsetMacroVariable(val) => format!("{} has no default value and is unset", val),
 			Self::UseOfDeprecatedTag => "This tag is deprecated".into(),
 			Self::NoContentArg => "This macro has content, but its definition has no content argument".into(),
-			Self::CallBodyNotDeclared => "For a macro call to have a body it must have a kisscontent argument".into()
+			Self::CallBodyNotDeclared => "For a macro call to have a body it must have a kisscontent argument".into(),
+			Self::UncalledLambdas(lambdas) => format!("This file should have called the <{}!> macro", display_string_list(lambdas)),
 		}
 	}
 }
 
 impl ParsingError {
-	pub fn state(self, scanner: &TokenScanner) -> ErrorState<ParsingError> {
-		ErrorState { error: self, line_position: scanner.get_position_in_line(), line: scanner.get_current_line_number(), sub_errors: None }
+	pub fn state(self, scanner: &TokenScanner) -> ErrorReport<ParsingError> {
+		ErrorState { error: self, line_position: scanner.get_position_in_line(), line: scanner.get_current_line_number(), sub_errors: None }.into()
 	}
 }
 
@@ -189,30 +191,42 @@ impl From<ImplementationError> for ParsingError {
 	}
 }
 
-pub fn report_error(token_scanner: TokenScanner, unrecoverable_error: Option<ErrorState<HtmlGenerationError>>, recovered_errors: Vec<ErrorState<HtmlGenerationError>>) -> String {
+pub fn report_error(filename: String, token_scanner: TokenScanner, unrecoverable_error: Option<ErrorReport<HtmlGenerationError>>, recovered_errors: Vec<ErrorReport<HtmlGenerationError>>) -> String {
 	let mut output = String::from("Couldn't compile due to the following errors:\n");
-	for error in recovered_errors {
-		output.push_str(&format!(" At line {} ", error.line).on_red().black().to_string());
- 		output.push('\n');
-		output.push_str(&error.report(&token_scanner));
-		match error.error {
-			HtmlGenerationError::UnrecoverableError(_) => {
-				output.push_str("The previous error was caused due to an internal issue with the Kismesis Compiler");
-				output.push_str("Please report this issue");
+	let write_report = | error: ErrorReport<HtmlGenerationError>, output: &mut String | {
+		match error {
+			ErrorReport::Stateless(error) => {
+				output.push_str(&format!(" At file {} ", filename).on_red().black().to_string());
+		 		output.push('\n');
+				output.push_str(&error.get_error_text());
+				output.push('\n');
+				output.push('\n');
+			},
+			ErrorReport::Stateful(error) => {
+				output.push_str(&format!(" In file {} at line {} ", filename, error.line).on_red().black().to_string());
+		 		output.push('\n');
+				output.push_str(&error.report(&token_scanner));
+				match error.error {
+					HtmlGenerationError::UnrecoverableError(_) => {
+						output.push_str("The previous error was caused due to an internal issue with the Kismesis Compiler");
+						output.push_str("Please report this issue");
+					}
+					HtmlGenerationError::KismesisError(_) => (),
+				}
+				output.push('\n');
+				output.push('\n');
 			}
-			HtmlGenerationError::KismesisError(_) => (),
 		}
-		output.push('\n');
-		output.push('\n');
+	};
+	for error in recovered_errors {
+		write_report(error, &mut output);
 	}
 	let Some(unrecoverable_error) = unrecoverable_error else {
 		output.push_str("All errors were caught");
 		return output
 	};
 	output.push_str("The following error was unrecoverable, so compilation stopped here and some errors may not have been caught:\n");
-	output.push_str(&format!(" At line {} ", unrecoverable_error.line).on_red().black().to_string());
-	output.push('\n');
-	output.push_str(&unrecoverable_error.report(&token_scanner));
+	write_report(unrecoverable_error, &mut output);
 	output
 }
 
@@ -285,8 +299,8 @@ pub fn get_line_number(n: usize, mexn: usize) -> String {
 
 pub struct CompilerErrorReport<T: Error> {
 	pub scanner: TokenScanner,
-	pub unresolved: Option<ErrorState<T>>,
-	pub resolved: Vec<ErrorState<T>>
+	pub unresolved: Option<ErrorReport<T>>,
+	pub resolved: Vec<ErrorReport<T>>
 }
 
 impl From<CompilerErrorReport<ParsingError>> for CompilerErrorReport<HtmlGenerationError> {
@@ -299,17 +313,46 @@ impl From<CompilerErrorReport<ParsingError>> for CompilerErrorReport<HtmlGenerat
 	}
 }
 
-pub trait SpecialFrom<F: Error, T: Error> {
-	fn from(self) -> ErrorState<T>;
+pub trait SpecialFrom<F: Error, T: Error + From<F>> {
+	type To;
+	fn from(self) -> Self::To;
 }
 
 impl<F: Error, T: Error + From<F>> SpecialFrom<F, T> for ErrorState<F> {
-	fn from(self) -> ErrorState<T> {
+	type To = ErrorState<T>;
+	fn from(self) -> Self::To {
 		ErrorState {
 			error: self.error.into(),
 			line_position: self.line_position,
 			line: self.line,
 			sub_errors: self.sub_errors.map(|x| x.into_iter().map(|x| x.from()).collect()),
 		}
+	}
+}
+
+pub enum ErrorReport<T: Error> {
+	Stateless(T),
+	Stateful(ErrorState<T>),
+}
+
+impl<F: Error, T: Error + From<F>> SpecialFrom<F, T> for ErrorReport<F> {
+	type To = ErrorReport<T>;
+	fn from(self) -> Self::To {
+		match self {
+			Self::Stateless(x) => ErrorReport::Stateless(x.into()),
+			Self::Stateful(x) => ErrorReport::Stateful(x.from())
+		}
+	}
+}
+
+impl<T: Error> From<ErrorState<T>> for ErrorReport<T> {
+	fn from(val: ErrorState<T>) -> Self {
+		Self::Stateful(val)
+	}
+}
+
+impl<T: Error> From<T> for ErrorReport<T> {
+	fn from(val: T) -> Self {
+		Self::Stateless(val)
 	}
 }
