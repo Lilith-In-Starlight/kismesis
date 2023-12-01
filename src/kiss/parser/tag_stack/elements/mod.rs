@@ -1,6 +1,6 @@
 use crate::kiss::parser::TokenScanner;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ContentTag {
 	pub name: String,
 	pub params: Vec<Param>,
@@ -9,7 +9,7 @@ pub struct ContentTag {
 	pub pos_in_line: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Macro {
 	pub name: String,
 	pub args: Vec<MacroArg>,
@@ -18,7 +18,7 @@ pub struct Macro {
 	pub pos_in_line: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Variable {
 	pub name: String,
 	pub line: usize,
@@ -31,14 +31,14 @@ impl From<Variable> for ContentChild {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Tag {
 	MacroCall(Macro),
 	MacroDef(Macro),
 	ContentTag(ContentTag),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Element {
 	MacroCall(Macro),
 	MacroDef(Macro),
@@ -47,7 +47,7 @@ pub enum Element {
 	Variable(Variable),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ContentChild {
 	MacroCall(Macro),
 	ContentTag(ContentTag),
@@ -224,7 +224,7 @@ pub struct MacroArg {
 	pub value: Option<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Constant {
 	pub name: String,
 	pub value: String,

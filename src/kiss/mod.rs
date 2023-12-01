@@ -1,17 +1,62 @@
 pub(crate) mod parser;
-mod compiler_options;
+pub(crate) mod compiler_options;
 pub(crate) mod lexer;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, path::Path, fs};
 
-use crate::errors::{ImplementationError, ParsingError, HtmlGenerationError, CompilerErrorReport, ErrorState, SpecialFrom, ErrorReport};
+use crate::errors::{ImplementationError, ParsingError, HtmlGenerationError, CompilerErrorReport, ErrorState, SpecialFrom, ErrorReport, report_error, TemplatingError};
 use compiler_options::CompilerOptions;
 
-use self::parser::{tag_stack::elements::{Param, ContentTag, Macro, ContentChild, Variable}, MacroArray};
+use self::parser::{tag_stack::elements::{Param, ContentTag, Macro, ContentChild, Variable}, MacroArray, ParsedFile, TokenScanner};
 
 type HtmlErrorVec = Vec<ErrorReport<HtmlGenerationError>>;
 type ParserResult = Result<String, CompilerErrorReport<HtmlGenerationError>>;
 type ParserVecResult = Result<(String, HtmlErrorVec), HtmlErrorVec>;
+
+pub fn parse_template(path: &Path) -> Result<ParsedFile, TemplatingError>{
+	let file_string = match fs::read_to_string(path) {
+		Ok(x) => x,
+		Err(x) => return Err(TemplatingError::IOError(x)),
+	};
+	match parser::get_ast(&file_string, CompilerOptions::for_templates()) {
+		Ok((token_scanner, parsed_file, errors)) => {
+			match errors {
+				Some(errors) => {
+					dbg!(&errors);
+					println!("{}", report_error(path, token_scanner, None, errors.into_iter().map(|x| x.from()).collect()));
+					Err(TemplatingError::ParseFailed)
+				}
+				None => Ok(parsed_file),
+			}
+		},
+		Err((token_scanner, recovered, unrecoverable)) => {
+			println!("{}", report_error(path, token_scanner, Some(unrecoverable.from()), recovered.into_iter().map(|x| x.from()).collect()));
+			Err(TemplatingError::ParseFailed)
+		}
+	}
+}
+
+pub fn parse_file(path: &Path) -> Result<(TokenScanner, ParsedFile), TemplatingError>{
+	let file_string = match fs::read_to_string(path) {
+		Ok(x) => x,
+		Err(x) => return Err(TemplatingError::IOError(x)),
+	};
+	match parser::get_ast(&file_string, CompilerOptions::default()) {
+		Ok((token_scanner, parsed_file, errors)) => {
+			match errors {
+				Some(errors) => {
+					report_error(path, token_scanner, None, errors.into_iter().map(|x| x.from()).collect());
+					Err(TemplatingError::ParseFailed)
+				}
+				None => Ok((token_scanner, parsed_file)),
+			}
+		},
+		Err((token_scanner, recovered, unrecoverable)) => {
+			report_error(path, token_scanner, Some(unrecoverable.from()), recovered.into_iter().map(|x| x.from()).collect());
+			Err(TemplatingError::ParseFailed)
+		}
+	}
+}
 
 
 pub fn kiss_to_html(s: &str) -> ParserResult {
@@ -23,6 +68,10 @@ pub fn kiss_to_html(s: &str) -> ParserResult {
 			resolved: recovered.into_iter().map(|x| x.from()).collect(),
 		}),
 	};
+	to_html(token_scanner, parsed_file, errors)
+}
+
+pub fn to_html(token_scanner: TokenScanner, parsed_file: ParsedFile, errors: Option<Vec<ErrorReport<ParsingError>>>) -> ParserResult {
 	let mut output = String::new();
 	let mut errors = match errors {
 		Some(x) => x.into_iter().map(|x|x.from()).collect(),
@@ -49,6 +98,7 @@ pub fn kiss_to_html(s: &str) -> ParserResult {
 		return Err(CompilerErrorReport { scanner: token_scanner, unresolved: None, resolved: errors})
 	}
 	Ok(output)
+	
 }
 
 #[derive(Debug, Clone)]
@@ -63,7 +113,7 @@ pub fn ast_to_html(el: &ContentChild, state: &HtmlCreationState) -> ParserVecRes
 	let mut output = String::new();
 	let result = match el {
 		ContentChild::ContentTag(tag) => content_tag_to_html(tag, state),
-		ContentChild::MacroCall(m) => if state.compiler_options.is_lambda(&m.name) {
+		ContentChild::MacroCall(m) => if !state.compiler_options.is_lambda(&m.name) {
 			macro_call_to_html(m, state)
 		} else {
 			Ok((String::new(), vec![]))
@@ -148,7 +198,7 @@ fn macro_call_to_html(call: &Macro, state: &HtmlCreationState) -> ParserVecResul
 			}
 		}
 		maccall_scope.insert("kisscontent".to_string(), Some(content_arg));
-	} else if !macro_template.children.is_empty() {
+	} else if !macro_template.children.is_empty() && macro_template.name != "content" {
 		errors.push(ErrorState { error: ParsingError::CallBodyNotDeclared.into(), line_position: call.pos_in_line, line: call.line, sub_errors: None }.into())
 	}
 

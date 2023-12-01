@@ -12,7 +12,7 @@ use tag_stack::TagStack;
 use tag_stack::errors::TagStackError;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParsedFile {
 	pub macros: MacroArray,
 	pub body: Vec<ContentChild>,
@@ -70,7 +70,7 @@ impl From<ParserStateError> for &'static str {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MacroArray {
 	content: Vec<Macro>,
 }
@@ -183,6 +183,7 @@ impl Parser {
 	}
 }
 
+#[derive(Debug)]
 pub struct TokenScanner {
 	pub tokens: Vec<Token>,
 	position: Option<usize>,
@@ -295,6 +296,10 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 							}
 						},
 						lexer::Token::MacroName(word) => {
+							let lambdname = word.trim_end_matches('!');
+							if options.is_lambda(lambdname) && !filled_lambdas.iter().any(|x| lambdname == x) {
+								filled_lambdas.push(lambdname.to_string());
+							}
 							let clone_word = word.clone();
 							let clone_word = clone_word.trim_end_matches('!');
 							parser.add_new_macro_call(&token_scanner);
@@ -455,10 +460,6 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 					match token {
 						lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
 						lexer::Token::Word(name) | lexer::Token::MacroName(name) => {
-							let lambdname = name.trim_end_matches('!');
-							if options.is_lambda(lambdname) && !filled_lambdas.iter().any(|x| lambdname == x) {
-								filled_lambdas.push(lambdname.to_string());
-							}
 							parser.set_top_tag_name(name.clone())?;
 							parser.change_state_to(States::ExpectArgNameOrBody);
 						}

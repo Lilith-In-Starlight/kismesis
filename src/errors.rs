@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, path::Path};
 
 use crate::kiss::{parser::{States, TokenScanner}, lexer};
 use colored::*;
@@ -191,19 +191,19 @@ impl From<ImplementationError> for ParsingError {
 	}
 }
 
-pub fn report_error(filename: String, token_scanner: TokenScanner, unrecoverable_error: Option<ErrorReport<HtmlGenerationError>>, recovered_errors: Vec<ErrorReport<HtmlGenerationError>>) -> String {
+pub fn report_error(filename: &Path, token_scanner: TokenScanner, unrecoverable_error: Option<ErrorReport<HtmlGenerationError>>, recovered_errors: Vec<ErrorReport<HtmlGenerationError>>) -> String {
 	let mut output = String::from("Couldn't compile due to the following errors:\n");
 	let write_report = | error: ErrorReport<HtmlGenerationError>, output: &mut String | {
 		match error {
 			ErrorReport::Stateless(error) => {
-				output.push_str(&format!(" At file {} ", filename).on_red().black().to_string());
+				output.push_str(&format!(" At file {:?} ", filename).on_red().black().to_string());
 		 		output.push('\n');
 				output.push_str(&error.get_error_text());
 				output.push('\n');
 				output.push('\n');
 			},
 			ErrorReport::Stateful(error) => {
-				output.push_str(&format!(" In file {} at line {} ", filename, error.line).on_red().black().to_string());
+				output.push_str(&format!(" In file {:?} at line {} ", filename, error.line).on_red().black().to_string());
 		 		output.push('\n');
 				output.push_str(&error.report(&token_scanner));
 				match error.error {
@@ -297,6 +297,7 @@ pub fn get_line_number(n: usize, mexn: usize) -> String {
 	out
 }
 
+#[derive(Debug)]
 pub struct CompilerErrorReport<T: Error> {
 	pub scanner: TokenScanner,
 	pub unresolved: Option<ErrorReport<T>>,
@@ -330,6 +331,7 @@ impl<F: Error, T: Error + From<F>> SpecialFrom<F, T> for ErrorState<F> {
 	}
 }
 
+#[derive(Debug)]
 pub enum ErrorReport<T: Error> {
 	Stateless(T),
 	Stateful(ErrorState<T>),
@@ -354,5 +356,22 @@ impl<T: Error> From<ErrorState<T>> for ErrorReport<T> {
 impl<T: Error> From<T> for ErrorReport<T> {
 	fn from(val: T) -> Self {
 		Self::Stateless(val)
+	}
+}
+
+#[derive(Debug)]
+pub enum TemplatingError {
+	IOError(std::io::Error),
+	ParseFailed,
+	InputNotDir,
+}
+
+impl Error for TemplatingError {
+	fn get_error_text(&self) -> String {
+		match self {
+			Self::IOError(std::io::Error { .. }) => "There was an issue loading the file".into(),
+			Self::ParseFailed => "Failed to parse the file".into(),
+			Self::InputNotDir => "Not a directory".into(),
+		}
 	}
 }
