@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, path::Path};
+use std::{cmp::Ordering, path::Path, path::PathBuf};
 
 use crate::kiss::{parser::{States, TokenScanner}, lexer};
 use colored::*;
@@ -146,7 +146,7 @@ impl Error for ImplementationError {
 			Self::AddedArgToTag => "Tried to add a macro argument to a tag".into(),
 			Self::UnmetExpectancy => "Tag stack had insufficient tags.".into(),
 			Self::NonMacroIntoMacroArray => "Tried to push a non-macro into a macro array".into(),
-			Self::ImpossibleNoMacroDefs => "Defining a macro argument, but the parser recognizes no macro being currently defined".into(),
+			Self::ImpossibleNoMacroDefs => "Defining a macro argument, but the parser recogniues no macro being currently defined".into(),
 			Self::VariableInWrongPlace => "It should be impossible to have variables here".into(),
 			Self::CannotMakeIntoScope => "Tried to create a scope out of something that cannot create one".into(),
 			Self::VariableInUnimplementedPlace => "Variables in this place have not yet been implemented".into()
@@ -191,19 +191,28 @@ impl From<ImplementationError> for ParsingError {
 	}
 }
 
-pub fn report_error(filename: &Path, token_scanner: TokenScanner, unrecoverable_error: Option<ErrorReport<HtmlGenerationError>>, recovered_errors: Vec<ErrorReport<HtmlGenerationError>>) -> String {
+pub fn write_stateless_report<E: Error> (filename: Option<&Path>, error: E) -> String {
+	let mut output = String::new();
+	match filename {
+		Some(filename) => output.push_str(&format!(" At file {:?} ", display_path(filename)).on_red().black().to_string()),
+		None => output.push_str(&format!(" Error ").on_red().black().to_string()),
+	}
+	output.push('\n');
+	output.push_str(&error.get_error_text());
+	output.push('\n');
+	output.push('\n');
+	output
+}
+
+pub fn report_error(filename: &Path, token_scanner: &TokenScanner, unrecoverable_error: Option<ErrorReport<HtmlGenerationError>>, recovered_errors: Vec<ErrorReport<HtmlGenerationError>>) {
 	let mut output = String::from("Couldn't compile due to the following errors:\n");
 	let write_report = | error: ErrorReport<HtmlGenerationError>, output: &mut String | {
 		match error {
 			ErrorReport::Stateless(error) => {
-				output.push_str(&format!(" At file {:?} ", filename).on_red().black().to_string());
-		 		output.push('\n');
-				output.push_str(&error.get_error_text());
-				output.push('\n');
-				output.push('\n');
+				output.push_str(&write_stateless_report(Some(filename), error));
 			},
 			ErrorReport::Stateful(error) => {
-				output.push_str(&format!(" In file {:?} at line {} ", filename, error.line).on_red().black().to_string());
+				output.push_str(&format!(" In file {:?} at line {} ", display_path(filename), error.line).on_red().black().to_string());
 		 		output.push('\n');
 				output.push_str(&error.report(&token_scanner));
 				match error.error {
@@ -223,11 +232,12 @@ pub fn report_error(filename: &Path, token_scanner: TokenScanner, unrecoverable_
 	}
 	let Some(unrecoverable_error) = unrecoverable_error else {
 		output.push_str("All errors were caught");
-		return output
+		println!("{}", output);
+		return
 	};
 	output.push_str("The following error was unrecoverable, so compilation stopped here and some errors may not have been caught:\n");
 	write_report(unrecoverable_error, &mut output);
-	output
+	println!("{}", output);
 }
 
 
@@ -361,17 +371,33 @@ impl<T: Error> From<T> for ErrorReport<T> {
 
 #[derive(Debug)]
 pub enum TemplatingError {
-	IOError(std::io::Error),
-	ParseFailed,
-	InputNotDir,
+	IOError(std::io::Error, PathBuf),
+	CouldntReadDir(std::io::Error, PathBuf),
+	ParseFailed(PathBuf),
+	ExpectedADir(PathBuf),
 }
 
 impl Error for TemplatingError {
 	fn get_error_text(&self) -> String {
 		match self {
-			Self::IOError(std::io::Error { .. }) => "There was an issue loading the file".into(),
-			Self::ParseFailed => "Failed to parse the file".into(),
-			Self::InputNotDir => "Not a directory".into(),
+			Self::IOError(std::io::Error { .. }, path) => format!("There was an issue loading {}", display_path(path)),
+			Self::CouldntReadDir(std::io::Error { .. }, path) => format!("There was an issue reading files from {}", display_path(path)),
+			Self::ParseFailed(path) => format!("Failed to parse {}", display_path(path)),
+			Self::ExpectedADir(path) => format!("{} is not a directory", display_path(path)),
 		}
 	}
+}
+
+fn display_path(path: &Path) -> String {
+	let mut output = String::new();
+	for name in path.iter() {
+		match name.to_str() {
+			Some(x) => {
+				output.push_str(x);
+				output.push('/');
+			},
+			None => return format!("{:?}", path)
+		}
+	}
+	return output.trim_end_matches('/').to_string()
 }

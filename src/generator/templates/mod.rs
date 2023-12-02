@@ -1,46 +1,39 @@
-use std::{ collections::HashMap, path::{Path, PathBuf}, ffi::OsStr, fs};
+use std::{ collections::HashMap, path::{Path, PathBuf}, fs};
 use crate::kiss;
 use crate::errors::TemplatingError;
-use crate::generator::kispaths;
 use crate::kiss::parser::ParsedFile;
 
 type TemplateDict = HashMap<PathBuf, ParsedFile>;
 
-pub fn get_templates() -> Result<TemplateDict, TemplatingError> {
-	let mut templates = TemplateDict::new();
-	
-	if kispaths::templates().is_dir() {
-		for entry in fs::read_dir(kispaths::templates()).unwrap() {
-			let entry = entry.map_err(TemplatingError::IOError)?;
-			let path = entry.path();
-			if !matches!(path.extension().and_then(OsStr::to_str), Some("kiss")) {
-				continue
-			}
-			match get_template(&path) {
-				Ok(x) => templates.extend(x.into_iter()),
-				Err(x) => return Err(x),
-			}
-		}
-	}
-	Ok(templates)
-}
-
-fn get_template(from: &Path) -> Result<TemplateDict, TemplatingError> {
+pub fn get_template(from: &Path) -> (TemplateDict, Vec<TemplatingError>) {
+	let mut errors = Vec::new();
 	let mut templates = TemplateDict::new();
 
 	if from.is_dir() {
-		for entry in fs::read_dir(from).unwrap() {
-			let entry = entry.map_err(|x| TemplatingError::IOError(x))?;
-			let path = entry.path();
-			get_template(&path);
+		match fs::read_dir(from) {
+			Ok(entries) => {
+				for entry in entries {
+					let entry = match entry {
+						Ok(x) => x,
+						Err(x) => {
+							errors.push(TemplatingError::IOError(x, from.to_path_buf()));
+							continue
+						}
+					};
+					let path = entry.path();
+					let (templates_in_entry, mut errors_in_entry) = get_template(&path);
+					templates.extend(templates_in_entry);
+					errors.append(&mut errors_in_entry);
+				}
+			},
+			Err(x) => errors.push(TemplatingError::CouldntReadDir(x, from.to_path_buf())),
 		}
 	} else {
-		let ast = match kiss::parse_template(&from) {
-			Ok(x) => x,
-			Err(x) => return Err(x)
-		};
-		templates.insert(from.to_path_buf(), ast);
+		match kiss::parse_template(&from) {
+			Ok(ast) => { templates.insert(from.to_path_buf(), ast); },
+			Err(x) => { errors.push(x); },
+		}
 	}
-	Ok(templates)
+	(templates, errors)
 }
 

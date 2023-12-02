@@ -16,22 +16,21 @@ type ParserVecResult = Result<(String, HtmlErrorVec), HtmlErrorVec>;
 pub fn parse_template(path: &Path) -> Result<ParsedFile, TemplatingError>{
 	let file_string = match fs::read_to_string(path) {
 		Ok(x) => x,
-		Err(x) => return Err(TemplatingError::IOError(x)),
+		Err(x) => return Err(TemplatingError::IOError(x, path.to_path_buf())),
 	};
 	match parser::get_ast(&file_string, CompilerOptions::for_templates()) {
 		Ok((token_scanner, parsed_file, errors)) => {
 			match errors {
 				Some(errors) => {
-					dbg!(&errors);
-					println!("{}", report_error(path, token_scanner, None, errors.into_iter().map(|x| x.from()).collect()));
-					Err(TemplatingError::ParseFailed)
+					report_error(path, &token_scanner, None, errors.into_iter().map(|x| x.from()).collect());
+					Err(TemplatingError::ParseFailed(path.to_path_buf()))
 				}
 				None => Ok(parsed_file),
 			}
 		},
 		Err((token_scanner, recovered, unrecoverable)) => {
-			println!("{}", report_error(path, token_scanner, Some(unrecoverable.from()), recovered.into_iter().map(|x| x.from()).collect()));
-			Err(TemplatingError::ParseFailed)
+			report_error(path, &token_scanner, Some(unrecoverable.from()), recovered.into_iter().map(|x| x.from()).collect());
+			Err(TemplatingError::ParseFailed(path.to_path_buf()))
 		}
 	}
 }
@@ -39,21 +38,21 @@ pub fn parse_template(path: &Path) -> Result<ParsedFile, TemplatingError>{
 pub fn parse_file(path: &Path) -> Result<(TokenScanner, ParsedFile), TemplatingError>{
 	let file_string = match fs::read_to_string(path) {
 		Ok(x) => x,
-		Err(x) => return Err(TemplatingError::IOError(x)),
+		Err(x) => return Err(TemplatingError::IOError(x, path.to_path_buf())),
 	};
 	match parser::get_ast(&file_string, CompilerOptions::default()) {
 		Ok((token_scanner, parsed_file, errors)) => {
 			match errors {
 				Some(errors) => {
-					report_error(path, token_scanner, None, errors.into_iter().map(|x| x.from()).collect());
-					Err(TemplatingError::ParseFailed)
+					report_error(path, &token_scanner, None, errors.into_iter().map(|x| x.from()).collect());
+					Err(TemplatingError::ParseFailed(path.to_path_buf()))
 				}
 				None => Ok((token_scanner, parsed_file)),
 			}
 		},
 		Err((token_scanner, recovered, unrecoverable)) => {
-			report_error(path, token_scanner, Some(unrecoverable.from()), recovered.into_iter().map(|x| x.from()).collect());
-			Err(TemplatingError::ParseFailed)
+			report_error(path, &token_scanner, Some(unrecoverable.from()), recovered.into_iter().map(|x| x.from()).collect());
+			Err(TemplatingError::ParseFailed(path.to_path_buf()))
 		}
 	}
 }
@@ -68,16 +67,22 @@ pub fn kiss_to_html(s: &str) -> ParserResult {
 			resolved: recovered.into_iter().map(|x| x.from()).collect(),
 		}),
 	};
-	to_html(token_scanner, parsed_file, errors)
-}
-
-pub fn to_html(token_scanner: TokenScanner, parsed_file: ParsedFile, errors: Option<Vec<ErrorReport<ParsingError>>>) -> ParserResult {
-	let mut output = String::new();
 	let mut errors = match errors {
 		Some(x) => x.into_iter().map(|x|x.from()).collect(),
 		None => Vec::new(),
 	};
+	match to_html(token_scanner, parsed_file) {
+		Ok(x) => Ok(x),
+		Err(mut x) => {
+			x.resolved.append(&mut errors);
+			return Err(x)
+		}
+	}
+}
 
+pub fn to_html(token_scanner: TokenScanner, parsed_file: ParsedFile) -> ParserResult {
+	let mut output = String::new();
+	let mut errors = Vec::new();
 	for node in parsed_file.body.iter() {
 		let state = HtmlCreationState {
 			macros: &parsed_file.macros,
@@ -98,7 +103,6 @@ pub fn to_html(token_scanner: TokenScanner, parsed_file: ParsedFile, errors: Opt
 		return Err(CompilerErrorReport { scanner: token_scanner, unresolved: None, resolved: errors})
 	}
 	Ok(output)
-	
 }
 
 #[derive(Debug, Clone)]
