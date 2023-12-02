@@ -7,7 +7,7 @@ use std::{collections::HashMap, path::Path, fs};
 use crate::errors::{ImplementationError, ParsingError, HtmlGenerationError, CompilerErrorReport, ErrorState, SpecialFrom, ErrorReport, report_error, TemplatingError};
 use compiler_options::CompilerOptions;
 
-use self::parser::{tag_stack::elements::{Param, ContentTag, Macro, ContentChild, Variable}, MacroArray, ParsedFile, TokenScanner};
+use self::parser::{tag_stack::elements::{Param, ContentTag, Macro, ContentChild, Variable, Constant}, MacroArray, ParsedFile, TokenScanner};
 
 type HtmlErrorVec = Vec<ErrorReport<HtmlGenerationError>>;
 type ParserResult = Result<String, CompilerErrorReport<HtmlGenerationError>>;
@@ -57,7 +57,6 @@ pub fn parse_file(path: &Path) -> Result<(TokenScanner, ParsedFile), TemplatingE
 	}
 }
 
-
 pub fn kiss_to_html(s: &str) -> ParserResult {
 	let (token_scanner, parsed_file, errors) = match parser::get_ast(s, CompilerOptions::for_templates()) {
 		Ok(x) => x,
@@ -88,7 +87,7 @@ pub fn to_html(token_scanner: TokenScanner, parsed_file: ParsedFile) -> ParserRe
 			macros: &parsed_file.macros,
 			indent_level: 0,
 			compiler_options: &CompilerOptions::default(),
-			variable_scopes: Vec::new(),
+			variable_scopes: vec![create_scope_from_constants(&parsed_file.consts)],
 		};
 		match &mut ast_to_html(node, &state) {
 			Ok(x) => {
@@ -293,6 +292,14 @@ fn create_scope_from(elem: &Macro) -> Result<HashMap<String, Option<String>>, Im
 		new_scope.insert(arg.name.clone(), arg.value.clone());
 	}
 	Ok(new_scope)
+}
+
+fn create_scope_from_constants(elems: &Vec<Constant>) -> HashMap<String, Option<String>> {
+	let mut new_scope: HashMap<String, Option<String>> = HashMap::new();
+	for arg in elems.iter() {
+		new_scope.insert(arg.name.clone(), Some(arg.value.clone()));
+	}
+	new_scope
 }
 
 fn get_param_string(params: &[Param]) -> String {

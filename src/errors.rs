@@ -231,11 +231,11 @@ pub fn report_error(filename: &Path, token_scanner: &TokenScanner, unrecoverable
 		write_report(error, &mut output);
 	}
 	let Some(unrecoverable_error) = unrecoverable_error else {
-		output.push_str("All errors were caught");
+		output.push_str(&format!("All errors in {} were caught", display_path(filename)));
 		println!("{}", output);
 		return
 	};
-	output.push_str("The following error was unrecoverable, so compilation stopped here and some errors may not have been caught:\n");
+	output.push_str(&format!("The following error was unrecoverable, so compilation of {} stopped here and some errors may not have been caught:\n", display_path(filename)));
 	write_report(unrecoverable_error, &mut output);
 	println!("{}", output);
 }
@@ -297,7 +297,7 @@ pub fn report_line(line: &[lexer::Token], line_number: usize, max_line_number: u
 
 pub fn get_line_number(n: usize, mexn: usize) -> String {
 	let mexns = mexn.to_string();
-	let ns = n.to_string();
+	let ns = (n + 1).to_string();
 	let mut out = String::from("  ");
 	for _ in ns.len()..mexns.len() {
 		out.push(' ');
@@ -374,7 +374,9 @@ pub enum TemplatingError {
 	IOError(std::io::Error, PathBuf),
 	CouldntReadDir(std::io::Error, PathBuf),
 	ParseFailed(PathBuf),
+	NoTemplate(PathBuf),
 	ExpectedADir(PathBuf),
+	CouldntMakeDir(std::io::Error, PathBuf)
 }
 
 impl Error for TemplatingError {
@@ -384,6 +386,8 @@ impl Error for TemplatingError {
 			Self::CouldntReadDir(std::io::Error { .. }, path) => format!("There was an issue reading files from {}", display_path(path)),
 			Self::ParseFailed(path) => format!("Failed to parse {}", display_path(path)),
 			Self::ExpectedADir(path) => format!("{} is not a directory", display_path(path)),
+			Self::CouldntMakeDir(std::io::Error { .. }, path) => format!("Coudln't create a folder at {}", display_path(path)),
+			Self::NoTemplate(path) => format!("Couldn't find a template at {}", display_path(path)),
 		}
 	}
 }
