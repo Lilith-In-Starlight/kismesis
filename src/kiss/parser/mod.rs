@@ -18,6 +18,7 @@ pub struct ParsedFile {
 	pub macros: MacroArray,
 	pub body: Vec<ContentChild>,
 	pub consts: Vec<Constant>,
+	pub lambdaconsts: Vec<String>,
 }
 
 impl ParsedFile {
@@ -26,6 +27,7 @@ impl ParsedFile {
 			macros: MacroArray::new(),
 			body: vec![],
 			consts: vec![],
+			lambdaconsts: vec![],
 		}
 	}
 }
@@ -49,7 +51,9 @@ pub enum States {
 	ExpectVariable(Arc<States>),
 	ExpectVariableName,
 	ExpectVarDefEquals(String),
-	ExpectVarDefValue(String, char, String)
+	ExpectVarDefValue(String, char, String),
+	ExpectLambdaVarName,
+	ExpectLambdaDefEquals(String),
 }
 
 #[derive(Debug, Clone)]
@@ -276,6 +280,7 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 					match token {
 						lexer::Token::OpenTag(_) => parser.change_state_to(States::ExpectTagName),
 						lexer::Token::Word(x) if x == "var" => parser.change_state_to(States::ExpectVariableName),
+						lexer::Token::Word(x) if x == "lambda" => parser.change_state_to(States::ExpectLambdaVarName),
 						lexer::Token::Space(_) | lexer::Token::Newline(_) | lexer::Token::Indent(_) => continue,
 						lexer::Token::CloseTag(_) => recovered_errors.push(ParsingError::ClosedTooManyTags.state(&token_scanner)),
 						_ => recovered_errors.push(ParsingError::ExpectedAnyOpener.state(&token_scanner)),
@@ -520,6 +525,25 @@ pub fn get_ast(s: &str, options: CompilerOptions) -> Result<(TokenScanner, Parse
 						parser.change_state_to(States::ExpectAnyOpener);
 					},
 					x => x.push_to_string(value),
+				}
+				States::ExpectLambdaVarName => match token {
+					lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
+					lexer::Token::Word(name) => parser.change_state_to(States::ExpectLambdaDefEquals(name.clone())),
+					_ => {
+						recovered_errors.push(ParsingError::ExpectedVariableName.state(&token_scanner));
+						parser.change_state_to(States::ExpectLambdaDefEquals(String::new()));
+					},
+				},
+				States::ExpectLambdaDefEquals(ref name) => match token {
+					lexer::Token::Space(_) | lexer::Token::Indent(_) => continue,
+					lexer::Token::Newline(_) => {
+						parser.file.lambdaconsts.push(name.clone());
+						parser.change_state_to(States::ExpectAnyOpener);
+					},
+					_ => {
+						recovered_errors.push(ParsingError::ExpectedVariableName.state(&token_scanner));
+						parser.change_state_to(States::ExpectAnyOpener);
+					},
 				}
 			}
 		}

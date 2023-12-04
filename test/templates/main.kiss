@@ -1,6 +1,15 @@
+lambda title
+
 <html
-	<head>
+	<head
+		<title | Ampersandia - #title>
+	>
 	<body
-		<content!>
+		<header
+			<span id="logo" | &>
+		>
+		<section class="content"
+			<content!>
+		>
 	>
 >

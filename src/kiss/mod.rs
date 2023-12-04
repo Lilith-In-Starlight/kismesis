@@ -13,7 +13,7 @@ type HtmlErrorVec = Vec<ErrorReport<HtmlGenerationError>>;
 type ParserResult = Result<String, CompilerErrorReport<HtmlGenerationError>>;
 type ParserVecResult = Result<(String, HtmlErrorVec), HtmlErrorVec>;
 
-pub fn parse_template(path: &Path) -> Result<ParsedFile, TemplatingError>{
+pub fn parse_template(path: &Path) -> Result<(ParsedFile, TokenScanner), TemplatingError>{
 	let file_string = match fs::read_to_string(path) {
 		Ok(x) => x,
 		Err(x) => return Err(TemplatingError::IOError(x, path.to_path_buf())),
@@ -25,7 +25,7 @@ pub fn parse_template(path: &Path) -> Result<ParsedFile, TemplatingError>{
 					report_error(path, &token_scanner, None, errors.into_iter().map(|x| x.from()).collect());
 					Err(TemplatingError::ParseFailed(path.to_path_buf()))
 				}
-				None => Ok(parsed_file),
+				None => Ok((parsed_file, token_scanner)),
 			}
 		},
 		Err((token_scanner, recovered, unrecoverable)) => {
@@ -70,7 +70,7 @@ pub fn kiss_to_html(s: &str) -> ParserResult {
 		Some(x) => x.into_iter().map(|x|x.from()).collect(),
 		None => Vec::new(),
 	};
-	match to_html(token_scanner, parsed_file) {
+	match to_html(token_scanner, &parsed_file, CompilerOptions::default()) {
 		Ok(x) => Ok(x),
 		Err(mut x) => {
 			x.resolved.append(&mut errors);
@@ -79,15 +79,16 @@ pub fn kiss_to_html(s: &str) -> ParserResult {
 	}
 }
 
-pub fn to_html(token_scanner: TokenScanner, parsed_file: ParsedFile) -> ParserResult {
+pub fn to_html(token_scanner: TokenScanner, parsed_file: &ParsedFile, compiler_options: CompilerOptions) -> ParserResult {
 	let mut output = String::new();
 	let mut errors = Vec::new();
 	for node in parsed_file.body.iter() {
 		let state = HtmlCreationState {
 			macros: &parsed_file.macros,
 			indent_level: 0,
-			compiler_options: &CompilerOptions::default(),
+			compiler_options: &compiler_options,
 			variable_scopes: vec![create_scope_from_constants(&parsed_file.consts)],
+			lambda_consts: &parsed_file.lambdaconsts,
 		};
 		match &mut ast_to_html(node, &state) {
 			Ok(x) => {
@@ -110,6 +111,7 @@ pub struct HtmlCreationState<'a> {
 	indent_level: usize,
 	compiler_options: &'a CompilerOptions,
 	variable_scopes: Vec<HashMap<String, Option<String>>>,
+	lambda_consts: &'a Vec<String>,
 }
 
 pub fn ast_to_html(el: &ContentChild, state: &HtmlCreationState) -> ParserVecResult {
@@ -121,7 +123,7 @@ pub fn ast_to_html(el: &ContentChild, state: &HtmlCreationState) -> ParserVecRes
 		} else {
 			Ok((String::new(), vec![]))
 		},
-		ContentChild::String(string) => Ok((string.clone(), HtmlErrorVec::new())),
+		ContentChild::String(string) => Ok((string.clone().trim_matches('\n').to_string(), HtmlErrorVec::new())),
 		ContentChild::Variable(variable) => variable_to_html(variable, state)
 	};
 	let errors = match result {
@@ -152,6 +154,9 @@ fn variable_to_html(valtag: &Variable, state: &HtmlCreationState) -> ParserVecRe
 				}.into()])
 			}
 		}
+	}
+	if state.lambda_consts.into_iter().any(|x| x == &valtag.name) {
+		return Ok((valtag.name.clone(), vec![]))
 	}
 	Err(vec![ErrorState {
 		error: ParsingError::UseOfUndefinedVariable.into(),
@@ -214,7 +219,6 @@ fn macro_call_to_html(call: &Macro, state: &HtmlCreationState) -> ParserVecResul
 		let result_errors = match res {
 			Ok(x) => {
 				output.push_str(&x.0);
-				output.push('\n');
 				x.1
 			},
 			Err(errs) => errs,
@@ -236,7 +240,10 @@ fn macro_call_to_html(call: &Macro, state: &HtmlCreationState) -> ParserVecResul
 fn content_tag_to_html(tag: &ContentTag, state: &HtmlCreationState) -> ParserVecResult {
 	let mut output = String::new();
 	let mut errors: Vec<ErrorReport<HtmlGenerationError>> = Vec::new();
-	for _ in 0..state.indent_level { output.push('\t') }
+	if !state.compiler_options.is_in_previous_para(&tag.name) {
+		output.push('\n');
+		for _ in 0..state.indent_level { output.push('\t') }
+	}
 	output.push('<');
 	if state.compiler_options.is_only_closer(&tag.name) {
 		output.push_str("/ ");
@@ -257,7 +264,6 @@ fn content_tag_to_html(tag: &ContentTag, state: &HtmlCreationState) -> ParserVec
 		for child in tag.children.iter() {
 			let mut new_state = state.clone();
 			if !state.compiler_options.is_inline(&tag.name) {
-				output.push('\n');
 				new_state.indent_level += 1;
 			}
 			let new_state = new_state;

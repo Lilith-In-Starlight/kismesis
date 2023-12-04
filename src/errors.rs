@@ -376,7 +376,8 @@ pub enum TemplatingError {
 	ParseFailed(PathBuf),
 	NoTemplate(PathBuf),
 	ExpectedADir(PathBuf),
-	CouldntMakeDir(std::io::Error, PathBuf)
+	CouldntMakeDir(std::io::Error, PathBuf),
+	UnsetLambda(PathBuf, String),
 }
 
 impl Error for TemplatingError {
@@ -388,6 +389,7 @@ impl Error for TemplatingError {
 			Self::ExpectedADir(path) => format!("{} is not a directory", display_path(path)),
 			Self::CouldntMakeDir(std::io::Error { .. }, path) => format!("Coudln't create a folder at {}", display_path(path)),
 			Self::NoTemplate(path) => format!("Couldn't find a template at {}", display_path(path)),
+			Self::UnsetLambda(path, name) => format!("Couldn't find a value for lambda {} in file {}", name, display_path(path)),
 		}
 	}
 }

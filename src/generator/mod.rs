@@ -3,7 +3,7 @@ mod templates;
 
 use std::{fs, path::{Path, PathBuf}, collections::HashMap};
 
-use crate::{errors::{TemplatingError, self, report_error}, kiss::{self, parser::{ParsedFile, tag_stack::elements::Macro}}};
+use crate::{errors::{TemplatingError, self, report_error}, kiss::{self, parser::{ParsedFile, tag_stack::elements::{Macro, }}, compiler_options::CompilerOptions}};
 
 type Templates = HashMap<PathBuf, ParsedFile>;
 
@@ -65,7 +65,7 @@ pub fn generate_path(path: &Path, main_template: &ParsedFile, templates: &Templa
 				},
 			};
 			let mut clone = obtained.clone();
-			let mut consts = parsed.consts;
+			let mut consts = parsed.consts.clone();
 			consts.append(&mut clone.consts);
 			clone.consts = consts;
 			clone
@@ -82,14 +82,22 @@ pub fn generate_path(path: &Path, main_template: &ParsedFile, templates: &Templa
 		let mut full_out = template.clone();
 		full_out.macros.push(content_macro);
 
-		
-		let string = match kiss::to_html(token_scanner, full_out) {
-			Ok(x) => x,
+		let string = match kiss::to_html(token_scanner, &full_out, CompilerOptions::default()) {
+			Ok(x) => {
+				let mut can_succed = true;
+				for lamb in full_out.lambdaconsts {
+					if !parsed.consts.iter().any(|x| x.name == lamb) {
+						can_succed = false;
+						errors.push(TemplatingError::UnsetLambda(path.clone(), lamb))
+					}
+				}
+				if can_succed { x } else { continue }
+			},
 			Err(x) => { report_error(&path, &x.scanner, None, x.resolved); continue },
 		};
 
 		let output_path: &Path = kispaths::output();
-		let output_path: PathBuf = output_path.iter().chain(path.iter().skip(2)).collect();
+		let output_path: PathBuf = output_path.iter().chain(path.iter().skip(1)).collect();
 
 		fs::create_dir_all(output_path.parent().unwrap()).unwrap();
 		fs::write(output_path, string).unwrap();
@@ -97,3 +105,4 @@ pub fn generate_path(path: &Path, main_template: &ParsedFile, templates: &Templa
 	}
 	return errors
 }
+

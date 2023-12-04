@@ -2,6 +2,7 @@ use super::parser::tag_stack::elements::ContentChild;
 
 #[derive(Debug)]
 pub struct CompilerOptions {
+	pub in_previous_para: Vec<String>,
 	pub inline: Vec<String>,
 	pub only_closer: Vec<String>,
 	pub only_opener: Vec<String>,
@@ -29,7 +30,8 @@ pub enum QuotePreferences {
 impl CompilerOptions {
 	pub fn default() -> Self{
 		Self {
-			inline: vec!["h1", "h2", "h3", "h4", "b", "p"].into_iter().map(String::from).collect(),
+			in_previous_para: vec!["a", "b"].into_iter().map(String::from).collect(),
+			inline: vec!["h1", "h2", "h3", "h4", "h5", "b", "p", "title", "a", "li", "span"].into_iter().map(String::from).collect(),
 			only_closer: vec!["br"].into_iter().map(String::from).collect(),
 			only_opener: vec!["meta", "base", "img"].into_iter().map(String::from).collect(),
 			deprecated: vec!["marquee"].into_iter().map(String::from).collect(),
@@ -56,6 +58,10 @@ impl CompilerOptions {
 
 	pub fn is_inline(&self, name: &str) -> bool {
 		self.inline.iter().any(|x| x == name)
+	}
+
+	pub fn is_in_previous_para(&self, name: &str) -> bool {
+		self.in_previous_para.iter().any(|x| x == name)
 	}
 
 	pub fn is_only_closer(&self, name: &str) -> bool {

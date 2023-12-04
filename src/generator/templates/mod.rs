@@ -1,6 +1,6 @@
 use std::{ collections::HashMap, path::{Path, PathBuf}, fs};
-use crate::kiss;
-use crate::errors::TemplatingError;
+use crate::kiss::{self, compiler_options::CompilerOptions};
+use crate::errors::{TemplatingError, report_error};
 use crate::kiss::parser::ParsedFile;
 
 type TemplateDict = HashMap<PathBuf, ParsedFile>;
@@ -30,7 +30,16 @@ pub fn get_template(from: &Path) -> (TemplateDict, Vec<TemplatingError>) {
 		}
 	} else {
 		match kiss::parse_template(&from) {
-			Ok(ast) => { templates.insert(from.to_path_buf(), ast); },
+			Ok(ast) => {
+				match kiss::to_html(ast.1, &ast.0, CompilerOptions::for_templates()) {
+					Ok(_) => { templates.insert(from.to_path_buf(), ast.0); },
+					Err(x) => {
+						report_error(&from, &x.scanner, x.unresolved, x.resolved);
+						errors.push(TemplatingError::ParseFailed(from.to_path_buf()));
+					},
+				}
+				// templates.insert(from.to_path_buf(), ast);
+			},
 			Err(x) => { errors.push(x); },
 		}
 	}
