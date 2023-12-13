@@ -4,7 +4,7 @@ use crate::lexer::Token;
 #[test]
 fn test_tag_head() {
 	use crate::parser::errors::Error;
-	use crate::{lexer::tokenize, parser::errors::FallibleParse, parser::errors::ErrorState};
+	use crate::{lexer::tokenize, parser::errors::ParserResult, parser::errors::ErrorState};
 	use super::ParserState;
 	let input = tokenize("<tag attribute='value' att!bute='value'|");
 	println!("{:#?}", super::tag_head(ParserState::new(&input)));
