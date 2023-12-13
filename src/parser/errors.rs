@@ -25,12 +25,12 @@ impl Error {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum ParserResult<'a, T> {
+pub(crate) enum ParserResult<'a, T, E> {
     Ok(T, ParserState<'a>),
-    Err(ErrorState, ParserState<'a>),
+    Err(E, ParserState<'a>),
 }
 
-impl<'a, T> ParserResult<'a, T> {
+impl<'a, T> ParserResult<'a, T, ErrorState> {
     pub(crate) fn err(error: Error, state: ParserState<'a>) -> Self {
         let pos = (state.line, state.column);
         Self::Err(ErrorState { error, start_position: pos, end_position: pos }, state)
