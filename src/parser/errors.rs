@@ -60,3 +60,7 @@ impl<'a> Recoverable for &'a char {
         &' '
     }
 }
+
+impl Try for ErrorState {
+	
+}

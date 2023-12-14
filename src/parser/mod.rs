@@ -20,14 +20,7 @@ trait Parser<'a, Output> {
     {
         BoxedParser::new(or(self, other))
     }
-    fn or_d<P, O2>(self, other: P) -> BoxedParser<'a, ()> where 
-        Self: Sized + 'a,
-        P: Parser<'a, O2> + 'a, 
-        Output: 'a,
-		O2: 'a,
-    {
-        BoxedParser::new(or_d(self, other))
-    }
+    
     fn followed_by<P, O2>(self, other: P) -> BoxedParser<'a, Output> where 
         Self: Sized + 'a,
         P: Parser<'a, O2> + 'a, 
@@ -43,6 +36,14 @@ trait Parser<'a, Output> {
         O2: 'a,
     {
         BoxedParser::new(preceding(self, other))
+    }
+    fn and_also<P, O2>(self, other: P) -> BoxedParser<'a, (Output, O2)> where
+        Self: Sized + 'a,
+        P: Parser<'a, O2> + 'a,
+        Output: 'a,
+        O2: 'a,
+    {
+        BoxedParser::new(and_also(self, other))
     }
 } 
 
@@ -159,9 +160,6 @@ fn tag_head<'a>(state: ParserState<'a>) -> ParserResult<'a, (String, Vec<Attribu
 	ParserResult::Ok((name, attributes, subtags), state)
 }
 
-fn tag_body<'a>(state: ParserState<'a>) -> ParserResult<'a, Vec<BodyTags> {
-    
-}
 
 fn subtag<'a>(state: ParserState<'a>) -> ParserResult<'a, HtmlTag> {
 	let (name, state) = match zero_or_more(space.or(indent)).preceding(literal).parse(state) {
@@ -178,6 +176,8 @@ fn subtag<'a>(state: ParserState<'a>) -> ParserResult<'a, HtmlTag> {
 }
 
 fn attribute<'a>(state: ParserState<'a>) -> ParserResult<'a, Attribute> {
+    let ((name, value), state) = literal.followed_by(zero_or_more(space.or(indent))).and_also(character('=').preceding(zero_or_more(space.or(indent)).preceding(quoted))).parse(state)?;
+
     let (name, state) = match literal.followed_by(zero_or_more(space.or(indent))).parse(state) {
         ParserResult::Ok(name, next_state) => (name.to_owned(), next_state),
         ParserResult::Err(error, error_state) => return ParserResult::Err(error, error_state),
@@ -212,6 +212,19 @@ where
     }
 }
 
+fn and_also<'a, P1, O1, P2, O2>(p1: P1, p2: P2) -> impl Parser<'a, (O1, O2)>
+where
+    P1: Parser<'a, O1>,
+    P2: Parser<'a, O2>
+{
+    move |state| match p1.parse(state) {
+        ParserResult::Ok(first_result, next_state) => match p2.parse(next_state) {
+            ParserResult::Ok(second_result, next_state) => ParserResult::Ok((first_result, second_result), next_state),
+            ParserResult::Err(err, next_state) => ParserResult::Err(err, next_state)
+        },
+        ParserResult::Err(error, next_state) => ParserResult::Err(error, next_state),
+    }
+}
 fn followed_by<'a, P1, O1, P2, O2>(p1: P1, p2: P2) -> impl Parser<'a, O1>
 where
     P1: Parser<'a, O1>,
@@ -237,19 +250,6 @@ where
     }
 }
 
-fn or_d<'a, P1, O1, P2, O2>(p1: P1, p2: P2) -> impl Parser<'a, ()>
-where
-    P1: Parser<'a, O1>,
-    P2: Parser<'a, O2>
-{
-    move |state| match p1.parse(state) {
-        ParserResult::Ok(_, next_state) => ParserResult::Ok((), next_state),
-        ParserResult::Err(_, next_state) => match p2.parse(next_state) {
-			ParserResult::Ok(_, next_state) => ParserResult::Ok((), next_state),
-			ParserResult::Err(err, next_state) => ParserResult::Err(err, next_state)
-		},
-    }
-}
 
 fn character<'a>(chr: char) -> impl Parser<'a, &'a char> {
     move |state: ParserState<'a> | {
