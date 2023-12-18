@@ -4,74 +4,80 @@ use super::state::{ParserState, TokenPos};
 
 #[derive(Clone, Debug)]
 pub enum Error {
-	ExpectedUniFunc,
-	ExpectedBinFunc,
-	ExpectedVarName,
-	ExpectedTagNameOrMacroDef,
-	ExpectedBodyOpener,
-	ExpectedTagName,
-	ExpectedTagCloser,
-	ExpectedVarCaller,
-	ExpectedTagOpener,
-	NewlineInQuote,
-	NotANewline,
-	NotLiteral,
-	UnexpectedMacroDef,
-	UnendingZero,
-	EmptyString,
+    ExpectedUniFunc,
+    ExpectedBinFunc,
+    ExpectedVarName,
+    ExpectedTagNameOrMacroDef,
+    ExpectedBodyOpener,
+    ExpectedTagName,
+    ExpectedTagCloser,
+    ExpectedVarCaller,
+    ExpectedTagOpener,
+    NewlineInQuote,
+    NotANewline,
+    NotLiteral,
+    UnexpectedMacroDef,
+    UnendingZero,
+    EmptyString,
     NotSymbol,
-	NotMacroStart,
+    NotMacroStart,
     CharacterNotMatch { expected: char, got: Option<char> },
     NotQuoteMark,
     ExpectedQuoteStart,
     NotASpace,
     NotAnIndent,
-	EndlessName,
+    EndlessName,
     UnclosedQuote,
-	InvalidSymbolsInParamName,
-	InvalidSymbolsInTagName,
-	EmptyName,
-	ExpectedValue,
-	ReachedEOF,
-	EndlessString,
+    InvalidSymbolsInParamName,
+    InvalidSymbolsInTagName,
+    EmptyName,
+    ExpectedValue,
+    ReachedEOF,
+    EndlessString,
 }
 
 #[derive(Clone, Debug)]
 pub enum Err<'a> {
-	Error(ErrorState<'a>),
-	Failure(ErrorState<'a>),
+    Error(ErrorState<'a>),
+    Failure(ErrorState<'a>),
 }
 
 impl<'a> Err<'a> {
-	pub fn unpack(self) -> ErrorState<'a> {
-		match self {
-			Self::Error(x) => x,
-			Self::Failure(x) => x,
-		}
-	}
+    pub fn unpack(self) -> ErrorState<'a> {
+        match self {
+            Self::Error(x) => x,
+            Self::Failure(x) => x,
+        }
+    }
 
-	pub fn cut(self) -> Err<'a> {
-		match self {
-			Self::Error(x) => Err::Failure(x),
-			x => x,
-		}
-	}
+    pub fn cut(self) -> Err<'a> {
+        match self {
+            Self::Error(x) => Err::Failure(x),
+            x => x,
+        }
+    }
 }
 
 impl Error {
-	pub(crate) fn state_at<'a>(self, state: &ParserState<'a>) -> Err<'a> {
+    pub(crate) fn state_at<'a>(self, state: &ParserState<'a>) -> Err<'a> {
         let pos = state.position;
-        Err::Error(ErrorState { error: self, start_position: pos, previous_errors: state.clone().errors, end_position: pos, tokens: state.tokens})
-	}
+        Err::Error(ErrorState {
+            error: self,
+            start_position: pos,
+            previous_errors: state.clone().errors,
+            end_position: pos,
+            tokens: state.tokens,
+        })
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct ErrorState<'a> {
-	pub error: Error,
-	pub previous_errors: Vec<ErrorState<'a>>,
+    pub error: Error,
+    pub previous_errors: Vec<ErrorState<'a>>,
     pub start_position: TokenPos,
     pub end_position: TokenPos,
-	pub tokens: &'a [Token]
+    pub tokens: &'a [Token],
 }
 
 pub(crate) trait Recoverable {

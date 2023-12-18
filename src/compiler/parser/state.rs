@@ -5,18 +5,18 @@ use super::errors::ErrorState;
 #[derive(Clone, Debug)]
 pub struct ParserState<'a> {
     pub(crate) tokens: &'a [Token],
-	pub(crate) position: TokenPos,
+    pub(crate) position: TokenPos,
     pub(crate) errors: Vec<ErrorState<'a>>,
 }
 
-impl<'a> ParserState<'a>{
-	pub(crate) fn new(tokens: &'a [Token]) -> Self {
-		Self {
-			tokens,
-			position: TokenPos::new(),
-			errors: vec![],
-		}
-	}
+impl<'a> ParserState<'a> {
+    pub(crate) fn new(tokens: &'a [Token]) -> Self {
+        Self {
+            tokens,
+            position: TokenPos::new(),
+            errors: vec![],
+        }
+    }
     pub(crate) fn next_state(self) -> Self {
         let next_token = self.tokens.get(1);
         let position = match next_token {
@@ -25,8 +25,8 @@ impl<'a> ParserState<'a>{
         };
         Self {
             tokens: self.tokens.get(1..).unwrap_or(&[]),
-			position,
-			..self
+            position,
+            ..self
         }
     }
 
@@ -47,27 +47,27 @@ pub struct TokenPos {
 }
 
 impl TokenPos {
-	pub fn new() -> Self {
-		Self {
-			idx: 0,
-			line: 0,
-			column: 0,
-		}
-	}
+    pub fn new() -> Self {
+        Self {
+            idx: 0,
+            line: 0,
+            column: 0,
+        }
+    }
 
-	fn next_character(self) -> Self {
-		Self {
-			idx: self.idx + 1,
-			column: self.idx + 1,
-			..self
-		}
-	}
-	
-	fn next_line(self) -> Self {
-		Self {
-			idx: self.idx + 1,
-			column: 0,
-			line: self.line + 1,
-		}
-	}
+    fn next_character(self) -> Self {
+        Self {
+            idx: self.idx + 1,
+            column: self.idx + 1,
+            ..self
+        }
+    }
+
+    fn next_line(self) -> Self {
+        Self {
+            idx: self.idx + 1,
+            column: 0,
+            line: self.line + 1,
+        }
+    }
 }
