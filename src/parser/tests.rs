@@ -1,15 +1,13 @@
-use crate::lexer::Token;
+use std::fs::read_to_string;
 
+use crate::{lexer::{Token, self}, parser::{literal, character, skip_spaces}};
+
+use super::{zero_or_more, after_spaces, attribute, state::ParserState, Parser};
 
 #[test]
-fn test_tag_head() {
-	use crate::parser::errors::Error;
-	use crate::{lexer::tokenize, parser::errors::ParserResult, parser::errors::ErrorState};
-	use super::ParserState;
-	let input = tokenize("<tag attribute='value' att!bute='value'|");
-	println!("{:#?}", super::tag_head(ParserState::new(&input)));
-	let input = tokenize("<tag attribute='value' att!bute art='asdf'");
-	println!("{:#?}", super::tag_head(ParserState::new(&input)));
-	let input = tokenize("<tag attr='one' < othertag attr='two '|");
-	println!("{:#?}", super::tag_head(ParserState::new(&input)));
+fn test_multi_attrs() {
+    let tokens = lexer::tokenize(&read_to_string("test/attr_test.ks").unwrap().replace('\r', ""));
+	println!("{:#?}", zero_or_more(after_spaces(attribute)).parse(ParserState::new(&tokens)));
+    let tokens = lexer::tokenize(&read_to_string("test/attr_test2.ks").unwrap().replace('\r', ""));
+	println!("{:#?}", literal.cut().followed_by(zero_or_more(after_spaces(character('=').cut().followed_by(literal)))).parse(ParserState::new(&tokens)));
 }

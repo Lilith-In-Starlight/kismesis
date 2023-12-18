@@ -1,6 +1,6 @@
 use crate::lexer::Token;
 
-use super::state::{ParserState, TokenPos};
+use super::state::ParserState;
 
 #[derive(Clone, Debug)]
 pub enum Error {
@@ -49,18 +49,11 @@ impl<'a> Err<'a> {
 			Self::Failure(x) => x,
 		}
 	}
-
-	pub fn cut(self) -> Err<'a> {
-		match self {
-			Self::Error(x) => Err::Failure(x),
-			x => x,
-		}
-	}
 }
 
 impl Error {
 	pub(crate) fn state_at<'a>(self, state: &ParserState<'a>) -> Err<'a> {
-        let pos = state.position;
+        let pos = (state.line, state.column);
         Err::Error(ErrorState { error: self, start_position: pos, previous_errors: state.clone().errors, end_position: pos, tokens: state.tokens})
 	}
 }
@@ -69,8 +62,8 @@ impl Error {
 pub struct ErrorState<'a> {
 	pub error: Error,
 	pub previous_errors: Vec<ErrorState<'a>>,
-    pub start_position: TokenPos,
-    pub end_position: TokenPos,
+    pub start_position: (usize, usize),
+    pub end_position: (usize, usize),
 	pub tokens: &'a [Token]
 }
 
