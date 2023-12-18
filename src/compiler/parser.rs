@@ -1,15 +1,14 @@
 mod types;
 mod state;
 mod errors;
-mod tests;
 
 use std::fmt::Debug;
 
-use crate::lexer::Token;
+use crate::compiler::lexer::Token;
 
 use self::types::{StringParts, Attribute, HtmlTag, HtmlNodes, Argument, BodyNodes, Macro, ParsedFile, Tag, BodyTags, Expression, BinFunc, UniFunc, Variable, Lambda, PlugCall, Ranged};
 use self::errors::{Error, Err};
-use self::state::{ParserState, TokenPos};
+use self::state::ParserState;
 
 type ParserResult<'a, T> = Result<(T, ParserState<'a>), Err<'a>>;
 
@@ -100,63 +99,63 @@ impl<'a, T> Parser<'a, T> for BoxedParser<'a, T> {
 fn quote_mark(state: ParserState) -> ParserResult<&char> {
     match character('\'').or(character('"')).parse(state.clone()) {
         Err(_) => Err(Error::NotQuoteMark.state_at(&state)),
-        ok @ _ => ok,
+        ok => ok,
     }
 }
 
 fn tag_opener(state: ParserState) -> ParserResult<&char> {
     match character('<').parse(state.clone()) {
         Err(_) => Err(Error::ExpectedTagOpener.state_at(&state)),
-        ok @ _ => ok,
+        ok => ok,
     }
 }
 
 fn subtag_opener(state: ParserState) -> ParserResult<&char> {
     match character('<').parse(state.clone()) {
         Err(_) => Err(Error::ExpectedTagOpener.state_at(&state)),
-        ok @ _ => ok,
+        ok => ok,
     }
 }
 
 fn tag_closer(state: ParserState) -> ParserResult<&char> {
     match character('>').parse(state.clone()) {
         Err(_) => Err(Error::ExpectedTagCloser.state_at(&state)),
-        ok @ _ => ok,
+        ok => ok,
     }
 }
 
 fn macro_mark(state: ParserState) -> ParserResult<&char> {
     match character('!').parse(state.clone()) {
         Err(_) => Err(Error::ExpectedVarCaller.state_at(&state)),
-        ok @ _ => ok,
+        ok => ok,
     }
 }
 
 fn plugin_mark(state: ParserState) -> ParserResult<&char> {
     match character('?').parse(state.clone()) {
         Err(_) => Err(Error::ExpectedVarCaller.state_at(&state)),
-        ok @ _ => ok,
+        ok => ok,
     }
 }
 
 fn body_opener(state: ParserState) -> ParserResult<&char> {
     match character('|').or(newline).parse(state.clone()) {
         Err(_) => Err(Error::ExpectedBodyOpener.state_at(&state)),
-        ok @ _ => ok,
+        ok => ok,
     }
 }
 
 fn tag_name(state: ParserState) -> ParserResult<&str> {
     match literal.parse(state.clone()) {
         Err(_) => Err(Error::ExpectedTagName.state_at(&state)),
-        ok @ _ => ok,
+        ok => ok,
     }
 }
 
 fn equals(state: ParserState) -> ParserResult<&char> {
     match character('=').parse(state.clone()) {
         Err(_) => Err(Error::ExpectedBodyOpener.state_at(&state)),
-        ok @ _ => ok,
+        ok => ok,
     }
 }
 
@@ -166,7 +165,7 @@ fn variable_name(state: ParserState) -> ParserResult<&str> {
 
 fn expression(state: ParserState) -> ParserResult<Expression> {
     let parser = variable_name.map(|x| Expression::Variable(x.to_owned())).or(wrapped_expr);
-    Ok(parser.parse(state)?)
+    parser.parse(state)
 }
 
 fn binary_func(state: ParserState) -> ParserResult<BinFunc> {
@@ -235,7 +234,7 @@ fn quoted(state: ParserState) -> ParserResult<Vec<StringParts>> {
                 state= state.next_state();
             },
             Token::Newline(_) => return Err(Error::NewlineInQuote.state_at(&state)),
-            tok @ _ => match output.pop() {
+            tok => match output.pop() {
                 Some(StringParts::String(mut string)) => {
                     tok.push_to_string(&mut string);
                     output.push(StringParts::String(string));
@@ -257,20 +256,20 @@ fn quoted(state: ParserState) -> ParserResult<Vec<StringParts>> {
     Err(Error::UnclosedQuote.state_at(&state).cut())
 }
 
-fn some_tag<'a>(state: ParserState<'a>) -> ParserResult<'a, Tag> {
+fn some_tag(state: ParserState) -> ParserResult<Tag> {
     let parser = tag_opener.preceding(cut(
         after_spaces(tag.map(Tag::HtmlTag).or(macro_call.map(Tag::MacroCall)).or(macro_def.map(Tag::MacroDef)).or(plug_call.map(Tag::PlugCall)).followed_by(tag_closer))
     ));
 
-    Ok(parser.parse(state)?)
+    parser.parse(state)
 }
 
-fn some_child_tag<'a>(state: ParserState<'a>) -> ParserResult<'a, BodyTags> {
+fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
     let parser = character('<').preceding(cut(
         after_spaces(tag.map(BodyTags::HtmlTag).or(macro_call.map(BodyTags::MacroCall)).followed_by(character('>')))
     ));
 
-    Ok(parser.parse(state)?)
+    parser.parse(state)
 }
 
 fn tag(state: ParserState<'_>) -> ParserResult<'_, HtmlTag> {
@@ -365,7 +364,7 @@ fn macro_starter(state: ParserState) -> ParserResult<&str> {
     }
 }
 
-fn tag_head<'a>(state: ParserState<'a>) -> ParserResult<'a, (Ranged<String>, Vec<Attribute>, Vec<HtmlTag>)> {
+fn tag_head(state: ParserState) -> ParserResult<(Ranged<String>, Vec<Attribute>, Vec<HtmlTag>)> {
     let cut_cond = space.or(indent.or(newline.or(character('|').or(character('>').or(character('<'))))));
     let parser = get_range(non_macro_starter).followed_by(peek(cut_cond))
         .and_also(cut(zero_or_more(after_spaces(attribute))))
@@ -376,7 +375,7 @@ fn tag_head<'a>(state: ParserState<'a>) -> ParserResult<'a, (Ranged<String>, Vec
 	Ok(((name.to_own(), attributes, subtags), state))
 }
 
-fn plugin_head<'a>(state: ParserState<'a>) -> ParserResult<'a, (Ranged<String>, Ranged<Vec<Token>>)> {
+fn plugin_head(state: ParserState) -> ParserResult<(Ranged<String>, Ranged<Vec<Token>>)> {
     let parser = get_range(non_macro_starter).followed_by(plugin_mark).followed_by(skip_spaces());
 
     let (name, mut state) = parser.parse(state)?;
@@ -398,7 +397,7 @@ fn plugin_head<'a>(state: ParserState<'a>) -> ParserResult<'a, (Ranged<String>, 
                 let end = state.position;
                 return Ok(((name.to_own(), Ranged { value: tokens, range: (start, end) }), state))
             }
-            tok @ _ => {
+            tok => {
                 tokens.push(tok.clone());
                 state = state.next_state();
             },
@@ -408,7 +407,7 @@ fn plugin_head<'a>(state: ParserState<'a>) -> ParserResult<'a, (Ranged<String>, 
     Err(Error::EndlessString.state_at(&state).cut())
 }
 
-fn macro_call_head<'a>(state: ParserState<'a>) -> ParserResult<'a, (Ranged<String>, Vec<Argument>, Vec<HtmlTag>)> {
+fn macro_call_head(state: ParserState) -> ParserResult<(Ranged<String>, Vec<Argument>, Vec<HtmlTag>)> {
     let parser = get_range(tag_name).followed_by(macro_mark)
         .and_also(cut(zero_or_more(skip_spaces().preceding(argument))))
         .and_also(zero_or_more(after_spaces(subtag)));
@@ -418,7 +417,7 @@ fn macro_call_head<'a>(state: ParserState<'a>) -> ParserResult<'a, (Ranged<Strin
 	Ok(((name.to_own(), attributes, subtags), state))
 }
 
-fn macro_def_head<'a>(state: ParserState<'a>) -> ParserResult<'a, (Ranged<String>, Vec<Argument>, Vec<HtmlTag>)> {
+fn macro_def_head(state: ParserState) -> ParserResult<(Ranged<String>, Vec<Argument>, Vec<HtmlTag>)> {
     let parser = after_spaces(macro_starter).preceding(cut(after_spaces(get_range(literal)))
         .and_also(zero_or_more(after_spaces(argument)))
         .and_also(zero_or_more(after_spaces(subtag))));
@@ -443,7 +442,7 @@ fn skipped_blanks<'a>() -> impl Parser<'a, Vec<&'a char>> {
     zero_or_more(space.or(indent).or(newline))
 }
 
-fn tag_body<'a>(state: ParserState<'a>) -> ParserResult<'a, Vec<HtmlNodes>> {
+fn tag_body(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
     let parser = skip_spaces().preceding(body_opener).preceding(zero_or_more(
         skipped_blanks().preceding(
             string.map(HtmlNodes::String).or(some_child_tag.map(|x| x.into()))
@@ -453,7 +452,7 @@ fn tag_body<'a>(state: ParserState<'a>) -> ParserResult<'a, Vec<HtmlNodes>> {
     parser.parse(state)
 }
 
-fn plugin_body<'a>(state: ParserState<'a>) -> ParserResult<'a, Ranged<Vec<Token>>> {
+fn plugin_body(state: ParserState) -> ParserResult<Ranged<Vec<Token>>> {
     let parser = skip_spaces().preceding(body_opener).followed_by(skipped_blanks());
     let (_, mut state) = parser.parse(state)?;
 
@@ -471,7 +470,7 @@ fn plugin_body<'a>(state: ParserState<'a>) -> ParserResult<'a, Ranged<Vec<Token>
                 let end = state.position;
                 return Ok((Ranged {value: tokens, range: (start, end)}, state))
             }
-            tok @ _ => {
+            tok => {
                 tokens.push(tok.clone());
                 state = state.next_state();
             },
@@ -481,7 +480,7 @@ fn plugin_body<'a>(state: ParserState<'a>) -> ParserResult<'a, Ranged<Vec<Token>
 
     Err(Error::EndlessString.state_at(&state).cut())
 }
-fn string<'a>(mut state: ParserState<'a>) -> ParserResult<'a, Vec<StringParts>> {
+fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
     let mut output = Vec::<StringParts>::new();
     let mut escape = false;
     while let Some(token) = state.first_token() {
@@ -510,7 +509,7 @@ fn string<'a>(mut state: ParserState<'a>) -> ParserResult<'a, Vec<StringParts>> 
                 escape = true;
                 state = state.next_state();
             },
-            tok @ _ => match output.pop() {
+            tok => match output.pop() {
                 Some(StringParts::String(mut string)) => {
                     tok.push_to_string(&mut string);
                     output.push(StringParts::String(string));
@@ -532,21 +531,21 @@ fn string<'a>(mut state: ParserState<'a>) -> ParserResult<'a, Vec<StringParts>> 
     Err(Error::EndlessString.state_at(&state).cut())
 }
 
-fn subtag<'a>(state: ParserState<'a>) -> ParserResult<'a, HtmlTag> {
+fn subtag(state: ParserState) -> ParserResult<HtmlTag> {
     let parser = subtag_opener.preceding(cut(after_spaces(get_range(literal)))
         .and_also(zero_or_more(skip_spaces().preceding(attribute))));
     let ((name, attributes), state) = parser.parse(state)?;
 	Ok((HtmlTag {name: name.to_own(), attributes, subtags: vec![], body: vec![]}, state))
 }
 
-fn attribute<'a>(state: ParserState<'a>) -> ParserResult<'a, Attribute> {
+fn attribute(state: ParserState) -> ParserResult<Attribute> {
     let parser = get_range(literal).followed_by(skip_spaces())
         .and_also(cut(equals.preceding(zero_or_more(space.or(indent)).preceding(quoted))));
     let ((name, value), state) = parser.parse(state)?;
     Ok((Attribute { name: name.to_own(), value }, state))
 }
 
-fn argument<'a>(state: ParserState<'a>) -> ParserResult<'a, Argument> {
+fn argument(state: ParserState) -> ParserResult<Argument> {
     let parser = get_range(literal).followed_by(zero_or_more(space.or(indent)))
         .and_maybe(equals.preceding(zero_or_more(space.or(indent)).preceding(quoted)));
     let ((name, value), state) = parser.parse(state)?;
@@ -611,7 +610,7 @@ where
         ParserResult::Ok((first_result, next_state)) => match p2.parse(next_state.clone()) {
             Ok((second_result, next_state)) => Ok(((first_result, Some(second_result)), next_state)),
             Err(Err::Error(_)) => Ok(((first_result, None), next_state)),
-            Err(x) => return Err(x),
+            Err(x) => Err(x),
         },
         Err(error) => Err(error),
     }
@@ -647,7 +646,7 @@ fn character<'a>(chr: char) -> impl Parser<'a, &'a char> {
     move |state: ParserState<'a> | {
         match some_symbol.parse(state.clone()) {
             Ok((x, next_state)) if x == &chr => Ok((x, next_state)),
-            Ok((x, _)) => Err(Error::CharacterNotMatch { expected: chr, got: Some(x.clone()) }.state_at(&state)),
+            Ok((x, _)) => Err(Error::CharacterNotMatch { expected: chr, got: Some(*x) }.state_at(&state)),
             Err(error) => Err(error),
         }
     }
@@ -689,7 +688,7 @@ fn dbg<'a, P, T: Debug>(parser: P) -> impl Parser<'a, T> where P: Parser<'a, T> 
 fn cut<'a, P, T>(parser: P) -> impl Parser<'a, T> where P: Parser<'a, T> {
     move | state: ParserState<'a> | match parser.parse(state) {
         Err(Err::Error(x)) => Err(Err::Failure(x)),
-        pat @ _ => pat,
+        pat => pat,
     }
 }
 
@@ -709,7 +708,7 @@ where
         let start = state.position;
         let (val, next_state) = parser.parse(state)?; 
         let end = next_state.position;
-        return Ok((Ranged { value: val, range: (start, end) } , next_state))
+        Ok((Ranged { value: val, range: (start, end) } , next_state))
     }
 }
 

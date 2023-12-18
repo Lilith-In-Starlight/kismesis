@@ -1,4 +1,4 @@
-use crate::lexer::Token;
+use crate::compiler::lexer::Token;
 
 use super::errors::ErrorState;
 

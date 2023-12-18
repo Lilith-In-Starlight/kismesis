@@ -1,4 +1,4 @@
-use crate::lexer::Token;
+use crate::compiler::lexer::Token;
 
 use super::state::TokenPos;
 
@@ -165,7 +165,7 @@ pub struct Ranged<T> {
 }
 
 impl Ranged<&str> {
-	pub fn to_own(self) -> Ranged<String> {
+	pub fn to_own(&self) -> Ranged<String> {
 		Ranged {
 			value: self.value.to_owned(),
 			range: self.range,

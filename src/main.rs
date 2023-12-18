@@ -1,10 +1,9 @@
 use std::fs::read_to_string;
 
-mod lexer;
-mod parser;
+mod compiler;
 
 
 fn main() {
-    let tokens = lexer::tokenize(&read_to_string("main.ks").unwrap().replace('\r', ""));
-    println!("{:#?}", parser::file(&tokens));
+    let tokens = compiler::lexer::tokenize(&read_to_string("main.ks").unwrap().replace('\r', ""));
+    println!("{:#?}", compiler::parser::file(&tokens));
 }
