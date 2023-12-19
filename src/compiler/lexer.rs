@@ -1,4 +1,6 @@
 #[derive(Debug, Clone, PartialEq)]
+
+/// The different tokens that can be in an input string
 pub enum Token {
     Word(String),
     Space(char),
@@ -8,12 +10,15 @@ pub enum Token {
 }
 
 impl Token {
+    /// Pushes the content of the token into a string
     pub fn push_to_string(&self, to: &mut String) {
         match self {
             Self::Word(word) => to.push_str(word),
             Self::Space(c) | Self::Newline(c) | Self::Indent(c) | Self::Symbol(c) => to.push(*c),
         }
     }
+
+    /// Returns the content of the token as a string
     pub fn get_as_string(&self) -> String {
         match self {
             Self::Word(word) => word.clone(),
@@ -22,12 +27,21 @@ impl Token {
     }
 }
 
+/// Converts a string into a `Vec<Token>`, ignoring `\r` characters.
 pub fn tokenize(s: &str) -> Vec<Token> {
     let mut output: Vec<Token> = vec![];
 
     let mut current_word: usize = 0;
     for (idx, character) in s.char_indices() {
         match character {
+            '\r' => {
+                let word = &s.get(current_word..idx).map(|x| x.to_string()).unwrap_or(String::new());
+                if !word.is_empty() {
+                    output.push(Token::Word(word.clone()));
+                }
+                current_word = idx+1;
+                continue
+            }
             ' ' => {
                 push_token(
                     Token::Space(character),
@@ -71,6 +85,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
     if !word.is_empty() {
         output.push(Token::Word(word.to_string()))
     }
+    dbg!(&output);
     output
 }
 

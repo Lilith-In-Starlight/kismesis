@@ -1,3 +1,11 @@
-<html? a
+<html a="uwu"
+	<head+title | uwu>
+	<body
+		<uwu! arg>
+	>
+>
 
-<macro a>
+<macro uwu arg
+	<h1 | hewwo>
+	@arg
+>

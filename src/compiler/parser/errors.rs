@@ -1,9 +1,9 @@
-use crate::compiler::lexer::Token;
-
 use super::state::{ParserState, TokenPos};
 
 #[derive(Clone, Debug)]
 pub enum Error {
+    ExpectedMacroMark,
+    ExpectedPluginMark,
     ExpectedUniFunc,
     ExpectedBinFunc,
     ExpectedVarName,
@@ -37,20 +37,20 @@ pub enum Error {
 }
 
 #[derive(Clone, Debug)]
-pub enum Err<'a> {
-    Error(ErrorState<'a>),
-    Failure(ErrorState<'a>),
+pub enum Err {
+    Error(ErrorState<Error>),
+    Failure(ErrorState<Error>),
 }
 
-impl<'a> Err<'a> {
-    pub fn unpack(self) -> ErrorState<'a> {
+impl Err {
+    pub fn unpack(self) -> ErrorState<Error> {
         match self {
             Self::Error(x) => x,
             Self::Failure(x) => x,
         }
     }
 
-    pub fn cut(self) -> Err<'a> {
+    pub fn cut(self) -> Err {
         match self {
             Self::Error(x) => Err::Failure(x),
             x => x,
@@ -59,25 +59,23 @@ impl<'a> Err<'a> {
 }
 
 impl Error {
-    pub(crate) fn state_at<'a>(self, state: &ParserState<'a>) -> Err<'a> {
+    pub(crate) fn state_at<'a>(self, state: &ParserState<'a>) -> Err {
         let pos = state.position;
         Err::Error(ErrorState {
             error: self,
             start_position: pos,
             previous_errors: state.clone().errors,
             end_position: pos,
-            tokens: state.tokens,
         })
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct ErrorState<'a> {
-    pub error: Error,
-    pub previous_errors: Vec<ErrorState<'a>>,
+pub struct ErrorState<T> {
+    pub error: T,
+    pub previous_errors: Vec<ErrorState<T>>,
     pub start_position: TokenPos,
     pub end_position: TokenPos,
-    pub tokens: &'a [Token],
 }
 
 pub(crate) trait Recoverable {

@@ -32,7 +32,6 @@ pub struct Macro {
     pub(crate) name: Ranged<String>,
     pub(crate) arguments: Vec<Argument>,
     pub(crate) body: Vec<HtmlNodes>,
-    pub(crate) subtags: Vec<HtmlTag>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -48,6 +47,15 @@ pub enum HtmlNodes {
     MacroCall(Macro),
     String(Vec<StringParts>),
     PlugCall(PlugCall),
+    Subtree(ParsedFile),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TopNodes {
+    HtmlTag(HtmlTag),
+    MacroCall(Macro),
+    PlugCall(PlugCall),
+    Subtree(ParsedFile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -55,6 +63,7 @@ pub enum BodyTags {
     HtmlTag(HtmlTag),
     MacroCall(Macro),
     PlugCall(PlugCall),
+    Subtree(ParsedFile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,11 +83,12 @@ pub enum BodyNodes {
     String(Vec<StringParts>),
     LambdaDef(Lambda),
     VarDef(Variable),
+    Subtree(ParsedFile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParsedFile {
-    pub body: Vec<HtmlNodes>,
+    pub body: Vec<TopNodes>,
     pub defined_macros: Vec<Macro>,
     pub defined_variables: Vec<Variable>,
     pub defined_lambdas: Vec<Lambda>,
@@ -112,6 +122,7 @@ impl From<BodyTags> for BodyNodes {
             BodyTags::HtmlTag(x) => Self::HtmlTag(x),
             BodyTags::MacroCall(x) => Self::MacroCall(x),
             BodyTags::PlugCall(x) => Self::PlugCall(x),
+            BodyTags::Subtree(x) => Self::Subtree(x),
         }
     }
 }
@@ -122,6 +133,7 @@ impl From<BodyTags> for HtmlNodes {
             BodyTags::HtmlTag(x) => Self::HtmlTag(x),
             BodyTags::MacroCall(x) => Self::MacroCall(x),
             BodyTags::PlugCall(x) => Self::PlugCall(x),
+            BodyTags::Subtree(x) => Self::Subtree(x),
         }
     }
 }

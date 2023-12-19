@@ -1,6 +1,6 @@
-mod errors;
-mod state;
-mod types;
+pub(crate) mod errors;
+pub(crate) mod state;
+pub(crate) mod types;
 
 use std::fmt::Debug;
 
@@ -10,10 +10,10 @@ use self::errors::{Err, Error};
 use self::state::ParserState;
 use self::types::{
     Argument, Attribute, BinFunc, BodyNodes, BodyTags, Expression, HtmlNodes, HtmlTag, Lambda,
-    Macro, ParsedFile, PlugCall, Ranged, StringParts, Tag, UniFunc, Variable,
+    Macro, ParsedFile, PlugCall, Ranged, StringParts, Tag, UniFunc, Variable, TopNodes,
 };
 
-type ParserResult<'a, T> = Result<(T, ParserState<'a>), Err<'a>>;
+type ParserResult<'a, T> = Result<(T, ParserState<'a>), Err>;
 
 pub(crate) trait Parser<'a, Output> {
     fn parse(&self, state: ParserState<'a>) -> ParserResult<'a, Output>;
@@ -128,7 +128,7 @@ fn tag_opener(state: ParserState) -> ParserResult<&char> {
 }
 
 fn subtag_opener(state: ParserState) -> ParserResult<&char> {
-    match character('<').parse(state.clone()) {
+    match character('+').parse(state.clone()) {
         Err(_) => Err(Error::ExpectedTagOpener.state_at(&state)),
         ok => ok,
     }
@@ -143,14 +143,14 @@ fn tag_closer(state: ParserState) -> ParserResult<&char> {
 
 fn macro_mark(state: ParserState) -> ParserResult<&char> {
     match character('!').parse(state.clone()) {
-        Err(_) => Err(Error::ExpectedVarCaller.state_at(&state)),
+        Err(_) => Err(Error::ExpectedMacroMark.state_at(&state)),
         ok => ok,
     }
 }
 
 fn plugin_mark(state: ParserState) -> ParserResult<&char> {
     match character('?').parse(state.clone()) {
-        Err(_) => Err(Error::ExpectedVarCaller.state_at(&state)),
+        Err(_) => Err(Error::ExpectedPluginMark.state_at(&state)),
         ok => ok,
     }
 }
@@ -312,7 +312,7 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
             .or(macro_call.map(Tag::MacroCall))
             .or(macro_def.map(Tag::MacroDef))
             .or(plug_call.map(Tag::PlugCall))
-            .followed_by(tag_closer),
+            .followed_by(skipped_blanks().preceding(tag_closer)),
     )));
 
     parser.parse(state)
@@ -322,7 +322,7 @@ fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
     let parser = character('<').preceding(cut(after_spaces(
         tag.map(BodyTags::HtmlTag)
             .or(macro_call.map(BodyTags::MacroCall))
-            .followed_by(character('>')),
+            .followed_by(skipped_blanks().preceding(tag_closer)),
     )));
 
     parser.parse(state)
@@ -358,15 +358,14 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, PlugCall> {
 }
 
 fn macro_call(state: ParserState<'_>) -> ParserResult<'_, Macro> {
-    let parser = macro_call_head.and_maybe(tag_body);
+    let parser = macro_call_head;
 
-    let (((name, arguments, subtags), body), state) = parser.parse(state)?;
+    let ((name, arguments), state) = parser.parse(state)?;
     Ok((
         Macro {
             name,
             arguments,
-            body: body.unwrap_or(vec![]),
-            subtags,
+            body: vec![],
         },
         state,
     ))
@@ -375,13 +374,12 @@ fn macro_call(state: ParserState<'_>) -> ParserResult<'_, Macro> {
 fn macro_def(state: ParserState<'_>) -> ParserResult<'_, Macro> {
     let parser = macro_def_head.and_maybe(tag_body);
 
-    let (((name, arguments, subtags), body), state) = parser.parse(state)?;
+    let (((name, arguments), body), state) = parser.parse(state)?;
     Ok((
         Macro {
             name,
             arguments,
             body: body.unwrap_or(vec![]),
-            subtags,
         },
         state,
     ))
@@ -456,8 +454,7 @@ fn macro_starter(state: ParserState) -> ParserResult<&str> {
 }
 
 fn tag_head(state: ParserState) -> ParserResult<(Ranged<String>, Vec<Attribute>, Vec<HtmlTag>)> {
-    let cut_cond =
-        space.or(indent.or(newline.or(character('|').or(character('>').or(character('<'))))));
+    let cut_cond = space.or(indent).or(body_opener).or(tag_closer).or(tag_opener).or(subtag_opener);
     let parser = get_range(non_macro_starter)
         .followed_by(peek(cut_cond))
         .and_also(cut(zero_or_more(after_spaces(attribute))))
@@ -522,29 +519,27 @@ fn plugin_head(state: ParserState) -> ParserResult<(Ranged<String>, Ranged<Vec<T
 
 fn macro_call_head(
     state: ParserState,
-) -> ParserResult<(Ranged<String>, Vec<Argument>, Vec<HtmlTag>)> {
+) -> ParserResult<(Ranged<String>, Vec<Argument>)> {
     let parser = get_range(tag_name)
         .followed_by(macro_mark)
-        .and_also(cut(zero_or_more(skip_spaces().preceding(argument))))
-        .and_also(zero_or_more(after_spaces(subtag)));
+        .and_also(cut(zero_or_more(skip_spaces().preceding(argument))));
 
-    let (((name, attributes), subtags), state) = parser.parse(state)?;
+    let ((name, attributes), state) = parser.parse(state)?;
 
-    Ok(((name.to_own(), attributes, subtags), state))
+    Ok(((name.to_own(), attributes), state))
 }
 
 fn macro_def_head(
     state: ParserState,
-) -> ParserResult<(Ranged<String>, Vec<Argument>, Vec<HtmlTag>)> {
+) -> ParserResult<(Ranged<String>, Vec<Argument>)> {
     let parser = after_spaces(macro_starter).preceding(
         cut(after_spaces(get_range(literal)))
             .and_also(zero_or_more(after_spaces(argument)))
-            .and_also(zero_or_more(after_spaces(subtag))),
     );
 
-    let (((name, attributes), subtags), state) = parser.parse(state)?;
+    let ((name, attributes), state) = parser.parse(state)?;
 
-    Ok(((name.to_own(), attributes, subtags), state))
+    Ok(((name.to_own(), attributes), state))
 }
 
 fn skip_spaces<'a>() -> impl Parser<'a, Vec<&'a char>> {
@@ -721,13 +716,14 @@ pub fn file(tokens: &[Token]) -> ParserResult<'_, ParsedFile> {
     let (ast_nodes, state) = parser.parse(state)?;
     for node in ast_nodes {
         match node {
-            BodyNodes::HtmlTag(tag) => output.body.push(HtmlNodes::HtmlTag(tag)),
+            BodyNodes::HtmlTag(tag) => output.body.push(TopNodes::HtmlTag(tag)),
             BodyNodes::MacroDef(mac) => output.defined_macros.push(mac),
-            BodyNodes::MacroCall(mac) => output.body.push(HtmlNodes::MacroCall(mac)),
+            BodyNodes::MacroCall(mac) => output.body.push(TopNodes::MacroCall(mac)),
             BodyNodes::String(_string) => todo!("Markup syntax"),
             BodyNodes::LambdaDef(lambda) => output.defined_lambdas.push(lambda),
             BodyNodes::VarDef(var) => output.defined_variables.push(var),
-            BodyNodes::PlugCall(plug) => output.body.push(HtmlNodes::PlugCall(plug)),
+            BodyNodes::PlugCall(plug) => output.body.push(TopNodes::PlugCall(plug)),
+            BodyNodes::Subtree(_) => unreachable!(),
         }
     }
 
