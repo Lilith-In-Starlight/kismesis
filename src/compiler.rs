@@ -8,7 +8,8 @@ pub(crate) mod options;
 pub fn compile_text(string: &str) -> String {
 	let tokens = lexer::tokenize(string);
 	let tree = parser::file(&tokens).unwrap().0;
-	let html = html::generate_html(&tree, Settings::new());
+	let settings = Settings::new();
+	let html = html::generate_html(&tree, &settings);
 	println!("{:#?}", &html);
 	html.unwrap()
 }

@@ -141,6 +141,20 @@ fn tag_closer(state: ParserState) -> ParserResult<&char> {
     }
 }
 
+fn expr_opener(state: ParserState) -> ParserResult<&char> {
+    match character('{').parse(state.clone()) {
+        Err(_) => Err(Error::ExpectedExprStart.state_at(&state)),
+        ok => ok,
+    }
+}
+
+fn expr_closer(state: ParserState) -> ParserResult<&char> {
+    match character('}').parse(state.clone()) {
+        Err(_) => Err(Error::ExpectedExprEnd.state_at(&state)),
+        ok => ok,
+    }
+}
+
 fn macro_mark(state: ParserState) -> ParserResult<&char> {
     match character('!').parse(state.clone()) {
         Err(_) => Err(Error::ExpectedMacroMark.state_at(&state)),
@@ -211,9 +225,9 @@ fn unary_func(state: ParserState) -> ParserResult<UniFunc> {
 }
 
 fn binary_func_expr(state: ParserState) -> ParserResult<Expression> {
-    let parser = expression
+    let parser = get_range(expression)
         .and_also(after_spaces(binary_func))
-        .and_also(cut(after_spaces(expression)));
+        .and_also(cut(after_spaces(get_range(expression))));
     let (((expr1, fun), expr2), next_state) = parser.parse(state)?;
     Ok((
         Expression::BinFunc(fun, Box::new(expr1), Box::new(expr2)),
@@ -222,7 +236,7 @@ fn binary_func_expr(state: ParserState) -> ParserResult<Expression> {
 }
 
 fn unary_func_expr(state: ParserState) -> ParserResult<Expression> {
-    let parser = unary_func.and_also(cut(after_spaces(expression)));
+    let parser = unary_func.and_also(cut(after_spaces(get_range(expression))));
     let ((fun, expr), next_state) = parser.parse(state)?;
     Ok((Expression::UniFunc(fun, Box::new(expr)), next_state))
 }
@@ -233,14 +247,14 @@ fn wrapped_expr(state: ParserState) -> ParserResult<Expression> {
         .or(expression)
         .or(character('!').map(|_x| Expression::None));
     let parser =
-        character('{').preceding(cut(after_spaces(internal_parser)).followed_by(character('}')));
+        expr_opener.preceding(cut(after_spaces(internal_parser)).followed_by(expr_closer));
 
     parser.parse(state)
 }
 
 fn variable_definition(state: ParserState) -> ParserResult<Variable> {
     let parser =
-        var_def_starter.and_also(cut(after_spaces(equals).preceding(after_spaces(quoted))));
+        var_def_starter.preceding(after_spaces(literal)).and_also(cut(after_spaces(equals).preceding(after_spaces(quoted))));
     let ((name, value), next_state) = parser.parse(state)?;
     Ok((
         Variable {
@@ -272,7 +286,7 @@ fn quoted(state: ParserState) -> ParserResult<Vec<StringParts>> {
         match token {
             Token::Symbol(sym) if *sym == '@' && !escape => {
                 state = state.next_state();
-                let (val, next_state) = expression.parse(state)?;
+                let (val, next_state) = get_range(expression).parse(state)?;
                 output.push(StringParts::Expression(val));
                 state = next_state;
             }
@@ -612,7 +626,7 @@ fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
         match token {
             Token::Symbol(sym) if *sym == '@' && !escape => {
                 state = state.next_state();
-                let (val, next_state) = expression.parse(state)?;
+                let (val, next_state) = get_range(expression).parse(state)?;
                 output.push(StringParts::Expression(val));
                 state = next_state;
             }
@@ -702,7 +716,7 @@ fn argument(state: ParserState) -> ParserResult<Argument> {
 }
 
 pub fn file(tokens: &[Token]) -> ParserResult<'_, ParsedFile> {
-    let mut output = ParsedFile::new();
+    let mut output = ParsedFile::new(tokens);
     let parser = zero_or_more(
         skipped_blanks().preceding(
             some_tag

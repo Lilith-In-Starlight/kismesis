@@ -58,7 +58,7 @@ impl TokenPos {
     fn next_character(self) -> Self {
         Self {
             idx: self.idx + 1,
-            column: self.idx + 1,
+            column: self.column + 1,
             ..self
         }
     }

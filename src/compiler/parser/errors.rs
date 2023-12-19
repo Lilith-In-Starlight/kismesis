@@ -2,6 +2,8 @@ use super::state::{ParserState, TokenPos};
 
 #[derive(Clone, Debug)]
 pub enum Error {
+    ExpectedExprStart,
+    ExpectedExprEnd,
     ExpectedMacroMark,
     ExpectedPluginMark,
     ExpectedUniFunc,

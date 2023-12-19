@@ -1,11 +1,8 @@
+let val = "weasdf"
+
 <html a="uwu"
 	<head+title | uwu>
 	<body
-		<uwu! arg>
+		<h1 class="@val">
 	>
->
-
-<macro uwu arg
-	<h1 | hewwo>
-	@arg
 >
