@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use super::{lexer::Token, parser::{errors::{ErrorState, ErrorKind}, state::TokenPos}, html::{ScopedError, Inside}};
 use colored::*;
 
@@ -10,13 +12,13 @@ pub struct DrawingInfo<'a> {
 
 impl<'a> DrawingInfo<'a> {
 	pub fn from(tokens: &'a [Token]) -> Self {
-		let lines: Vec<&[Token]> = tokens.split(|x| matches!(x, Token::Newline(_))).collect();
+		let lines: Vec<&[Token]> = tokens.split_inclusive(|x| matches!(x, Token::Newline(_))).collect();
 		let lines = {
 			let mut out = Vec::new();
 			let mut len: usize = 0;
 			for x in lines {
 				out.push((len, x));
-				len += x.len()+1;
+				len += x.len();
 			}
 			out
 		};
@@ -29,7 +31,8 @@ impl<'a> DrawingInfo<'a> {
 	}
 }
 
-pub fn draw_error<T: ErrorKind>(err: &ErrorState<T>, info: &DrawingInfo) -> String {
+pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo) -> String {
+	println!("{:#?}", err);
 	let minimum_line = {
 		let x = err.text_position.get_start_line();
 		if x < info.line_offset.0 { 0 }
@@ -66,14 +69,19 @@ fn draw_line<T: ErrorKind>(line_number: usize, err: &ErrorState<T>, info: &Drawi
 	let mut error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
 	if let Some(line) = info.lines.get(line_number) {
 		for (token_idx, token) in line.1.iter().enumerate() {
-			output.push_str(&token.get_as_string());
 			let token_pos = TokenPos::new_at(line.0 + token_idx, line_number, token_idx);
+			let tkstr = match token {
+				Token::Newline(_) if token_pos.is_in(&err.text_position) => "~".to_string(),
+				Token::Newline(_) => "".to_string(),
+				x => x.get_as_string(),
+			};
+			output.push_str(&tkstr);
 			let char = if token_pos.is_in(&err.text_position) {
 				'^'
 			} else {
 				' '
 			};
-			error_line.push_str(&turn_to_chars(token.get_as_string(), char));
+			error_line.push_str(&turn_to_chars(tkstr, char));
 		}
 	} else {
 		return None
@@ -116,7 +124,7 @@ fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
 	output
 }
 
-pub fn draw_scoped_error<T: ErrorKind>(err: &ScopedError<T>) -> String {
+pub fn draw_scoped_error<T: ErrorKind + Debug>(err: &ScopedError<T>) -> String {
 	draw_error(&err.error, &DrawingInfo::from(err.scope))
 }
 

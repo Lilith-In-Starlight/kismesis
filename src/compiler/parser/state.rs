@@ -18,7 +18,7 @@ impl<'a> ParserState<'a> {
         }
     }
     pub(crate) fn next_state(self) -> Self {
-        let next_token = self.tokens.get(1);
+        let next_token = self.tokens.get(0);
         let position = match next_token {
             Some(Token::Newline(_)) => self.position.next_line(),
             _ => self.position.next_character(),
@@ -76,7 +76,7 @@ impl TokenPos {
 
     pub fn is_in(&self, o: &TextPos) -> bool {
         match o {
-            TextPos::Single(x) => x == self,
+            TextPos::Single(x) => { x == self },
             TextPos::Range((st, nd)) => self.idx >= st.idx && self.idx < nd.idx,
             TextPos::Multi(x) => x.iter().any(|x| self.is_in(x))
         }

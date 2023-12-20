@@ -1,4 +1,4 @@
-use self::options::Settings;
+use self::{options::Settings, reporting::DrawingInfo};
 
 pub(crate) mod lexer;
 pub(crate) mod parser;
@@ -8,7 +8,10 @@ mod reporting;
 
 pub fn compile_text(string: &str) -> String {
 	let tokens = lexer::tokenize(string);
-	let tree = parser::file(&tokens).unwrap().0;
+	let tree = match parser::file(&tokens) {
+		Ok((val, _)) => val,
+		Err(x) => return reporting::draw_error(&x.unpack(), &DrawingInfo::from(&tokens)),
+	};
 	let settings = Settings::new();
 	let html = html::generate_html(&tree, &settings);
 	match html {
