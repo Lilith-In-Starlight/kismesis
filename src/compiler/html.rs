@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::compiler::parser::types::ParsedFile;
 
-use super::{parser::{types::{TopNodes, HtmlTag, Macro, Attribute, StringParts, HtmlNodes, PlugCall, Expression, BinFunc, UniFunc, Ranged, TextPos}, errors::ErrorState, state::TokenPos}, options::Settings, lexer::Token};
+use super::{parser::{types::{TopNodes, HtmlTag, Macro, Attribute, StringParts, HtmlNodes, PlugCall, Expression, BinFunc, UniFunc, Ranged, TextPos}, errors::{ErrorState, ErrorKind}, state::TokenPos}, options::Settings, lexer::Token};
 
 type CompileResult<'a, T> = Result<T, Inside<'a>>;
 
@@ -329,7 +329,7 @@ fn calculate_expression<'a>(expr: &Ranged<Expression>, state: (&VariableScope<'a
                 }
                 BinFunc::Or => {
                     if exp1.is_truthy() { Ok(exp1) }
-                    else if exp2.is_truthy() { Ok(exp1) }
+                    else if exp2.is_truthy() { Ok(exp2) }
                     else { Ok(ExpressionValues::None) }
                 }
             }
@@ -387,6 +387,18 @@ impl CompilerError {
         ScopedError {
             error: ErrorState { error: self, previous_errors: vec![], text_position: TextPos::Range(pos) },
             scope,
+        }
+    }
+}
+
+impl ErrorKind for CompilerError {
+    fn get_text(&self) -> String {
+        match self {
+            Self::UndefinedVariable => "This variable isn't defined".into(),
+            Self::CantWriteNoneValue => "This computes to a Nothing value, which cannot be written into content".into(),
+            Self::CantWriteGenericValue => "This computes to a Anything value, which cannot be written into content".into(),
+            Self::UnsetArgNoDefault(arg) => format!("The `{}` argument is unset but the macro definition has no default for it", arg),
+            Self::UndefinedMacroCall => format!("This macro isn't defined"),
         }
     }
 }

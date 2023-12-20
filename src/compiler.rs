@@ -1,4 +1,4 @@
-use self::{options::Settings, html::Inside, reporting::DrawingInfo};
+use self::options::Settings;
 
 pub(crate) mod lexer;
 pub(crate) mod parser;
@@ -13,13 +13,6 @@ pub fn compile_text(string: &str) -> String {
 	let html = html::generate_html(&tree, &settings);
 	match html {
 		Ok(x) => x,
-		Err(x) => match x {
-			Inside::In(x) => {
-				let x = x.first().unwrap();
-				println!("{}", reporting::get_error_graph(&x.error, &DrawingInfo::from(&tokens)));
-				panic!()
-			},
-			_ => panic!(),
-		},
+		Err(x) => reporting::draw_packed_error(&x),
 	}
 }
