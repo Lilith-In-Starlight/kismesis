@@ -285,6 +285,10 @@ impl TextPos {
             Self::Multi(x) => unsafe { x.get_unchecked(x.len() - 1).get_end_line() },
         }
     }
+
+    pub fn is_one_line(&self) -> bool {
+        self.get_end_line() == self.get_start_line()
+    }
 }
 
 pub enum CharPos {
