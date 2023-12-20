@@ -1,4 +1,4 @@
-use super::state::{ParserState, TokenPos};
+use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum Error {
@@ -65,9 +65,8 @@ impl Error {
         let pos = state.position;
         Err::Error(ErrorState {
             error: self,
-            start_position: pos,
+            text_position: TextPos::Single(pos),
             previous_errors: state.clone().errors,
-            end_position: pos,
         })
     }
 }
@@ -76,8 +75,7 @@ impl Error {
 pub struct ErrorState<T> {
     pub error: T,
     pub previous_errors: Vec<ErrorState<T>>,
-    pub start_position: TokenPos,
-    pub end_position: TokenPos,
+    pub text_position: TextPos,
 }
 
 pub(crate) trait Recoverable {

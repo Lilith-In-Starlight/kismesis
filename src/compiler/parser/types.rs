@@ -261,3 +261,38 @@ impl<'a> AstNode for HtmlNodes<'a> {
         }
     }
 }
+
+#[derive(Clone, Debug)]
+pub enum TextPos {
+    Single(TokenPos),
+    Range((TokenPos, TokenPos)),
+    Multi(Vec<TextPos>),
+}
+
+impl TextPos {
+    pub fn get_start_line(&self) -> usize {
+        match self {
+            Self::Single(x) => x.get_line(),
+            Self::Range(x) => x.0.get_line(),
+            Self::Multi(x) => x[0].get_start_line(),
+        }
+    }
+
+    pub fn get_end_line(&self) -> usize {
+        match self {
+            Self::Single(x) => x.get_line(),
+            Self::Range(x) => x.1.get_line(),
+            Self::Multi(x) => unsafe { x.get_unchecked(x.len() - 1).get_end_line() },
+        }
+    }
+}
+
+pub enum CharPos {
+    Single(CPos),
+    Range((CPos, CPos)),
+}
+
+pub struct CPos {
+    line: usize,
+    column: usize,
+}

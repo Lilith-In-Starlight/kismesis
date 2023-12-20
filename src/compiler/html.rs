@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::compiler::parser::types::ParsedFile;
 
-use super::{parser::{types::{TopNodes, HtmlTag, Macro, Attribute, StringParts, HtmlNodes, PlugCall, Expression, BinFunc, UniFunc, Ranged}, errors::ErrorState, state::TokenPos}, options::Settings, lexer::Token};
+use super::{parser::{types::{TopNodes, HtmlTag, Macro, Attribute, StringParts, HtmlNodes, PlugCall, Expression, BinFunc, UniFunc, Ranged, TextPos}, errors::ErrorState, state::TokenPos}, options::Settings, lexer::Token};
 
 type CompileResult<'a, T> = Result<T, Inside<'a>>;
 
@@ -301,8 +301,8 @@ enum ExpressionValues {
 
 #[derive(Clone, Debug)]
 pub struct ScopedError<'a, T> {
-    error: ErrorState<T>,
-    scope: &'a [Token]
+    pub error: ErrorState<T>,
+    pub scope: &'a [Token]
 }
 
 impl ExpressionValues {
@@ -385,7 +385,7 @@ impl<'a> Inside<'a> {
 impl CompilerError {
     fn state_at<'a>(self, pos: (TokenPos,TokenPos), scope: &'a [Token]) -> ScopedError<'a, Self> {
         ScopedError {
-            error: ErrorState { error: self, previous_errors: vec![], start_position: pos.0, end_position: pos.1 },
+            error: ErrorState { error: self, previous_errors: vec![], text_position: TextPos::Range(pos) },
             scope,
         }
     }

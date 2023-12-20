@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug, Clone, PartialEq)]
 
 /// The different tokens that can be in an input string
@@ -7,6 +9,12 @@ pub enum Token {
     Newline(char),
     Indent(char),
     Symbol(char),
+}
+
+impl fmt::Display for Token {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.get_as_string())
+    }
 }
 
 impl Token {
@@ -85,7 +93,6 @@ pub fn tokenize(s: &str) -> Vec<Token> {
     if !word.is_empty() {
         output.push(Token::Word(word.to_string()))
     }
-    dbg!(&output);
     output
 }
 

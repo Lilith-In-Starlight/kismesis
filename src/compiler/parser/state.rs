@@ -1,6 +1,6 @@
 use crate::compiler::lexer::Token;
 
-use super::errors::{ErrorState, Error};
+use super::{errors::{ErrorState, Error}, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub struct ParserState<'a> {
@@ -52,6 +52,47 @@ impl TokenPos {
             idx: 0,
             line: 0,
             column: 0,
+        }
+    }
+
+    pub fn new_at(idx: usize, line: usize, column: usize) -> Self {
+        Self {
+            idx,
+            line,
+            column,
+        }
+    }
+    pub fn get_idx(&self) -> usize {
+        self.idx
+    }
+
+    pub fn get_line(&self) -> usize {
+        self.line
+    }
+
+    pub fn get_column(&self) -> usize {
+        self.column
+    }
+
+    pub fn is_in(&self, o: &TextPos) -> bool {
+        match o {
+            TextPos::Single(x) => x == self,
+            TextPos::Range((st, nd)) => self.idx >= st.idx && self.idx < nd.idx,
+            TextPos::Multi(x) => x.iter().any(|x| self.is_in(x))
+        }
+    }
+    pub fn is_at_a_start(&self, o: &TextPos) -> bool {
+        match o {
+            TextPos::Single(x) => x == self,
+            TextPos::Range((st, nd)) => self.idx == st.idx,
+            TextPos::Multi(x) => x.iter().any(|x| self.is_at_a_start(x))
+        }
+    }
+    pub fn is_at_an_end(&self, o: &TextPos) -> bool {
+        match o {
+            TextPos::Single(x) => x == self,
+            TextPos::Range((st, nd)) => self.idx == nd.idx - 1,
+            TextPos::Multi(x) => x.iter().any(|x| self.is_at_an_end(x))
         }
     }
 
