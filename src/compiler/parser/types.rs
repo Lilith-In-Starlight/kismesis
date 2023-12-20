@@ -97,7 +97,7 @@ pub struct ParsedFile<'a> {
     pub defined_lambdas: Vec<Lambda>,
 }
 
-impl<'a> ParsedFile<'a>{
+impl<'a> ParsedFile<'a> {
     pub fn new(local_tokens: &'a [Token]) -> Self {
         Self {
             local_tokens,
@@ -109,23 +109,45 @@ impl<'a> ParsedFile<'a>{
     }
 
     pub fn get_macro_scope(&self) -> HashMap<String, (&Macro, &[Token])> {
-        self.defined_macros.iter().map(|x| (x.name.value.clone(), (x, self.local_tokens))).collect()
+        self.defined_macros
+            .iter()
+            .map(|x| (x.name.value.clone(), (x, self.local_tokens)))
+            .collect()
     }
     pub fn get_variable_scope(&self) -> HashMap<String, (Variable, &[Token])> {
-        self.defined_variables.clone().into_iter()
+        self.defined_variables
+            .clone()
+            .into_iter()
             .map(|x| (x.name.clone(), (x, self.local_tokens)))
-            .chain(self.defined_lambdas.clone().into_iter().filter_map(|x| match x.value {
-                    Some(val) => Some((x.name.clone(), (Variable { name: x.name.clone(), value: val.clone() }, self.local_tokens))),
-                    None => None
-                }
-            )).collect()
+            .chain(
+                self.defined_lambdas
+                    .clone()
+                    .into_iter()
+                    .filter_map(|x| match x.value {
+                        Some(val) => Some((
+                            x.name.clone(),
+                            (
+                                Variable {
+                                    name: x.name.clone(),
+                                    value: val.clone(),
+                                },
+                                self.local_tokens,
+                            ),
+                        )),
+                        None => None,
+                    }),
+            )
+            .collect()
     }
 
     pub fn get_undefined_lambdas(&self) -> Vec<(String, &[Token])> {
-        self.defined_lambdas.iter().filter_map(|x| match x.value {
-            Some(_) => Some((x.name.clone(), self.local_tokens)),
-            None => None,
-        }).collect()
+        self.defined_lambdas
+            .iter()
+            .filter_map(|x| match x.value {
+                Some(_) => Some((x.name.clone(), self.local_tokens)),
+                None => None,
+            })
+            .collect()
     }
 }
 
@@ -151,7 +173,7 @@ impl<'a> From<BodyTags<'a>> for BodyNodes<'a> {
     }
 }
 
-impl <'a>From<BodyTags<'a>> for HtmlNodes<'a> {
+impl<'a> From<BodyTags<'a>> for HtmlNodes<'a> {
     fn from(value: BodyTags<'a>) -> Self {
         match value {
             BodyTags::HtmlTag(x) => Self::HtmlTag(x),
@@ -214,13 +236,18 @@ pub trait AstNode {
 
 impl<'a> AstNode for Macro<'a> {
     fn find_undefined_vars(&self, defined: &Vec<String>) -> Vec<Ranged<String>> {
-        self.body.iter().flat_map(|x| x.find_undefined_vars(defined)).collect()
+        self.body
+            .iter()
+            .flat_map(|x| x.find_undefined_vars(defined))
+            .collect()
     }
 }
 
 impl AstNode for Vec<StringParts> {
     fn find_undefined_vars(&self, defined: &Vec<String>) -> Vec<Ranged<String>> {
-        self.iter().flat_map(|x| x.find_undefined_vars(defined)).collect()
+        self.iter()
+            .flat_map(|x| x.find_undefined_vars(defined))
+            .collect()
     }
 }
 
@@ -237,8 +264,21 @@ impl AstNode for Ranged<Expression> {
     fn find_undefined_vars(&self, defined: &Vec<String>) -> Vec<Ranged<String>> {
         match &self.value {
             Expression::None => Vec::new(),
-            Expression::Variable(x) => if defined.iter().any(|y| y == x) { vec![Ranged { value: x.clone(), range: self.range } ] } else { vec![] },
-            Expression::BinFunc(_, x, y) => x.find_undefined_vars(defined).into_iter().chain(y.find_undefined_vars(defined).into_iter()).collect(),
+            Expression::Variable(x) => {
+                if defined.iter().any(|y| y == x) {
+                    vec![Ranged {
+                        value: x.clone(),
+                        range: self.range,
+                    }]
+                } else {
+                    vec![]
+                }
+            }
+            Expression::BinFunc(_, x, y) => x
+                .find_undefined_vars(defined)
+                .into_iter()
+                .chain(y.find_undefined_vars(defined).into_iter())
+                .collect(),
             Expression::UniFunc(_, x) => x.find_undefined_vars(defined),
         }
     }
@@ -246,7 +286,10 @@ impl AstNode for Ranged<Expression> {
 
 impl<'a> AstNode for HtmlTag<'a> {
     fn find_undefined_vars(&self, defined: &Vec<String>) -> Vec<Ranged<String>> {
-        self.body.iter().flat_map(|x| x.find_undefined_vars(defined)).collect()
+        self.body
+            .iter()
+            .flat_map(|x| x.find_undefined_vars(defined))
+            .collect()
     }
 }
 

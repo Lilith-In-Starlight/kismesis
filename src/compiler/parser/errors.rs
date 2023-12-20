@@ -85,7 +85,9 @@ impl ErrorKind for ParseError {
             Self::ExpectedBinFunc => "Expected `and`, `or` or some other binary function".into(),
             Self::ExpectedVarName => "Expected a valid variable name".into(),
             Self::ExpectedTagNameOrMacroDef => "Expected a tag name or the word `macro`".into(),
-            Self::ExpectedBodyOpener => "Expected a `|` or a newline to denote the start of the tag's body".into(),
+            Self::ExpectedBodyOpener => {
+                "Expected a `|` or a newline to denote the start of the tag's body".into()
+            }
             Self::ExpectedTagName => "Expected a valid tag name".into(),
             Self::ExpectedTagCloser => "Expected a `>` to denote the end of a tag".into(),
             Self::ExpectedVarCaller => "Expected a `@` to denote the start of an expression".into(),

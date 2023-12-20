@@ -10,7 +10,7 @@ use self::errors::{Err, ParseError};
 use self::state::ParserState;
 use self::types::{
     Argument, Attribute, BinFunc, BodyNodes, BodyTags, Expression, HtmlNodes, HtmlTag, Lambda,
-    Macro, ParsedFile, PlugCall, Ranged, StringParts, Tag, UniFunc, Variable, TopNodes,
+    Macro, ParsedFile, PlugCall, Ranged, StringParts, Tag, TopNodes, UniFunc, Variable,
 };
 
 type ParserResult<'a, T> = Result<(T, ParserState<'a>), Err>;
@@ -246,15 +246,15 @@ fn wrapped_expr(state: ParserState) -> ParserResult<Expression> {
         .or(unary_func_expr)
         .or(expression)
         .or(character('!').map(|_x| Expression::None));
-    let parser =
-        expr_opener.preceding(cut(after_spaces(internal_parser)).followed_by(expr_closer));
+    let parser = expr_opener.preceding(cut(after_spaces(internal_parser)).followed_by(expr_closer));
 
     parser.parse(state)
 }
 
 fn variable_definition(state: ParserState) -> ParserResult<Variable> {
-    let parser =
-        var_def_starter.preceding(after_spaces(literal)).and_also(cut(after_spaces(equals).preceding(after_spaces(quoted))));
+    let parser = var_def_starter
+        .preceding(after_spaces(literal))
+        .and_also(cut(after_spaces(equals).preceding(after_spaces(quoted))));
     let ((name, value), next_state) = parser.parse(state)?;
     Ok((
         Variable {
@@ -468,7 +468,12 @@ fn macro_starter(state: ParserState) -> ParserResult<&str> {
 }
 
 fn tag_head(state: ParserState) -> ParserResult<(Ranged<String>, Vec<Attribute>, Vec<HtmlTag>)> {
-    let cut_cond = space.or(indent).or(body_opener).or(tag_closer).or(tag_opener).or(subtag_opener);
+    let cut_cond = space
+        .or(indent)
+        .or(body_opener)
+        .or(tag_closer)
+        .or(tag_opener)
+        .or(subtag_opener);
     let parser = get_range(non_macro_starter)
         .followed_by(peek(cut_cond))
         .and_also(cut(zero_or_more(after_spaces(attribute))))
@@ -531,9 +536,7 @@ fn plugin_head(state: ParserState) -> ParserResult<(Ranged<String>, Ranged<Vec<T
     Err(ParseError::EndlessString.state_at(&state).cut())
 }
 
-fn macro_call_head(
-    state: ParserState,
-) -> ParserResult<(Ranged<String>, Vec<Argument>)> {
+fn macro_call_head(state: ParserState) -> ParserResult<(Ranged<String>, Vec<Argument>)> {
     let parser = get_range(tag_name)
         .followed_by(macro_mark)
         .and_also(cut(zero_or_more(skip_spaces().preceding(argument))));
@@ -543,12 +546,9 @@ fn macro_call_head(
     Ok(((name.to_own(), attributes), state))
 }
 
-fn macro_def_head(
-    state: ParserState,
-) -> ParserResult<(Ranged<String>, Vec<Argument>)> {
+fn macro_def_head(state: ParserState) -> ParserResult<(Ranged<String>, Vec<Argument>)> {
     let parser = after_spaces(macro_starter).preceding(
-        cut(after_spaces(get_range(literal)))
-            .and_also(zero_or_more(after_spaces(argument)))
+        cut(after_spaces(get_range(literal))).and_also(zero_or_more(after_spaces(argument))),
     );
 
     let ((name, attributes), state) = parser.parse(state)?;

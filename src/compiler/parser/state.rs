@@ -1,4 +1,4 @@
-use crate::compiler::{lexer::Token, errors::ErrorState};
+use crate::compiler::{errors::ErrorState, lexer::Token};
 
 use super::{errors::ParseError, types::TextPos};
 
@@ -56,11 +56,7 @@ impl TokenPos {
     }
 
     pub fn new_at(idx: usize, line: usize, column: usize) -> Self {
-        Self {
-            idx,
-            line,
-            column,
-        }
+        Self { idx, line, column }
     }
     pub fn get_idx(&self) -> usize {
         self.idx
@@ -76,23 +72,23 @@ impl TokenPos {
 
     pub fn is_in(&self, o: &TextPos) -> bool {
         match o {
-            TextPos::Single(x) => { x == self },
+            TextPos::Single(x) => x == self,
             TextPos::Range((st, nd)) => self.idx >= st.idx && self.idx < nd.idx,
-            TextPos::Multi(x) => x.iter().any(|x| self.is_in(x))
+            TextPos::Multi(x) => x.iter().any(|x| self.is_in(x)),
         }
     }
     pub fn is_at_a_start(&self, o: &TextPos) -> bool {
         match o {
             TextPos::Single(x) => x == self,
             TextPos::Range((st, nd)) => self.idx == st.idx,
-            TextPos::Multi(x) => x.iter().any(|x| self.is_at_a_start(x))
+            TextPos::Multi(x) => x.iter().any(|x| self.is_at_a_start(x)),
         }
     }
     pub fn is_at_an_end(&self, o: &TextPos) -> bool {
         match o {
             TextPos::Single(x) => x == self,
             TextPos::Range((st, nd)) => self.idx == nd.idx - 1,
-            TextPos::Multi(x) => x.iter().any(|x| self.is_at_an_end(x))
+            TextPos::Multi(x) => x.iter().any(|x| self.is_at_an_end(x)),
         }
     }
 

@@ -12,7 +12,7 @@ pub enum Token {
 }
 
 impl fmt::Display for Token {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.get_as_string())
     }
 }
@@ -43,12 +43,15 @@ pub fn tokenize(s: &str) -> Vec<Token> {
     for (idx, character) in s.char_indices() {
         match character {
             '\r' => {
-                let word = &s.get(current_word..idx).map(|x| x.to_string()).unwrap_or(String::new());
+                let word = &s
+                    .get(current_word..idx)
+                    .map(|x| x.to_string())
+                    .unwrap_or(String::new());
                 if !word.is_empty() {
                     output.push(Token::Word(word.clone()));
                 }
-                current_word = idx+1;
-                continue
+                current_word = idx + 1;
+                continue;
             }
             ' ' => {
                 push_token(

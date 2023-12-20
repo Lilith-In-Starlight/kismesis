@@ -10,4 +10,3 @@ pub struct ErrorState<T> {
     pub previous_errors: Vec<ErrorState<T>>,
     pub text_position: TextPos,
 }
-
