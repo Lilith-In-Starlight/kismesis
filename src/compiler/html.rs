@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::compiler::parser::types::ParsedFile;
 
-use super::{parser::{types::{TopNodes, HtmlTag, Macro, Attribute, StringParts, HtmlNodes, PlugCall, Expression, BinFunc, UniFunc, Ranged, TextPos}, errors::{ErrorState, ErrorKind}, state::TokenPos}, options::Settings, lexer::Token};
+use super::{parser::{types::{TopNodes, HtmlTag, Macro, Attribute, StringParts, HtmlNodes, PlugCall, Expression, BinFunc, UniFunc, Ranged, TextPos}, state::TokenPos}, options::Settings, lexer::Token, errors::{ErrorKind, ErrorState}};
 
 type CompileResult<'a, T> = Result<T, Inside<'a>>;
 

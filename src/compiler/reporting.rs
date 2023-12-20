@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use super::{lexer::Token, parser::{errors::{ErrorState, ErrorKind}, state::TokenPos}, html::{ScopedError, Inside}};
+use super::{lexer::Token, parser::state::TokenPos, html::{ScopedError, Inside}, errors::{ErrorKind, ErrorState}};
 use colored::*;
 
 pub struct DrawingInfo<'a> {

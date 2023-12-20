@@ -1,12 +1,12 @@
-use crate::compiler::lexer::Token;
+use crate::compiler::{lexer::Token, errors::ErrorState};
 
-use super::{errors::{ErrorState, Error}, types::TextPos};
+use super::{errors::ParseError, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub struct ParserState<'a> {
     pub(crate) tokens: &'a [Token],
     pub(crate) position: TokenPos,
-    pub(crate) errors: Vec<ErrorState<Error>>,
+    pub(crate) errors: Vec<ErrorState<ParseError>>,
 }
 
 impl<'a> ParserState<'a> {

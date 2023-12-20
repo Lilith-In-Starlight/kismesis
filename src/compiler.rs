@@ -4,6 +4,7 @@ pub(crate) mod lexer;
 pub(crate) mod parser;
 pub(crate) mod html;
 pub(crate) mod options;
+mod errors;
 mod reporting;
 
 pub fn compile_text(string: &str) -> String {

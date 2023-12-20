@@ -1,7 +1,9 @@
+use crate::compiler::errors::{ErrorKind, ErrorState};
+
 use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
-pub enum Error {
+pub enum ParseError {
     ExpectedExprStart,
     ExpectedExprEnd,
     ExpectedMacroMark,
@@ -40,12 +42,12 @@ pub enum Error {
 
 #[derive(Clone, Debug)]
 pub enum Err {
-    Error(ErrorState<Error>),
-    Failure(ErrorState<Error>),
+    Error(ErrorState<ParseError>),
+    Failure(ErrorState<ParseError>),
 }
 
 impl Err {
-    pub fn unpack(self) -> ErrorState<Error> {
+    pub fn unpack(self) -> ErrorState<ParseError> {
         match self {
             Self::Error(x) => x,
             Self::Failure(x) => x,
@@ -60,7 +62,7 @@ impl Err {
     }
 }
 
-impl Error {
+impl ParseError {
     pub(crate) fn state_at<'a>(self, state: &ParserState<'a>) -> Err {
         let pos = state.position;
         Err::Error(ErrorState {
@@ -71,28 +73,7 @@ impl Error {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct ErrorState<T> {
-    pub error: T,
-    pub previous_errors: Vec<ErrorState<T>>,
-    pub text_position: TextPos,
-}
-
-pub(crate) trait Recoverable {
-    fn empty() -> Self;
-}
-
-impl<'a> Recoverable for &'a char {
-    fn empty() -> Self {
-        &' '
-    }
-}
-
-pub trait ErrorKind {
-    fn get_text(&self) -> String;
-}
-
-impl ErrorKind for Error {
+impl ErrorKind for ParseError {
     fn get_text(&self) -> String {
         match self {
             Self::ExpectedQuoteStart => "Expected the start of a quoted string".into(),
