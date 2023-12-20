@@ -143,7 +143,11 @@ impl<'a> ParsedFile<'a> {
     pub fn get_undefined_lambdas(&self) -> Vec<(String, &[Token])> {
         self.defined_lambdas
             .iter()
-            .filter_map(|x| x.value.as_ref().map(|_| (x.name.clone(), self.local_tokens)))
+            .filter_map(|x| {
+                x.value
+                    .as_ref()
+                    .map(|_| (x.name.clone(), self.local_tokens))
+            })
             .collect()
     }
 }

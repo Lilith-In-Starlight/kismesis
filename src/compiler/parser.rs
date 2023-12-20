@@ -363,10 +363,10 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
     let (((name, arguments), body), state) = parser.parse(state)?;
     Ok((
         Box::new(PlugCall {
-                    name,
-                    arguments,
-                    body,
-                }),
+            name,
+            arguments,
+            body,
+        }),
         state,
     ))
 }
