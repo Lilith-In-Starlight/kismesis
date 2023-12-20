@@ -116,7 +116,7 @@ fn parse_html_child<'a>(
         HtmlNodes::PlugCall(t) => plug_call(t, state),
         HtmlNodes::Subtree(t) => subtree(t, state),
         HtmlNodes::String(t) => parse_kis_string(
-            &t,
+            t,
             (
                 &state.variable_scopes,
                 &state.undefined_lambdas,
@@ -235,7 +235,7 @@ fn tag<'a>(tag: &HtmlTag<'a>, state: &GenerationState<'a>) -> CompileResult<'a, 
     if state.options.is_only_closer(&tag.name.value) {
         output.push_str(" />");
     } else {
-        output.push_str(">");
+        output.push('>');
     }
 
     if state.options.has_body(&tag.name.value) {
@@ -326,8 +326,8 @@ fn parse_kis_string<'a>(
     let mut errors = Vec::new();
     for parse in string {
         match parse {
-            StringParts::String(x) => output.push_str(&x),
-            StringParts::Expression(expr) => match calculate_expression(&expr, state)? {
+            StringParts::String(x) => output.push_str(x),
+            StringParts::Expression(expr) => match calculate_expression(expr, state)? {
                 ExpressionValues::String(x) => output.push_str(&x),
                 ExpressionValues::None => {
                     errors.push(CompilerError::CantWriteNoneValue.state_at(expr.range, state.2))
@@ -363,10 +363,7 @@ pub struct ScopedError<'a, T> {
 
 impl ExpressionValues {
     fn is_truthy(&self) -> bool {
-        match self {
-            Self::String(_) | Self::Generic => true,
-            _ => false,
-        }
+        matches!(self, Self::Generic | Self::String(_))
     }
 }
 
@@ -399,7 +396,7 @@ fn calculate_expression<'a>(
         }
         Expression::None => Ok(ExpressionValues::None),
         Expression::UniFunc(func, exp) => {
-            let exp = calculate_expression(&exp, state)?;
+            let exp = calculate_expression(exp, state)?;
             match func {
                 UniFunc::Not => {
                     if exp.is_truthy() {
@@ -447,7 +444,7 @@ impl<'a> Inside<'a> {
 }
 
 impl CompilerError {
-    fn state_at<'a>(self, pos: (TokenPos, TokenPos), scope: &'a [Token]) -> ScopedError<'a, Self> {
+    fn state_at(self, pos: (TokenPos, TokenPos), scope: &[Token]) -> ScopedError<Self> {
         ScopedError {
             error: ErrorState {
                 error: self,
@@ -473,7 +470,7 @@ impl ErrorKind for CompilerError {
                 "The `{}` argument is unset but the macro definition has no default for it",
                 arg
             ),
-            Self::UndefinedMacroCall => format!("This macro isn't defined"),
+            Self::UndefinedMacroCall => "This macro isn't defined".to_string(),
         }
     }
 }

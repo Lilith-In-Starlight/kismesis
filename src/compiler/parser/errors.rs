@@ -63,7 +63,7 @@ impl Err {
 }
 
 impl ParseError {
-    pub(crate) fn state_at<'a>(self, state: &ParserState<'a>) -> Err {
+    pub(crate) fn state_at(self, state: &ParserState) -> Err {
         let pos = state.position;
         Err::Error(ErrorState {
             error: self,

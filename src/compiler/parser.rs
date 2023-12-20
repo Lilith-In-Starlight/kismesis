@@ -357,16 +357,16 @@ fn tag(state: ParserState<'_>) -> ParserResult<'_, HtmlTag> {
     ))
 }
 
-fn plug_call(state: ParserState<'_>) -> ParserResult<'_, PlugCall> {
+fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
     let parser = plugin_head.and_maybe(plugin_body);
 
     let (((name, arguments), body), state) = parser.parse(state)?;
     Ok((
-        PlugCall {
-            name,
-            arguments,
-            body,
-        },
+        Box::new(PlugCall {
+                    name,
+                    arguments,
+                    body,
+                }),
         state,
     ))
 }

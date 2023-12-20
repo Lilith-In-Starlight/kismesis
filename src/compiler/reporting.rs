@@ -128,14 +128,6 @@ fn turn_to_chars(string: String, chr: char) -> String {
         .collect()
 }
 
-fn as_string(t: &[Token]) -> String {
-    let mut output = String::new();
-    for x in t.iter() {
-        x.push_to_string(&mut output);
-    }
-    output
-}
-
 fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
     let mut output = line.to_string();
     while output.len() < info.line_number_length + 1 {

@@ -48,7 +48,7 @@ pub enum HtmlNodes<'a> {
     HtmlTag(HtmlTag<'a>),
     MacroCall(Macro<'a>),
     String(Vec<StringParts>),
-    PlugCall(PlugCall),
+    PlugCall(Box<PlugCall>),
     Subtree(ParsedFile<'a>),
 }
 
@@ -56,7 +56,7 @@ pub enum HtmlNodes<'a> {
 pub enum TopNodes<'a> {
     HtmlTag(HtmlTag<'a>),
     MacroCall(Macro<'a>),
-    PlugCall(PlugCall),
+    PlugCall(Box<PlugCall>),
     Subtree(ParsedFile<'a>),
 }
 
@@ -64,7 +64,7 @@ pub enum TopNodes<'a> {
 pub enum BodyTags<'a> {
     HtmlTag(HtmlTag<'a>),
     MacroCall(Macro<'a>),
-    PlugCall(PlugCall),
+    PlugCall(Box<PlugCall>),
     Subtree(ParsedFile<'a>),
 }
 
@@ -73,7 +73,7 @@ pub enum Tag<'a> {
     HtmlTag(HtmlTag<'a>),
     MacroDef(Macro<'a>),
     MacroCall(Macro<'a>),
-    PlugCall(PlugCall),
+    PlugCall(Box<PlugCall>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -81,7 +81,7 @@ pub enum BodyNodes<'a> {
     HtmlTag(HtmlTag<'a>),
     MacroDef(Macro<'a>),
     MacroCall(Macro<'a>),
-    PlugCall(PlugCall),
+    PlugCall(Box<PlugCall>),
     String(Vec<StringParts>),
     LambdaDef(Lambda),
     VarDef(Variable),
@@ -143,10 +143,7 @@ impl<'a> ParsedFile<'a> {
     pub fn get_undefined_lambdas(&self) -> Vec<(String, &[Token])> {
         self.defined_lambdas
             .iter()
-            .filter_map(|x| match x.value {
-                Some(_) => Some((x.name.clone(), self.local_tokens)),
-                None => None,
-            })
+            .filter_map(|x| x.value.as_ref().map(|_| (x.name.clone(), self.local_tokens)))
             .collect()
     }
 }
@@ -231,11 +228,11 @@ impl Ranged<&str> {
 }
 
 pub trait AstNode {
-    fn find_undefined_vars(&self, defined: &Vec<String>) -> Vec<Ranged<String>>;
+    fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>>;
 }
 
 impl<'a> AstNode for Macro<'a> {
-    fn find_undefined_vars(&self, defined: &Vec<String>) -> Vec<Ranged<String>> {
+    fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
         self.body
             .iter()
             .flat_map(|x| x.find_undefined_vars(defined))
@@ -244,7 +241,7 @@ impl<'a> AstNode for Macro<'a> {
 }
 
 impl AstNode for Vec<StringParts> {
-    fn find_undefined_vars(&self, defined: &Vec<String>) -> Vec<Ranged<String>> {
+    fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
         self.iter()
             .flat_map(|x| x.find_undefined_vars(defined))
             .collect()
@@ -252,7 +249,7 @@ impl AstNode for Vec<StringParts> {
 }
 
 impl AstNode for StringParts {
-    fn find_undefined_vars(&self, defined: &Vec<String>) -> Vec<Ranged<String>> {
+    fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
         match self {
             StringParts::String(_) => Vec::new(),
             StringParts::Expression(x) => x.find_undefined_vars(defined),
@@ -261,7 +258,7 @@ impl AstNode for StringParts {
 }
 
 impl AstNode for Ranged<Expression> {
-    fn find_undefined_vars(&self, defined: &Vec<String>) -> Vec<Ranged<String>> {
+    fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
         match &self.value {
             Expression::None => Vec::new(),
             Expression::Variable(x) => {
@@ -277,7 +274,7 @@ impl AstNode for Ranged<Expression> {
             Expression::BinFunc(_, x, y) => x
                 .find_undefined_vars(defined)
                 .into_iter()
-                .chain(y.find_undefined_vars(defined).into_iter())
+                .chain(y.find_undefined_vars(defined))
                 .collect(),
             Expression::UniFunc(_, x) => x.find_undefined_vars(defined),
         }
@@ -285,7 +282,7 @@ impl AstNode for Ranged<Expression> {
 }
 
 impl<'a> AstNode for HtmlTag<'a> {
-    fn find_undefined_vars(&self, defined: &Vec<String>) -> Vec<Ranged<String>> {
+    fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
         self.body
             .iter()
             .flat_map(|x| x.find_undefined_vars(defined))
@@ -294,7 +291,7 @@ impl<'a> AstNode for HtmlTag<'a> {
 }
 
 impl<'a> AstNode for HtmlNodes<'a> {
-    fn find_undefined_vars(&self, defined: &Vec<String>) -> Vec<Ranged<String>> {
+    fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
         match self {
             HtmlNodes::HtmlTag(x) => x.find_undefined_vars(defined),
             HtmlNodes::MacroCall(x) => x.find_undefined_vars(defined),
@@ -332,14 +329,4 @@ impl TextPos {
     pub fn is_one_line(&self) -> bool {
         self.get_end_line() == self.get_start_line()
     }
-}
-
-pub enum CharPos {
-    Single(CPos),
-    Range((CPos, CPos)),
-}
-
-pub struct CPos {
-    line: usize,
-    column: usize,
 }
