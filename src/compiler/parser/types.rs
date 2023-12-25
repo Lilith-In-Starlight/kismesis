@@ -85,15 +85,16 @@ pub enum BodyNodes {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParsedFile {
+pub struct ParsedFile<'a> {
     pub local_tokens: Vec<Token>,
     pub body: Vec<TopNodes>,
     pub defined_macros: Vec<Macro>,
     pub defined_variables: Vec<Variable>,
     pub defined_lambdas: Vec<Lambda>,
+    pub template: Option<&'a ParsedFile<'a>>,
 }
 
-impl ParsedFile {
+impl<'a> ParsedFile<'a> {
     pub fn new(local_tokens: Vec<Token>) -> Self {
         Self {
             local_tokens,
@@ -101,6 +102,7 @@ impl ParsedFile {
             defined_macros: vec![],
             defined_variables: vec![],
             defined_lambdas: vec![],
+            template: None,
         }
     }
 

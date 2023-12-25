@@ -715,7 +715,7 @@ fn argument(state: ParserState) -> ParserResult<Argument> {
     ))
 }
 
-pub fn file(tokens: Vec<Token>) -> Result<ParsedFile, (Err, Vec<Token>)> {
+pub fn file<'a>(tokens: Vec<Token>) -> Result<ParsedFile<'a>, (Err, Vec<Token>)> {
     let parser = zero_or_more(
         skipped_blanks().preceding(
             some_tag
