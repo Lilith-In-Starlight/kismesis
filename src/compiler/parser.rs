@@ -737,7 +737,7 @@ pub fn file<'a>(tokens: Vec<Token>) -> Result<ParsedFile<'a>, (Err, Vec<Token>)>
     let mut output = ParsedFile::new(tokens);
     for node in ast_nodes {
         match node {
-            BodyNodes::HtmlTag(tag) => output.body.push(TopNodes::HtmlTag(tag)),
+            BodyNodes::HtmlTag(tag) => output.body.push(TopNodes::HtmlTag(tag.merge_subtags())),
             BodyNodes::MacroDef(mac) => output.defined_macros.push(mac),
             BodyNodes::MacroCall(mac) => output.body.push(TopNodes::MacroCall(mac)),
             BodyNodes::String(_string) => todo!("Markup syntax"),

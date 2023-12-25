@@ -371,3 +371,22 @@ impl Macro {
         output
     }
 }
+
+impl HtmlTag {
+    pub fn merge_subtags(mut self) -> Self {
+        let mut subtag_stack = self.subtags;
+        let Some(top) = subtag_stack.last_mut() else { self.subtags = subtag_stack; return self };
+        top.body = self.body;
+        loop {
+            let Some(top) = subtag_stack.pop() else { break };
+            let Some(top_2) = subtag_stack.last_mut() else { subtag_stack.push(top); break };
+            top_2.body.push(HtmlNodes::HtmlTag(top));
+        }
+
+        self.body = subtag_stack.into_iter().map(|x| HtmlNodes::HtmlTag(x)).collect();
+
+        self.subtags = Vec::new();
+
+        self
+    }
+}
