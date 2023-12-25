@@ -102,7 +102,6 @@ fn parse_node<'a>(node: &TopNodes, state: &GenerationState<'a>) -> CompileResult
         TopNodes::HtmlTag(t) => tag(t, state),
         TopNodes::MacroCall(t) => mac_call(t, state),
         TopNodes::PlugCall(t) => plug_call(t, state),
-        TopNodes::Subtree(t) => subtree(t, state),
     }
 }
 
@@ -114,7 +113,6 @@ fn parse_html_child<'a>(
         HtmlNodes::HtmlTag(t) => tag(t, state),
         HtmlNodes::MacroCall(t) => mac_call(t, state),
         HtmlNodes::PlugCall(t) => plug_call(t, state),
-        HtmlNodes::Subtree(t) => subtree(t, state),
         HtmlNodes::String(t) => parse_kis_string(
             t,
             (
@@ -195,9 +193,6 @@ fn plug_call(_plugin: &PlugCall, _state: &GenerationState) -> ! {
     todo!("Plugin calls to html")
 }
 
-fn subtree(_tree: &ParsedFile, _state: &GenerationState) -> ! {
-    todo!("Subtrees")
-}
 
 fn tag<'a>(tag: &HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, String> {
     let mut errors = Vec::new();

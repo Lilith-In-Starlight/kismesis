@@ -744,7 +744,6 @@ pub fn file(tokens: Vec<Token>) -> Result<ParsedFile, (Err, Vec<Token>)> {
             BodyNodes::LambdaDef(lambda) => output.defined_lambdas.push(lambda),
             BodyNodes::VarDef(var) => output.defined_variables.push(var),
             BodyNodes::PlugCall(plug) => output.body.push(TopNodes::PlugCall(plug)),
-            BodyNodes::Subtree(_) => unreachable!(),
         }
     }
 

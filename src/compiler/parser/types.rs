@@ -49,7 +49,6 @@ pub enum HtmlNodes {
     MacroCall(Macro),
     String(Vec<StringParts>),
     PlugCall(Box<PlugCall>),
-    Subtree(ParsedFile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,7 +56,6 @@ pub enum TopNodes {
     HtmlTag(HtmlTag),
     MacroCall(Macro),
     PlugCall(Box<PlugCall>),
-    Subtree(ParsedFile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -65,7 +63,6 @@ pub enum BodyTags {
     HtmlTag(HtmlTag),
     MacroCall(Macro),
     PlugCall(Box<PlugCall>),
-    Subtree(ParsedFile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -85,7 +82,6 @@ pub enum BodyNodes {
     String(Vec<StringParts>),
     LambdaDef(Lambda),
     VarDef(Variable),
-    Subtree(ParsedFile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -169,7 +165,6 @@ impl From<BodyTags> for BodyNodes {
             BodyTags::HtmlTag(x) => Self::HtmlTag(x),
             BodyTags::MacroCall(x) => Self::MacroCall(x),
             BodyTags::PlugCall(x) => Self::PlugCall(x),
-            BodyTags::Subtree(x) => Self::Subtree(x),
         }
     }
 }
@@ -180,7 +175,6 @@ impl From<BodyTags> for HtmlNodes {
             BodyTags::HtmlTag(x) => Self::HtmlTag(x),
             BodyTags::MacroCall(x) => Self::MacroCall(x),
             BodyTags::PlugCall(x) => Self::PlugCall(x),
-            BodyTags::Subtree(x) => Self::Subtree(x),
         }
     }
 }
@@ -301,7 +295,6 @@ impl AstNode for HtmlNodes {
             HtmlNodes::MacroCall(x) => x.find_undefined_vars(defined),
             HtmlNodes::String(x) => x.find_undefined_vars(defined),
             HtmlNodes::PlugCall(_) => Vec::new(),
-            HtmlNodes::Subtree(_) => todo!("Subtree calls"),
         }
     }
 }
