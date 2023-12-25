@@ -21,56 +21,22 @@ type CompileResult<'a, T> = Result<T, Inside<'a>>;
 struct GenerationState<'a> {
     options: &'a Settings,
     variable_scopes: VariableScope<'a>,
-    undefined_lambdas: Vec<(String, &'a [Token])>,
     macro_templates: HashMap<String, (&'a Macro, &'a [Token])>,
     indent: usize,
     inline: bool,
     tokens: &'a [Token],
 }
 
-type VariableScope<'a> = HashMap<String, String>;
+type ValueRef<'a> = (Option<&'a Vec<StringParts>>, &'a [Token]);
+
+type VariableScope<'a> = HashMap<String, ValueRef<'a>>;
 
 impl<'a> GenerationState<'a> {
     pub(crate) fn from(file: &'a ParsedFile, options: &'a Settings) -> Self {
-        let undefined_lambdas = file.get_undefined_lambdas();
-        let mut variable_scopes = VariableScope::new();
-        let mut defined_variables = file.defined_variables.clone();
-        for var in file.defined_lambdas.iter() {
-            if let Some(value) = var.value.clone() {
-                defined_variables.push(super::parser::types::Variable {
-                    name: var.name.clone(),
-                    value,
-                });
-            }
-        }
-
-        let mut uncalculated = defined_variables;
-
-        while !uncalculated.is_empty() {
-            let mut remv = 0;
-            let mut calculated_any = false;
-            for var in uncalculated.clone().iter() {
-                if let Ok(x) = parse_kis_string(
-                    &var.value,
-                    (&variable_scopes, &undefined_lambdas, &file.local_tokens),
-                ) {
-                    calculated_any = true;
-                    variable_scopes.insert(var.name.clone(), x);
-                    uncalculated.remove(remv);
-                    remv = 0;
-                }
-                remv += 1;
-
-                if !calculated_any {
-                    panic!("Cant calculate variable values");
-                }
-            }
-        }
         Self {
             options,
-            variable_scopes,
+            variable_scopes: file.get_variable_scope(),
             macro_templates: file.get_macro_scope(),
-            undefined_lambdas: file.get_undefined_lambdas(),
             indent: 0,
             inline: false,
             tokens: &file.local_tokens,
@@ -97,7 +63,7 @@ pub fn generate_html<'a>(file: &'a ParsedFile, options: &'a Settings) -> Compile
     Ok(output)
 }
 
-fn parse_node<'a>(node: &TopNodes, state: &GenerationState<'a>) -> CompileResult<'a, String> {
+fn parse_node<'a>(node: &'a TopNodes, state: &GenerationState<'a>) -> CompileResult<'a, String> {
     match node {
         TopNodes::HtmlTag(t) => tag(t, state),
         TopNodes::MacroCall(t) => mac_call(t, state),
@@ -106,7 +72,7 @@ fn parse_node<'a>(node: &TopNodes, state: &GenerationState<'a>) -> CompileResult
 }
 
 fn parse_html_child<'a>(
-    node: &HtmlNodes,
+    node: &'a HtmlNodes,
     state: &GenerationState<'a>,
 ) -> CompileResult<'a, String> {
     match node {
@@ -117,14 +83,13 @@ fn parse_html_child<'a>(
             t,
             (
                 &state.variable_scopes,
-                &state.undefined_lambdas,
                 state.tokens,
             ),
         ),
     }
 }
 
-fn mac_call<'a>(mac: &Macro, state: &GenerationState<'a>) -> CompileResult<'a, String> {
+fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a, String> {
     let mut errors = Vec::new();
     let template = state
         .macro_templates
@@ -134,32 +99,17 @@ fn mac_call<'a>(mac: &Macro, state: &GenerationState<'a>) -> CompileResult<'a, S
         ))?;
     let mut new_state = state.clone();
     new_state.variable_scopes = {
-        let mut base = template.0.arguments.clone();
-        for arg in mac.arguments.iter() {
-            if let Some(base_arg) = base.iter_mut().find(|x| x.name.value == arg.name.value) {
-                base_arg.value = arg.value.clone();
-            }
-        }
+        let mut base = template.0.get_argument_scope(template.1);
+
+        base.extend(mac.get_argument_scope(state.tokens));
         let mut output = VariableScope::new();
-        for arg in base {
-            match arg.value {
+        for arg in base.iter() {
+            match arg.1.0 {
                 None => errors.push(
-                    CompilerError::UnsetArgNoDefault(arg.name.value)
+                    CompilerError::UnsetArgNoDefault(arg.0.clone())
                         .state_at(template.0.name.range, template.1),
                 ),
-                Some(value) => match parse_kis_string(
-                    &value,
-                    (
-                        &state.variable_scopes,
-                        &state.undefined_lambdas,
-                        state.tokens,
-                    ),
-                ) {
-                    Ok(string) => {
-                        output.insert(arg.name.value, string);
-                    }
-                    Err(error) => error.push_into(&mut errors),
-                },
+                Some(value) => { let _ =output.insert(arg.0.clone(), (Some(value), template.1)); },
             }
         }
         output
@@ -194,29 +144,8 @@ fn plug_call(_plugin: &PlugCall, _state: &GenerationState) -> ! {
 }
 
 
-fn tag<'a>(tag: &HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, String> {
+fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, String> {
     let mut errors = Vec::new();
-    let tag = {
-        let clone = tag.clone();
-        let mut new_body = Vec::<HtmlTag>::new();
-        for subtag in clone.subtags {
-            match new_body.last_mut() {
-                Some(tag) => tag.body.push(HtmlNodes::HtmlTag(subtag)),
-                None => new_body.push(subtag),
-            }
-        }
-        let mut clone_two = tag.clone();
-        match new_body.last_mut() {
-            Some(last) => {
-                last.body = clone.body;
-                clone_two.body = new_body.into_iter().map(HtmlNodes::HtmlTag).collect();
-            }
-            None => {
-                clone_two.body = clone.body;
-            }
-        }
-        clone_two
-    };
     let mut output = String::new();
     for _ in 0..state.indent {
         output.push('\t');
@@ -297,7 +226,6 @@ fn attribute_string<'a>(
             &attr.value,
             (
                 &state.variable_scopes,
-                &state.undefined_lambdas,
                 state.tokens,
             ),
         ) {
@@ -315,7 +243,7 @@ fn attribute_string<'a>(
 
 fn parse_kis_string<'a>(
     string: &[StringParts],
-    state: (&VariableScope<'a>, &Vec<(String, &'a [Token])>, &'a [Token]),
+    state: (&VariableScope<'a>, &'a [Token]),
 ) -> CompileResult<'a, String> {
     let mut output = String::new();
     let mut errors = Vec::new();
@@ -323,12 +251,12 @@ fn parse_kis_string<'a>(
         match parse {
             StringParts::String(x) => output.push_str(x),
             StringParts::Expression(expr) => match calculate_expression(expr, state)? {
-                ExpressionValues::String(x) => output.push_str(&x),
+                ExpressionValues::String(x) => output.push_str(&parse_kis_string(&x, state).unwrap()),
                 ExpressionValues::None => {
-                    errors.push(CompilerError::CantWriteNoneValue.state_at(expr.range, state.2))
+                    errors.push(CompilerError::CantWriteNoneValue.state_at(expr.range, state.1))
                 }
                 ExpressionValues::Generic => {
-                    errors.push(CompilerError::CantWriteGenericValue.state_at(expr.range, state.2))
+                    errors.push(CompilerError::CantWriteGenericValue.state_at(expr.range, state.1))
                 }
             },
         }
@@ -345,7 +273,7 @@ fn parse_kis_string<'a>(
 
 #[derive(Clone)]
 enum ExpressionValues {
-    String(String),
+    String(Vec<StringParts>),
     None,
     Generic,
 }
@@ -364,7 +292,7 @@ impl ExpressionValues {
 
 fn calculate_expression<'a>(
     expr: &Ranged<Expression>,
-    state: (&VariableScope<'a>, &Vec<(String, &'a [Token])>, &'a [Token]),
+    state: (&VariableScope<'a>, &'a [Token]),
 ) -> CompileResult<'a, ExpressionValues> {
     match &expr.value {
         Expression::BinFunc(func, exp1, exp2) => {
@@ -404,10 +332,13 @@ fn calculate_expression<'a>(
         }
         Expression::Variable(x) => {
             if let Some(var) = state.0.get(x) {
-                Ok(ExpressionValues::String(var.clone()))
+                match var.0 {
+                    Some(value) => Ok(ExpressionValues::String(value.clone())),
+                    None => panic!("Unset lambda"),
+                }
             } else {
                 Err(Inside::Err(
-                    CompilerError::UndefinedVariable.state_at(expr.range, state.2),
+                    CompilerError::UndefinedVariable.state_at(expr.range, state.1),
                 ))
             }
         }

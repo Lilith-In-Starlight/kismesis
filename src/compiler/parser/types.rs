@@ -94,6 +94,12 @@ pub struct ParsedFile<'a> {
     pub template: Option<&'a ParsedFile<'a>>,
 }
 
+pub enum VariableOption<T> {
+    Some(T),
+    None, // The variable was not found
+    Unset, // The variable was found, but it's not set
+}
+
 impl<'a> ParsedFile<'a> {
     pub fn new(local_tokens: Vec<Token>) -> Self {
         Self {
@@ -106,36 +112,59 @@ impl<'a> ParsedFile<'a> {
         }
     }
 
-    pub fn get_macro_scope(&self) -> HashMap<String, (&Macro, &[Token])> {
-        self.defined_macros
-            .iter()
-            .map(|x| (x.name.value.clone(), (x, self.local_tokens.as_slice())))
-            .collect()
+    pub fn get_macro_template(&self, predicate: impl Fn(&&Macro) -> bool) -> Option<&Macro> {
+        self.defined_macros.iter().rfind(&predicate)
+            .or(self.template.map(|x| x.get_macro_template(&predicate)).unwrap_or(None))
     }
-    pub fn get_variable_scope(&self) -> HashMap<String, (Variable, &[Token])> {
-        self.defined_variables
-            .clone()
-            .into_iter()
-            .map(|x| (x.name.clone(), (x, self.local_tokens.as_slice())))
-            .chain(
-                self.defined_lambdas
-                    .clone()
-                    .into_iter()
-                    .filter_map(|x| match x.value {
-                        Some(val) => Some((
-                            x.name.clone(),
-                            (
-                                Variable {
-                                    name: x.name.clone(),
-                                    value: val.clone(),
-                                },
-                                self.local_tokens.as_slice(),
-                            ),
-                        )),
-                        None => None,
-                    }),
-            )
-            .collect()
+
+    pub fn get_variable_value(&self, predicate: &str) -> VariableOption<&Vec<StringParts>> {
+        for var in self.defined_variables.iter() {
+            if var.name == predicate {
+                return VariableOption::Some(&var.value)
+            }
+        }
+
+        for var in self.defined_lambdas.iter() {
+            if var.name == predicate {
+                match var.value {
+                    Some(ref value) => return VariableOption::Some(value),
+                    None => return VariableOption::Unset,
+                }
+            }
+        }
+
+        match self.template {
+            Some(template) => template.get_variable_value(predicate),
+            None => VariableOption::None,
+        }
+    }
+
+    pub fn get_macro_scope(&self) -> HashMap<String, (&Macro, &[Token])> {
+        let mut output = HashMap::new();
+        if let Some(template) = self.template {
+            output.extend(template.get_macro_scope())
+        }
+
+        output.extend(self.defined_macros.iter().map(|x| (x.name.value.clone(), (x, self.local_tokens.as_slice()))));
+
+        output
+    }
+
+    pub fn get_variable_scope(&self) -> HashMap<String, (Option<&Vec<StringParts>>, &[Token])> {
+        let mut out = HashMap::new();
+
+        if let Some(template) = self.template {
+            out.extend(template.get_variable_scope())
+        }
+
+        out.extend(self.defined_lambdas.iter().map(|x| match x.value {
+            Some(ref value) => (x.name.clone(), (Some(value), self.local_tokens.as_slice())),
+            None => (x.name.clone(), (None, self.local_tokens.as_slice()))
+        }));
+
+        out.extend(self.defined_variables.iter().map(|x| (x.name.clone(), (Some(&x.value), self.local_tokens.as_slice()))));
+
+        out.into_iter().collect()
     }
 
     pub fn get_undefined_lambdas(&self) -> Vec<(String, &[Token])> {
@@ -327,5 +356,18 @@ impl TextPos {
 
     pub fn is_one_line(&self) -> bool {
         self.get_end_line() == self.get_start_line()
+    }
+}
+
+impl Macro {
+    pub fn get_argument_scope<'a>(&'a self, tokens: &'a [Token]) -> HashMap<String, (Option<&Vec<StringParts>>, &[Token])> {
+        let mut output = HashMap::new();
+
+        output.extend(self.arguments.iter().map(|x| match x.value {
+            Some(ref value) => (x.name.value.clone(), (Some(value), tokens)),
+            None => (x.name.value.clone(), (None, tokens)),
+        }));
+
+        output
     }
 }
