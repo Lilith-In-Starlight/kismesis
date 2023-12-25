@@ -22,7 +22,7 @@ struct GenerationState<'a> {
     options: &'a Settings,
     variable_scopes: VariableScope<'a>,
     undefined_lambdas: Vec<(String, &'a [Token])>,
-    macro_templates: HashMap<String, (&'a Macro<'a>, &'a [Token])>,
+    macro_templates: HashMap<String, (&'a Macro, &'a [Token])>,
     indent: usize,
     inline: bool,
     tokens: &'a [Token],
@@ -52,7 +52,7 @@ impl<'a> GenerationState<'a> {
             for var in uncalculated.clone().iter() {
                 if let Ok(x) = parse_kis_string(
                     &var.value,
-                    (&variable_scopes, &undefined_lambdas, file.local_tokens),
+                    (&variable_scopes, &undefined_lambdas, &file.local_tokens),
                 ) {
                     calculated_any = true;
                     variable_scopes.insert(var.name.clone(), x);
@@ -73,7 +73,7 @@ impl<'a> GenerationState<'a> {
             undefined_lambdas: file.get_undefined_lambdas(),
             indent: 0,
             inline: false,
-            tokens: file.local_tokens,
+            tokens: &file.local_tokens,
         }
     }
 }
@@ -97,7 +97,7 @@ pub fn generate_html<'a>(file: &'a ParsedFile, options: &'a Settings) -> Compile
     Ok(output)
 }
 
-fn parse_node<'a>(node: &TopNodes<'a>, state: &GenerationState<'a>) -> CompileResult<'a, String> {
+fn parse_node<'a>(node: &TopNodes, state: &GenerationState<'a>) -> CompileResult<'a, String> {
     match node {
         TopNodes::HtmlTag(t) => tag(t, state),
         TopNodes::MacroCall(t) => mac_call(t, state),
@@ -107,7 +107,7 @@ fn parse_node<'a>(node: &TopNodes<'a>, state: &GenerationState<'a>) -> CompileRe
 }
 
 fn parse_html_child<'a>(
-    node: &HtmlNodes<'a>,
+    node: &HtmlNodes,
     state: &GenerationState<'a>,
 ) -> CompileResult<'a, String> {
     match node {
@@ -126,7 +126,7 @@ fn parse_html_child<'a>(
     }
 }
 
-fn mac_call<'a>(mac: &Macro<'a>, state: &GenerationState<'a>) -> CompileResult<'a, String> {
+fn mac_call<'a>(mac: &Macro, state: &GenerationState<'a>) -> CompileResult<'a, String> {
     let mut errors = Vec::new();
     let template = state
         .macro_templates
@@ -199,7 +199,7 @@ fn subtree(_tree: &ParsedFile, _state: &GenerationState) -> ! {
     todo!("Subtrees")
 }
 
-fn tag<'a>(tag: &HtmlTag<'a>, state: &GenerationState<'a>) -> CompileResult<'a, String> {
+fn tag<'a>(tag: &HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, String> {
     let mut errors = Vec::new();
     let tag = {
         let clone = tag.clone();

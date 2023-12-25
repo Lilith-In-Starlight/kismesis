@@ -715,8 +715,7 @@ fn argument(state: ParserState) -> ParserResult<Argument> {
     ))
 }
 
-pub fn file(tokens: &[Token]) -> ParserResult<'_, ParsedFile> {
-    let mut output = ParsedFile::new(tokens);
+pub fn file(tokens: Vec<Token>) -> Result<ParsedFile, (Err, Vec<Token>)> {
     let parser = zero_or_more(
         skipped_blanks().preceding(
             some_tag
@@ -726,8 +725,16 @@ pub fn file(tokens: &[Token]) -> ParserResult<'_, ParsedFile> {
         ),
     );
 
-    let state = ParserState::new(tokens);
-    let (ast_nodes, state) = parser.parse(state)?;
+    let state = ParserState::new(&tokens);
+    let ast_nodes = match parser.parse(state) {
+        Ok((val, _)) => val,
+        Err(err) => {
+            drop(parser);
+            return Err((err, tokens))
+        },
+    };
+    drop(parser);
+    let mut output = ParsedFile::new(tokens);
     for node in ast_nodes {
         match node {
             BodyNodes::HtmlTag(tag) => output.body.push(TopNodes::HtmlTag(tag)),
@@ -741,7 +748,7 @@ pub fn file(tokens: &[Token]) -> ParserResult<'_, ParsedFile> {
         }
     }
 
-    Ok((output, state))
+    Ok(output)
 }
 // Generators
 

@@ -22,18 +22,18 @@ pub struct Argument {
     pub(crate) value: Option<Vec<StringParts>>,
 }
 #[derive(Debug, Clone, PartialEq)]
-pub struct HtmlTag<'a> {
+pub struct HtmlTag {
     pub(crate) name: Ranged<String>,
     pub(crate) attributes: Vec<Attribute>,
-    pub(crate) body: Vec<HtmlNodes<'a>>,
-    pub(crate) subtags: Vec<HtmlTag<'a>>,
+    pub(crate) body: Vec<HtmlNodes>,
+    pub(crate) subtags: Vec<HtmlTag>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Macro<'a> {
+pub struct Macro {
     pub(crate) name: Ranged<String>,
     pub(crate) arguments: Vec<Argument>,
-    pub(crate) body: Vec<HtmlNodes<'a>>,
+    pub(crate) body: Vec<HtmlNodes>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -44,61 +44,61 @@ pub struct PlugCall {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum HtmlNodes<'a> {
-    HtmlTag(HtmlTag<'a>),
-    MacroCall(Macro<'a>),
+pub enum HtmlNodes {
+    HtmlTag(HtmlTag),
+    MacroCall(Macro),
     String(Vec<StringParts>),
     PlugCall(Box<PlugCall>),
-    Subtree(ParsedFile<'a>),
+    Subtree(ParsedFile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TopNodes<'a> {
-    HtmlTag(HtmlTag<'a>),
-    MacroCall(Macro<'a>),
+pub enum TopNodes {
+    HtmlTag(HtmlTag),
+    MacroCall(Macro),
     PlugCall(Box<PlugCall>),
-    Subtree(ParsedFile<'a>),
+    Subtree(ParsedFile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum BodyTags<'a> {
-    HtmlTag(HtmlTag<'a>),
-    MacroCall(Macro<'a>),
+pub enum BodyTags {
+    HtmlTag(HtmlTag),
+    MacroCall(Macro),
     PlugCall(Box<PlugCall>),
-    Subtree(ParsedFile<'a>),
+    Subtree(ParsedFile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Tag<'a> {
-    HtmlTag(HtmlTag<'a>),
-    MacroDef(Macro<'a>),
-    MacroCall(Macro<'a>),
+pub enum Tag {
+    HtmlTag(HtmlTag),
+    MacroDef(Macro),
+    MacroCall(Macro),
     PlugCall(Box<PlugCall>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum BodyNodes<'a> {
-    HtmlTag(HtmlTag<'a>),
-    MacroDef(Macro<'a>),
-    MacroCall(Macro<'a>),
+pub enum BodyNodes {
+    HtmlTag(HtmlTag),
+    MacroDef(Macro),
+    MacroCall(Macro),
     PlugCall(Box<PlugCall>),
     String(Vec<StringParts>),
     LambdaDef(Lambda),
     VarDef(Variable),
-    Subtree(ParsedFile<'a>),
+    Subtree(ParsedFile),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParsedFile<'a> {
-    pub local_tokens: &'a [Token],
-    pub body: Vec<TopNodes<'a>>,
-    pub defined_macros: Vec<Macro<'a>>,
+pub struct ParsedFile {
+    pub local_tokens: Vec<Token>,
+    pub body: Vec<TopNodes>,
+    pub defined_macros: Vec<Macro>,
     pub defined_variables: Vec<Variable>,
     pub defined_lambdas: Vec<Lambda>,
 }
 
-impl<'a> ParsedFile<'a> {
-    pub fn new(local_tokens: &'a [Token]) -> Self {
+impl ParsedFile {
+    pub fn new(local_tokens: Vec<Token>) -> Self {
         Self {
             local_tokens,
             body: vec![],
@@ -111,14 +111,14 @@ impl<'a> ParsedFile<'a> {
     pub fn get_macro_scope(&self) -> HashMap<String, (&Macro, &[Token])> {
         self.defined_macros
             .iter()
-            .map(|x| (x.name.value.clone(), (x, self.local_tokens)))
+            .map(|x| (x.name.value.clone(), (x, self.local_tokens.as_slice())))
             .collect()
     }
     pub fn get_variable_scope(&self) -> HashMap<String, (Variable, &[Token])> {
         self.defined_variables
             .clone()
             .into_iter()
-            .map(|x| (x.name.clone(), (x, self.local_tokens)))
+            .map(|x| (x.name.clone(), (x, self.local_tokens.as_slice())))
             .chain(
                 self.defined_lambdas
                     .clone()
@@ -131,7 +131,7 @@ impl<'a> ParsedFile<'a> {
                                     name: x.name.clone(),
                                     value: val.clone(),
                                 },
-                                self.local_tokens,
+                                self.local_tokens.as_slice(),
                             ),
                         )),
                         None => None,
@@ -146,14 +146,14 @@ impl<'a> ParsedFile<'a> {
             .filter_map(|x| {
                 x.value
                     .as_ref()
-                    .map(|_| (x.name.clone(), self.local_tokens))
+                    .map(|_| (x.name.clone(), self.local_tokens.as_slice()))
             })
             .collect()
     }
 }
 
-impl<'a> From<Tag<'a>> for BodyNodes<'a> {
-    fn from(value: Tag<'a>) -> Self {
+impl From<Tag> for BodyNodes {
+    fn from(value: Tag) -> Self {
         match value {
             Tag::HtmlTag(x) => Self::HtmlTag(x),
             Tag::MacroCall(x) => Self::MacroCall(x),
@@ -163,8 +163,8 @@ impl<'a> From<Tag<'a>> for BodyNodes<'a> {
     }
 }
 
-impl<'a> From<BodyTags<'a>> for BodyNodes<'a> {
-    fn from(value: BodyTags<'a>) -> Self {
+impl From<BodyTags> for BodyNodes {
+    fn from(value: BodyTags) -> Self {
         match value {
             BodyTags::HtmlTag(x) => Self::HtmlTag(x),
             BodyTags::MacroCall(x) => Self::MacroCall(x),
@@ -174,8 +174,8 @@ impl<'a> From<BodyTags<'a>> for BodyNodes<'a> {
     }
 }
 
-impl<'a> From<BodyTags<'a>> for HtmlNodes<'a> {
-    fn from(value: BodyTags<'a>) -> Self {
+impl From<BodyTags> for HtmlNodes {
+    fn from(value: BodyTags) -> Self {
         match value {
             BodyTags::HtmlTag(x) => Self::HtmlTag(x),
             BodyTags::MacroCall(x) => Self::MacroCall(x),
@@ -235,7 +235,7 @@ pub trait AstNode {
     fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>>;
 }
 
-impl<'a> AstNode for Macro<'a> {
+impl AstNode for Macro {
     fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
         self.body
             .iter()
@@ -285,7 +285,7 @@ impl AstNode for Ranged<Expression> {
     }
 }
 
-impl<'a> AstNode for HtmlTag<'a> {
+impl AstNode for HtmlTag {
     fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
         self.body
             .iter()
@@ -294,7 +294,7 @@ impl<'a> AstNode for HtmlTag<'a> {
     }
 }
 
-impl<'a> AstNode for HtmlNodes<'a> {
+impl AstNode for HtmlNodes {
     fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
         match self {
             HtmlNodes::HtmlTag(x) => x.find_undefined_vars(defined),
