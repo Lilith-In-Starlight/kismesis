@@ -183,6 +183,13 @@ fn tag_name(state: ParserState) -> ParserResult<&str> {
     }
 }
 
+fn macro_name(state: ParserState) -> ParserResult<&str> {
+    match literal.parse(state.clone()) {
+        Ok(ok) if ok.0 != "content" => Ok(ok),
+        _ => Err(ParseError::ExpectedTagName.state_at(&state)),
+    }
+}
+
 fn equals(state: ParserState) -> ParserResult<&char> {
     match character('=').parse(state.clone()) {
         Err(_) => Err(ParseError::ExpectedBodyOpener.state_at(&state)),
@@ -326,6 +333,7 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
             .or(macro_call.map(Tag::MacroCall))
             .or(macro_def.map(Tag::MacroDef))
             .or(plug_call.map(Tag::PlugCall))
+            .or(content_macro.map(|_| Tag::Content))
             .followed_by(skipped_blanks().preceding(tag_closer)),
     )));
 
@@ -336,6 +344,7 @@ fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
     let parser = character('<').preceding(cut(after_spaces(
         tag.map(BodyTags::HtmlTag)
             .or(macro_call.map(BodyTags::MacroCall))
+            .or(content_macro.map(|_| BodyTags::Content))
             .followed_by(skipped_blanks().preceding(tag_closer)),
     )));
 
@@ -355,6 +364,12 @@ fn tag(state: ParserState<'_>) -> ParserResult<'_, HtmlTag> {
         },
         state,
     ))
+}
+
+fn content_macro(state: ParserState<'_>) -> ParserResult<'_, ()> {
+    let parser = specific_literal("content").followed_by(after_spaces(macro_mark));
+    let (_, state) = parser.parse(state)?;
+    Ok(((), state))
 }
 
 fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
@@ -537,7 +552,7 @@ fn plugin_head(state: ParserState) -> ParserResult<(Ranged<String>, Ranged<Vec<T
 }
 
 fn macro_call_head(state: ParserState) -> ParserResult<(Ranged<String>, Vec<Argument>)> {
-    let parser = get_range(tag_name)
+    let parser = get_range(macro_name)
         .followed_by(macro_mark)
         .and_also(cut(zero_or_more(skip_spaces().preceding(argument))));
 
@@ -744,6 +759,7 @@ pub fn file<'a>(tokens: Vec<Token>) -> Result<ParsedFile<'a>, (Err, Vec<Token>)>
             BodyNodes::LambdaDef(lambda) => output.defined_lambdas.push(lambda),
             BodyNodes::VarDef(var) => output.defined_variables.push(var),
             BodyNodes::PlugCall(plug) => output.body.push(TopNodes::PlugCall(plug)),
+            BodyNodes::Content => output.body.push(TopNodes::Content),
         }
     }
 
@@ -823,6 +839,17 @@ fn character<'a>(chr: char) -> impl Parser<'a, &'a char> {
         Ok((x, _)) => Err(ParseError::CharacterNotMatch {
             expected: chr,
             got: Some(*x),
+        }
+        .state_at(&state)),
+        Err(error) => Err(error),
+    }
+}
+fn specific_literal<'a>(word: &'a str) -> impl Parser<'a, &'a str> {
+    move |state: ParserState<'a>| match literal.parse(state.clone()) {
+        Ok((x, next_state)) if x == word => Ok((x, next_state)),
+        Ok((x, _)) => Err(ParseError::LiteralNotMatch {
+            expected: word.to_string(),
+            got: Some(x.to_string()),
         }
         .state_at(&state)),
         Err(error) => Err(error),

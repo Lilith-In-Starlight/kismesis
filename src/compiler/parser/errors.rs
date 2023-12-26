@@ -4,6 +4,7 @@ use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+    LiteralNotMatch { expected: String, got: Option<String> },
     ExpectedExprStart,
     ExpectedExprEnd,
     ExpectedMacroMark,
@@ -76,6 +77,7 @@ impl ParseError {
 impl ErrorKind for ParseError {
     fn get_text(&self) -> String {
         match self {
+            Self::LiteralNotMatch { expected, got } => format!("Expected the word `{}`", expected),
             Self::ExpectedQuoteStart => "Expected the start of a quoted string".into(),
             Self::ExpectedExprStart => "Expected `[` to denote the start of an expression".into(),
             Self::ExpectedExprEnd => "Expected `]`to denote the end of an expression".into(),

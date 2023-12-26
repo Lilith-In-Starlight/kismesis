@@ -17,11 +17,13 @@ use super::{
 
 type CompileResult<'a, T> = Result<T, Inside<'a>>;
 
+#[derive(Clone, Debug)]
 enum OutputTypes {
     ContentMark,
     Html(String),
 }
 
+#[derive(Clone, Debug)]
 pub struct HtmlOutput {
     val: Vec<OutputTypes>,
 }
@@ -30,6 +32,11 @@ impl HtmlOutput {
     pub fn new() -> Self {
         Self {
             val: Vec::new(),
+        }
+    }
+    pub fn new_content() -> Self {
+        Self {
+            val: vec![OutputTypes::ContentMark]
         }
     }
     pub fn is_empty(&self) -> bool {
@@ -130,6 +137,21 @@ pub fn generate_html<'a>(file: &'a ParsedFile, subfile: Option<&'a ParsedFile>, 
     if !errors.is_empty() {
         return Err(Inside::In(errors));
     }
+
+    if let Some(template) = file.template {
+        println!("asdfasdf");
+        let template_output = generate_html(template, Some(file), options).unwrap();
+        println!("asdf{:?}", output.val);
+        output.val = template_output.val.into_iter().flat_map(|x| {
+            match x {
+                OutputTypes::ContentMark => output.val.clone(),
+                x => vec![x],
+            }
+        }).collect();
+        println!("asdf{:?}", output.val);
+    }
+
+    
     Ok(output)
 }
 
@@ -138,6 +160,7 @@ fn parse_node<'a>(node: &'a TopNodes, state: &GenerationState<'a>) -> CompileRes
         TopNodes::HtmlTag(t) => tag(t, state),
         TopNodes::MacroCall(t) => mac_call(t, state),
         TopNodes::PlugCall(t) => plug_call(t, state),
+        TopNodes::Content => Ok(HtmlOutput::new_content()),
     }
 }
 
@@ -149,6 +172,7 @@ fn parse_html_child<'a>(
         HtmlNodes::HtmlTag(t) => tag(t, state),
         HtmlNodes::MacroCall(t) => mac_call(t, state),
         HtmlNodes::PlugCall(t) => plug_call(t, state),
+        HtmlNodes::Content => Ok(HtmlOutput::new_content()),
         HtmlNodes::String(t) => parse_kis_string(
             t,
             (

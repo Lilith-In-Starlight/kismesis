@@ -2,8 +2,10 @@ let test = "successful test"
 
 <html
 	<head
-		<title | @title>
-		<body>
+		<title | @test>
+		<body
+			<content!>
+		>
 	>
 >
 
