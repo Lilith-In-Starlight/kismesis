@@ -3,6 +3,7 @@ pub(crate) mod state;
 pub(crate) mod types;
 
 use std::fmt::Debug;
+use std::path::PathBuf;
 
 use crate::compiler::lexer::Token;
 
@@ -730,7 +731,7 @@ fn argument(state: ParserState) -> ParserResult<Argument> {
     ))
 }
 
-pub fn file<'a>(tokens: Vec<Token>) -> Result<ParsedFile<'a>, (Err, Vec<Token>)> {
+pub fn file<'a>(tokens: Vec<Token>, path: Option<PathBuf>) -> Result<ParsedFile<'a>, (Err, Vec<Token>)> {
     let parser = zero_or_more(
         skipped_blanks().preceding(
             some_tag
@@ -749,7 +750,7 @@ pub fn file<'a>(tokens: Vec<Token>) -> Result<ParsedFile<'a>, (Err, Vec<Token>)>
         },
     };
     drop(parser);
-    let mut output = ParsedFile::new(tokens);
+    let mut output = ParsedFile::new(tokens, path);
     for node in ast_nodes {
         match node {
             BodyNodes::HtmlTag(tag) => output.body.push(TopNodes::HtmlTag(tag.merge_subtags())),

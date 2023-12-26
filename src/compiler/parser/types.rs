@@ -1,8 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::{PathBuf, Path}};
 
 use crate::compiler::lexer::Token;
 
 use super::state::TokenPos;
+
+pub type Scoped<'a, T> = (T, Scope<'a>);
+pub type Scope<'a> = (&'a [Token], Option<&'a Path>);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StringParts {
@@ -97,6 +100,7 @@ pub struct ParsedFile<'a> {
     pub defined_variables: Vec<Variable>,
     pub defined_lambdas: Vec<Lambda>,
     pub template: Option<&'a ParsedFile<'a>>,
+    pub path: Option<PathBuf>,
 }
 
 pub enum VariableOption<T> {
@@ -106,7 +110,7 @@ pub enum VariableOption<T> {
 }
 
 impl<'a> ParsedFile<'a> {
-    pub fn new(local_tokens: Vec<Token>) -> Self {
+    pub fn new(local_tokens: Vec<Token>, path: Option<PathBuf>) -> Self {
         Self {
             local_tokens,
             body: vec![],
@@ -114,12 +118,17 @@ impl<'a> ParsedFile<'a> {
             defined_variables: vec![],
             defined_lambdas: vec![],
             template: None,
+            path,
         }
     }
 
     pub fn get_macro_template(&self, predicate: impl Fn(&&Macro) -> bool) -> Option<&Macro> {
         self.defined_macros.iter().rfind(&predicate)
             .or(self.template.map(|x| x.get_macro_template(&predicate)).unwrap_or(None))
+    }
+
+    pub fn get_path_slice(&self) -> Option<&Path> {
+        self.path.as_ref().map(|x| x.as_path())
     }
 
     pub fn get_variable_value(&self, predicate: &str) -> VariableOption<&Vec<StringParts>> {
@@ -144,18 +153,18 @@ impl<'a> ParsedFile<'a> {
         }
     }
 
-    pub fn get_macro_scope(&self) -> HashMap<String, (&Macro, &[Token])> {
+    pub fn get_macro_scope(&self) -> HashMap<String, Scoped<&Macro>> {
         let mut output = HashMap::new();
         if let Some(template) = self.template {
             output.extend(template.get_macro_scope())
         }
 
-        output.extend(self.defined_macros.iter().map(|x| (x.name.value.clone(), (x, self.local_tokens.as_slice()))));
+        output.extend(self.defined_macros.iter().map(|x| (x.name.value.clone(), (x, (self.local_tokens.as_slice(), self.get_path_slice())))));
 
         output
     }
 
-    pub fn get_variable_scope(&self) -> HashMap<String, (Option<&Vec<StringParts>>, &[Token])> {
+    pub fn get_variable_scope(&self) -> HashMap<String, Scoped<Option<&Vec<StringParts>>>> {
         let mut out = HashMap::new();
 
         if let Some(template) = self.template {
@@ -163,11 +172,11 @@ impl<'a> ParsedFile<'a> {
         }
 
         out.extend(self.defined_lambdas.iter().map(|x| match x.value {
-            Some(ref value) => (x.name.clone(), (Some(value), self.local_tokens.as_slice())),
-            None => (x.name.clone(), (None, self.local_tokens.as_slice()))
+            Some(ref value) => (x.name.clone(), (Some(value), (self.local_tokens.as_slice(), self.get_path_slice()))),
+            None => (x.name.clone(), (None, (self.local_tokens.as_slice(), self.get_path_slice())))
         }));
 
-        out.extend(self.defined_variables.iter().map(|x| (x.name.clone(), (Some(&x.value), self.local_tokens.as_slice()))));
+        out.extend(self.defined_variables.iter().map(|x| (x.name.clone(), (Some(&x.value), (self.local_tokens.as_slice(), self.get_path_slice())))));
 
         out.into_iter().collect()
     }
@@ -369,12 +378,12 @@ impl TextPos {
 }
 
 impl Macro {
-    pub fn get_argument_scope<'a>(&'a self, tokens: &'a [Token]) -> HashMap<String, (Option<&Vec<StringParts>>, &[Token])> {
+    pub fn get_argument_scope<'a>(&'a self, scope: Scope<'a>) -> HashMap<String, Scoped<Option<&Vec<StringParts>>>> {
         let mut output = HashMap::new();
 
         output.extend(self.arguments.iter().map(|x| match x.value {
-            Some(ref value) => (x.name.value.clone(), (Some(value), tokens)),
-            None => (x.name.value.clone(), (None, tokens)),
+            Some(ref value) => (x.name.value.clone(), (Some(value), scope)),
+            None => (x.name.value.clone(), (None, scope)),
         }));
 
         output

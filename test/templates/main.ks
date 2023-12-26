@@ -1,14 +1,12 @@
 let test = "successful test"
 
 <html
-	<head
-		<title | @test>
-		<body
-			<content!>
-		>
+	<title|@test>
+	<body
+		<content!>
 	>
 >
 
-<macro uwu
+<macro uwu awa
 	owowowowo
 >

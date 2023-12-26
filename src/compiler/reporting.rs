@@ -2,22 +2,22 @@ use std::fmt::Debug;
 
 use super::{
     errors::{ErrorKind, ErrorState},
-    html::{Inside, ScopedError},
+    html::ScopedError,
     lexer::Token,
-    parser::state::TokenPos,
+    parser::{state::TokenPos, types::Scope},
 };
 use colored::*;
 
 pub struct DrawingInfo<'a> {
     pub(crate) line_number_length: usize,
-    pub(crate) tokens: &'a [Token],
+    pub(crate) scope: Scope<'a>,
     pub(crate) lines: Vec<(usize, &'a [Token])>,
     pub(crate) line_offset: (usize, usize),
 }
 
 impl<'a> DrawingInfo<'a> {
-    pub fn from(tokens: &'a [Token]) -> Self {
-        let lines: Vec<&[Token]> = tokens
+    pub fn from(scope: Scope<'a>) -> Self {
+        let lines: Vec<&[Token]> = scope.0
             .split_inclusive(|x| matches!(x, Token::Newline(_)))
             .collect();
         let lines = {
@@ -31,7 +31,7 @@ impl<'a> DrawingInfo<'a> {
         };
         Self {
             line_number_length: 3,
-            tokens,
+            scope,
             lines,
             line_offset: (2, 2),
         }
@@ -39,7 +39,6 @@ impl<'a> DrawingInfo<'a> {
 }
 
 pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo) -> String {
-    println!("{:#?}", err);
     let minimum_line = {
         let x = err.text_position.get_start_line();
         if x < info.line_offset.0 {
@@ -60,6 +59,14 @@ pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo)
     let mut output = String::new();
 
     output.push_str(&" ERROR ".black().on_red().to_string());
+    output.push_str(&" in `".black().on_red().to_string());
+    match info.scope.1 {
+        Some(path) => {
+            output.push_str(&path.to_string_lossy().to_string().black().on_red().to_string());
+            output.push_str(&"` ".black().on_red().to_string());
+        },
+        None => output.push_str(&"input` ".black().on_red().to_string()),
+    }
     output.push('\n');
 
     for line_number in minimum_line..=maximum_line {
@@ -91,6 +98,7 @@ fn draw_line<T: ErrorKind>(
             let tkstr = match token {
                 Token::Newline(_) if token_pos.is_in(&err.text_position) => "~".to_string(),
                 Token::Newline(_) => "".to_string(),
+                Token::Indent(_) => " ".repeat(4),
                 x => x.get_as_string(),
             };
             output.push_str(&tkstr);
@@ -129,7 +137,7 @@ fn turn_to_chars(string: String, chr: char) -> String {
 }
 
 fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
-    let mut output = line.to_string();
+    let mut output = (line + 1).to_string();
     while output.len() < info.line_number_length + 1 {
         output.push(' ');
     }
@@ -139,18 +147,4 @@ fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
 
 pub fn draw_scoped_error<T: ErrorKind + Debug>(err: &ScopedError<T>) -> String {
     draw_error(&err.error, &DrawingInfo::from(err.scope))
-}
-
-pub fn draw_packed_error(err: &Inside) -> String {
-    let mut output = String::new();
-    match err {
-        Inside::In(x) => {
-            for err in x {
-                output.push_str(&format!("{}\n", draw_scoped_error(err)))
-            }
-        }
-        Inside::Err(x) => output.push_str(&format!("{}\n", draw_scoped_error(x))),
-    }
-
-    output
 }

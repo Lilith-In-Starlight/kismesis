@@ -1,21 +1,20 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use crate::compiler::parser::types::ParsedFile;
 
 use super::{
     errors::{ErrorKind, ErrorState},
-    lexer::Token,
     options::Settings,
     parser::{
         state::TokenPos,
         types::{
             Attribute, BinFunc, Expression, HtmlNodes, HtmlTag, Macro, PlugCall, Ranged,
-            StringParts, TextPos, TopNodes, UniFunc,
+            StringParts, TextPos, TopNodes, UniFunc, Scoped, Scope,
         },
     },
 };
 
-type CompileResult<'a, T> = Result<T, Inside<'a>>;
+type CompileResult<'a, T> = Result<T, Vec<ScopedError<'a, CompilerError>>>;
 
 #[derive(Clone, Debug)]
 enum OutputTypes {
@@ -97,13 +96,14 @@ impl HtmlOutput {
 struct GenerationState<'a> {
     options: &'a Settings,
     variable_scopes: VariableScope<'a>,
-    macro_templates: HashMap<String, (&'a Macro, &'a [Token])>,
+    macro_templates: HashMap<String, Scoped<'a, &'a Macro>>,
     indent: usize,
     inline: bool,
-    tokens: &'a [Token],
+    scope: Scope<'a>,
+    path: Option<&'a PathBuf>,
 }
 
-type ValueRef<'a> = (Option<&'a Vec<StringParts>>, &'a [Token]);
+type ValueRef<'a> = Scoped<'a, Option<&'a Vec<StringParts>>>;
 
 type VariableScope<'a> = HashMap<String, ValueRef<'a>>;
 
@@ -115,7 +115,8 @@ impl<'a> GenerationState<'a> {
             macro_templates: file.get_macro_scope(),
             indent: 0,
             inline: false,
-            tokens: &file.local_tokens,
+            scope: (&file.local_tokens, file.get_path_slice()),
+            path: file.path.as_ref(),
         }
     }
 }
@@ -130,25 +131,22 @@ pub fn generate_html<'a>(file: &'a ParsedFile, subfile: Option<&'a ParsedFile>, 
         }
         match parse_node(node, &state) {
             Ok(mut string) => output.push_output(&mut string),
-            Err(error) => error.push_into(&mut errors),
+            Err(mut error) => errors.append(&mut error),
         }
     }
     
     if !errors.is_empty() {
-        return Err(Inside::In(errors));
+        return Err(errors);
     }
 
     if let Some(template) = file.template {
-        println!("asdfasdf");
-        let template_output = generate_html(template, Some(file), options).unwrap();
-        println!("asdf{:?}", output.val);
+        let template_output = generate_html(template, Some(file), options)?;
         output.val = template_output.val.into_iter().flat_map(|x| {
             match x {
                 OutputTypes::ContentMark => output.val.clone(),
                 x => vec![x],
             }
         }).collect();
-        println!("asdf{:?}", output.val);
     }
 
     
@@ -177,7 +175,7 @@ fn parse_html_child<'a>(
             t,
             (
                 &state.variable_scopes,
-                state.tokens,
+                state.scope,
             ),
         ),
     }
@@ -188,21 +186,24 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
     let template = state
         .macro_templates
         .get(&mac.name.value)
-        .ok_or(Inside::Err(
-            CompilerError::UndefinedMacroCall.state_at(mac.name.range, state.tokens),
-        ))?;
+        .ok_or(vec![
+            CompilerError::UndefinedMacroCall.state_at(mac.name.range, state.scope),
+        ])?;
     let mut new_state = state.clone();
     new_state.variable_scopes = {
         let mut base = template.0.get_argument_scope(template.1);
 
-        base.extend(mac.get_argument_scope(state.tokens));
+        base.extend(mac.get_argument_scope(state.scope));
         let mut output = VariableScope::new();
         for arg in base.iter() {
             match arg.1.0 {
-                None => errors.push(
+                None => {
+                    errors.push(
                     CompilerError::UnsetArgNoDefault(arg.0.clone())
-                        .state_at(template.0.name.range, template.1),
-                ),
+                        .state_at(mac.name.range, state.scope));
+                    errors.push(CompilerError::NoDefaultArgDefinedHere
+                        .state_at(template.0.name.range, template.1));
+                },
                 Some(value) => { let _ =output.insert(arg.0.clone(), (Some(value), template.1)); },
             }
         }
@@ -210,7 +211,7 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
     };
 
     if !errors.is_empty() {
-        return Err(Inside::In(errors));
+        return Err(errors);
     }
 
     let mut output = HtmlOutput::new();
@@ -223,14 +224,14 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
         }
         match parse_html_child(child, &new_state) {
             Ok(mut string) => output.push_output(&mut string),
-            Err(error) => error.push_into(&mut errors),
+            Err(mut error) => errors.append(&mut error),
         }
     }
 
     if errors.is_empty() {
         Ok(output)
     } else {
-        Err(Inside::In(errors))
+        Err(errors)
     }
 }
 fn plug_call(_plugin: &PlugCall, _state: &GenerationState) -> ! {
@@ -248,7 +249,7 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, H
     output.push_string(&tag.name.value);
     match attribute_string(&tag.attributes, state) {
         Ok(string) => output.push_string(&string),
-        Err(error) => error.push_into(&mut errors),
+        Err(mut error) => errors.append(&mut error),
     }
     if state.options.is_only_closer(&tag.name.value) {
         output.push_string(" />");
@@ -288,7 +289,7 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, H
             }
             match parse_html_child(child, &new_state) {
                 Ok(mut string) => output.push_output(&mut string),
-                Err(error) => error.push_into(&mut errors),
+                Err(mut error) => errors.append(&mut error),
             }
         }
 
@@ -304,7 +305,7 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, H
     if errors.is_empty() {
         Ok(output)
     } else {
-        Err(Inside::In(errors))
+        Err(errors)
     }
 }
 
@@ -320,24 +321,24 @@ fn attribute_string<'a>(
             &attr.value,
             (
                 &state.variable_scopes,
-                state.tokens,
+                state.scope,
             ),
         ) {
             Ok(value_string) => output.push_str(&format!("{}='{}'", attr.name.value, value_string.to_string_forced())),
-            Err(error) => error.push_into(&mut errors),
+            Err(mut error) => errors.append(&mut error),
         }
     }
 
     if errors.is_empty() {
         Ok(output)
     } else {
-        Err(Inside::In(errors))
+        Err(errors)
     }
 }
 
 fn parse_kis_string<'a>(
     string: &[StringParts],
-    state: (&VariableScope<'a>, &'a [Token]),
+    state: (&VariableScope<'a>, Scope<'a>),
 ) -> CompileResult<'a, HtmlOutput> {
     let mut output = HtmlOutput::new();
     let mut errors = Vec::new();
@@ -361,7 +362,7 @@ fn parse_kis_string<'a>(
     if errors.is_empty() {
         Ok(output)
     } else {
-        Err(Inside::In(errors))
+        Err(errors)
     }
 }
 
@@ -375,7 +376,7 @@ enum ExpressionValues {
 #[derive(Clone, Debug)]
 pub struct ScopedError<'a, T> {
     pub error: ErrorState<T>,
-    pub scope: &'a [Token],
+    pub scope: Scope<'a>,
 }
 
 impl ExpressionValues {
@@ -386,7 +387,7 @@ impl ExpressionValues {
 
 fn calculate_expression<'a>(
     expr: &Ranged<Expression>,
-    state: (&VariableScope<'a>, &'a [Token]),
+    state: (&VariableScope<'a>, Scope<'a>),
 ) -> CompileResult<'a, ExpressionValues> {
     match &expr.value {
         Expression::BinFunc(func, exp1, exp2) => {
@@ -431,9 +432,9 @@ fn calculate_expression<'a>(
                     None => panic!("Unset lambda"),
                 }
             } else {
-                Err(Inside::Err(
+                Err(vec![
                     CompilerError::UndefinedVariable.state_at(expr.range, state.1),
-                ))
+                ])
             }
         }
     }
@@ -441,6 +442,7 @@ fn calculate_expression<'a>(
 
 #[derive(Clone, Debug)]
 pub enum CompilerError {
+    NoDefaultArgDefinedHere,
     UndefinedVariable,
     CantWriteNoneValue,
     CantWriteGenericValue,
@@ -448,23 +450,8 @@ pub enum CompilerError {
     UndefinedMacroCall,
 }
 
-#[derive(Clone, Debug)]
-pub enum Inside<'a> {
-    In(Vec<ScopedError<'a, CompilerError>>),
-    Err(ScopedError<'a, CompilerError>),
-}
-
-impl<'a> Inside<'a> {
-    fn push_into(self, vec: &mut Vec<ScopedError<'a, CompilerError>>) {
-        match self {
-            Self::In(mut content) => vec.append(&mut content),
-            Self::Err(error) => vec.push(error),
-        }
-    }
-}
-
 impl CompilerError {
-    fn state_at(self, pos: (TokenPos, TokenPos), scope: &[Token]) -> ScopedError<Self> {
+    fn state_at(self, pos: (TokenPos, TokenPos), scope: Scope) -> ScopedError<Self> {
         ScopedError {
             error: ErrorState {
                 error: self,
@@ -479,6 +466,7 @@ impl CompilerError {
 impl ErrorKind for CompilerError {
     fn get_text(&self) -> String {
         match self {
+            Self::NoDefaultArgDefinedHere => "Argument defined here".into(),
             Self::UndefinedVariable => "This variable isn't defined".into(),
             Self::CantWriteNoneValue => {
                 "This computes to a Nothing value, which cannot be written into content".into()
