@@ -108,10 +108,10 @@ type ValueRef<'a> = Scoped<'a, Option<&'a Vec<StringParts>>>;
 type VariableScope<'a> = HashMap<String, ValueRef<'a>>;
 
 impl<'a> GenerationState<'a> {
-    pub(crate) fn from(file: &'a ParsedFile, options: &'a Settings) -> Self {
+    pub(crate) fn from(file: &'a ParsedFile, sub_scopes: &[&'a ParsedFile], options: &'a Settings) -> Self {
         Self {
             options,
-            variable_scopes: file.get_variable_scope(),
+            variable_scopes: file.get_variable_scope(&sub_scopes),
             macro_templates: file.get_macro_scope(),
             indent: 0,
             inline: false,
@@ -121,8 +121,8 @@ impl<'a> GenerationState<'a> {
     }
 }
 
-pub fn generate_html<'a>(file: &'a ParsedFile, subfile: Option<&'a ParsedFile>, options: &'a Settings) -> CompileResult<'a, HtmlOutput> {
-    let state = GenerationState::from(file, options);
+pub fn generate_html<'a>(file: &'a ParsedFile, sub_scopes: Vec<&'a ParsedFile>, options: &'a Settings) -> CompileResult<'a, HtmlOutput> {
+    let state = GenerationState::from(file, &sub_scopes, options);
     let mut errors = Vec::new();
     let mut output = HtmlOutput::new();
     for node in file.body.iter() {
@@ -140,7 +140,9 @@ pub fn generate_html<'a>(file: &'a ParsedFile, subfile: Option<&'a ParsedFile>, 
     }
 
     if let Some(template) = file.template {
-        let template_output = generate_html(template, Some(file), options)?;
+        let mut next_scopes = sub_scopes;
+        next_scopes.push(file);
+        let template_output = generate_html(template, next_scopes, options)?;
         output.val = template_output.val.into_iter().flat_map(|x| {
             match x {
                 OutputTypes::ContentMark => output.val.clone(),
@@ -357,8 +359,6 @@ fn parse_kis_string<'a>(
         }
     }
 
-    output.trim();
-
     if errors.is_empty() {
         Ok(output)
     } else {
@@ -366,7 +366,7 @@ fn parse_kis_string<'a>(
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 enum ExpressionValues {
     String(Vec<StringParts>),
     None,
@@ -403,6 +403,7 @@ fn calculate_expression<'a>(
                 }
                 BinFunc::Or => {
                     if exp1.is_truthy() {
+                        println!("{:?}", exp1);
                         Ok(exp1)
                     } else if exp2.is_truthy() {
                         Ok(exp2)
@@ -429,7 +430,7 @@ fn calculate_expression<'a>(
             if let Some(var) = state.0.get(x) {
                 match var.0 {
                     Some(value) => Ok(ExpressionValues::String(value.clone())),
-                    None => panic!("Unset lambda"),
+                    None => Ok(ExpressionValues::None),
                 }
             } else {
                 Err(vec![
@@ -437,6 +438,7 @@ fn calculate_expression<'a>(
                 ])
             }
         }
+        Expression::Literal(x)=> Ok(ExpressionValues::String(x.clone()))
     }
 }
 

@@ -4,6 +4,7 @@ use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+    ExpectedEquals,
     LiteralNotMatch { expected: String, got: Option<String> },
     ExpectedExprStart,
     ExpectedExprEnd,
@@ -114,6 +115,7 @@ impl ErrorKind for ParseError {
             Self::ExpectedValue => "Expected a value".into(),
             Self::ReachedEOF => "Reached end of file".into(),
             Self::EndlessString => "String reaches end of file".into(),
+            Self::ExpectedEquals => "Expected an equals sign `=`".into(),
         }
     }
 }

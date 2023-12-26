@@ -17,7 +17,7 @@ pub fn compile_text(string: &str) -> String {
         Err((x, tokens)) => return reporting::draw_error(&x.unpack(), &DrawingInfo::from((&tokens, None))),
     };
     let settings = Settings::new();
-    let html = html::generate_html(&tree, None, &settings);
+    let html = html::generate_html(&tree, vec![], &settings);
     match html {
         Ok(x) => x.to_string_forced(),
         Err(errors) => {
@@ -55,7 +55,7 @@ pub fn compile_project() {
 
     let settings = Settings::new();
     for file in input_files.iter() {
-        match html::generate_html(&file, None, &settings) {
+        match html::generate_html(&file, vec![], &settings) {
             Ok(x) => println!("{}", x.to_string_forced()),
             Err(errors) => {
                 for error in errors {

@@ -1,7 +1,7 @@
-let test = "successful test"
+lambda test
 
 <html
-	<title|@test>
+	<title| this is a @{test or "successful text with a ternary if"}>
 	<body
 		<content!>
 	>

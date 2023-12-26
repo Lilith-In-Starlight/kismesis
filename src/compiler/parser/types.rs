@@ -164,32 +164,31 @@ impl<'a> ParsedFile<'a> {
         output
     }
 
-    pub fn get_variable_scope(&self) -> HashMap<String, Scoped<Option<&Vec<StringParts>>>> {
+    pub fn get_variable_scope(&'a self, sub_scope: &[&'a ParsedFile]) -> HashMap<String, Scoped<Option<&'a Vec<StringParts>>>> {
         let mut out = HashMap::new();
 
         if let Some(template) = self.template {
-            out.extend(template.get_variable_scope())
+            out.extend(template.get_variable_scope(&[]))
         }
 
-        out.extend(self.defined_lambdas.iter().map(|x| match x.value {
-            Some(ref value) => (x.name.clone(), (Some(value), (self.local_tokens.as_slice(), self.get_path_slice()))),
-            None => (x.name.clone(), (None, (self.local_tokens.as_slice(), self.get_path_slice())))
-        }));
+        out.extend(self.defined_lambdas.iter().map(|x| {
+                if !sub_scope.is_empty() {
+                    for scope in sub_scope.iter() {
+                        let find = scope.defined_variables.iter().rfind(|y| y.name == x.name);
+                        if let Some(find) = find {
+                            return (find.name.clone(),(Some(&find.value), (scope.local_tokens.as_slice(), scope.get_path_slice())))
+                        }
+                    }
+                    (x.name.clone(), (x.value.as_ref(), (self.local_tokens.as_slice(), self.get_path_slice())))
+                } else {
+                    (x.name.clone(), (x.value.as_ref(), (self.local_tokens.as_slice(), self.get_path_slice())))
+                }
+            },
+        ));
 
         out.extend(self.defined_variables.iter().map(|x| (x.name.clone(), (Some(&x.value), (self.local_tokens.as_slice(), self.get_path_slice())))));
 
         out.into_iter().collect()
-    }
-
-    pub fn get_undefined_lambdas(&self) -> Vec<(String, &[Token])> {
-        self.defined_lambdas
-            .iter()
-            .filter_map(|x| {
-                x.value
-                    .as_ref()
-                    .map(|_| (x.name.clone(), self.local_tokens.as_slice()))
-            })
-            .collect()
     }
 }
 
@@ -242,6 +241,7 @@ pub enum UniFunc {
 pub enum Expression {
     None,
     Variable(String),
+    Literal(Vec<StringParts>),
     BinFunc(BinFunc, Box<Ranged<Expression>>, Box<Ranged<Expression>>),
     UniFunc(UniFunc, Box<Ranged<Expression>>),
 }
@@ -323,6 +323,7 @@ impl AstNode for Ranged<Expression> {
                 .chain(y.find_undefined_vars(defined))
                 .collect(),
             Expression::UniFunc(_, x) => x.find_undefined_vars(defined),
+            Expression::Literal(x) => x.find_undefined_vars(defined),
         }
     }
 }
