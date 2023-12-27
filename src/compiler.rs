@@ -62,7 +62,7 @@ pub fn compile_project() {
                 x.template = Some(&main_template);
                 input_files.push(x);
             }
-            Err(x) => panic!("handle this"),
+            Err(x) => eprintln!("{}", reporting::draw_error(&x.0.unpack(), &DrawingInfo::from((&x.1, Some(&path))))),
         }
     }
 

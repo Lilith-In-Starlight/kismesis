@@ -4,6 +4,9 @@ use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+    TagOpenerMismatch,
+    TagCloserMismatch,
+    ExpectedEOF,
     ExpectedEquals,
     LiteralNotMatch {
         expected: String,
@@ -84,7 +87,10 @@ impl ParseError {
 impl ErrorKind for ParseError {
     fn get_text(&self) -> String {
         match self {
-            Self::LiteralNotMatch { expected, got } => format!("Expected the word `{}`", expected),
+            Self::TagOpenerMismatch => "This `<` is never closed".into(),
+            Self::TagCloserMismatch => "This `>` is mismatched. Check if all tags before it are closed correctly".into(),
+            Self::ExpectedEOF => "Expected the file to end, but it didn't. You might have too many `>`".into(),
+            Self::LiteralNotMatch { expected, .. } => format!("Expected the word `{}`", expected),
             Self::ExpectedQuoteStart => "Expected the start of a quoted string".into(),
             Self::ExpectedExprStart => "Expected `[` to denote the start of an expression".into(),
             Self::ExpectedExprEnd => "Expected `]`to denote the end of an expression".into(),

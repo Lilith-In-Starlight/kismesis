@@ -7,6 +7,7 @@ pub struct ParserState<'a> {
     pub(crate) tokens: &'a [Token],
     pub(crate) position: TokenPos,
     pub(crate) errors: Vec<ErrorState<ParseError>>,
+    pub(crate) tag_openers: Vec<TokenPos>,
 }
 
 impl<'a> ParserState<'a> {
@@ -15,6 +16,7 @@ impl<'a> ParserState<'a> {
             tokens,
             position: TokenPos::new(),
             errors: vec![],
+            tag_openers: Vec::new(),
         }
     }
     pub(crate) fn next_state(self) -> Self {
@@ -36,6 +38,27 @@ impl<'a> ParserState<'a> {
 
     pub(crate) fn advanced(&self) -> (Option<&'a Token>, ParserState<'a>) {
         (self.tokens.first(), self.clone().next_state())
+    }
+
+    pub(crate) fn close_tag(&self) -> Result<Self, ParseError> {
+        if !self.tag_openers.is_empty() {
+            let mut clone = self.clone();
+            clone.tag_openers.pop();
+            Ok(Self {
+                tag_openers: clone.tag_openers,
+                ..clone
+            })
+        } else {
+            Err(ParseError::TagCloserMismatch)
+        }
+    }
+
+    pub(crate) fn open_tag(&self) -> Self {
+        let clone = self.clone();
+        Self {
+            tag_openers: clone.tag_openers.into_iter().chain(vec![self.position]).collect(),
+            ..self.clone()
+        }
     }
 }
 

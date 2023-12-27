@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, mem::replace};
+use std::{collections::HashMap, path::PathBuf};
 
 use crate::compiler::parser::types::ParsedFile;
 

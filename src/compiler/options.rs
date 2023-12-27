@@ -9,7 +9,7 @@ impl Settings {
     pub fn new() -> Self {
         Self {
             inline: string_vec(&[
-                "p", "b", "i", "strong", "italic", "sub", "sup", "h1", "h2", "h3", "h4", "h5", "a",
+                "p", "b", "i", "strong", "italic", "sub", "sup", "h1", "h2", "h3", "h4", "h5", "a", "li",
                 "title",
             ]),
             in_previous: string_vec(&["b", "i", "strong", "italic", "sub", "sup", "br", "a"]),

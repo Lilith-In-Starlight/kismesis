@@ -14,6 +14,8 @@ use self::types::{
     Macro, ParsedFile, PlugCall, Ranged, StringParts, Tag, TopNodes, UniFunc, Variable,
 };
 
+use super::errors::ErrorState;
+
 type ParserResult<'a, T> = Result<(T, ParserState<'a>), Err>;
 
 pub(crate) trait Parser<'a, Output> {
@@ -122,9 +124,9 @@ fn quote_mark(state: ParserState) -> ParserResult<&char> {
 }
 
 fn tag_opener(state: ParserState) -> ParserResult<&char> {
-    match character('<').parse(state.clone()) {
+    match character('<').parse(state.open_tag()) {
         Err(_) => Err(ParseError::ExpectedTagOpener.state_at(&state)),
-        ok => ok,
+        Ok((char, state)) => Ok((char, state)),
     }
 }
 
@@ -136,9 +138,13 @@ fn subtag_opener(state: ParserState) -> ParserResult<&char> {
 }
 
 fn tag_closer(state: ParserState) -> ParserResult<&char> {
+    let state = match state.close_tag() {
+        Ok(x) => x,
+        Err(err) => return Err(err.state_at(&state)),
+    };
     match character('>').parse(state.clone()) {
         Err(_) => Err(ParseError::ExpectedTagCloser.state_at(&state)),
-        ok => ok,
+        ok @ _ => ok
     }
 }
 
@@ -195,6 +201,17 @@ fn variable_name(state: ParserState) -> ParserResult<&str> {
     literal
         .parse(state.clone())
         .map_err(|_x| ParseError::ExpectedVarName.state_at(&state))
+}
+
+fn check_tag_mismatch(state: ParserState) -> ParserResult<()> {
+    if let Some(opener) = state.tag_openers.last() {
+        return Err(Err::Failure(ErrorState {
+            error: ParseError::TagOpenerMismatch,
+            previous_errors: state.errors.clone(),
+            text_position: types::TextPos::Single(opener.clone()),
+        }))
+    }
+    Ok(((), state))
 }
 
 fn expression(state: ParserState) -> ParserResult<Expression> {
@@ -337,8 +354,8 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
 }
 
 fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
-    let parser = character('<').preceding(cut(after_spaces(
-        tag.map(BodyTags::HtmlTag)
+    let parser = tag_opener.preceding(cut(after_spaces(
+        tag.map(|x| BodyTags::HtmlTag(x.merge_subtags()))
             .or(macro_call.map(BodyTags::MacroCall))
             .or(content_macro.map(|_| BodyTags::Content))
             .followed_by(skipped_blanks().preceding(tag_closer)),
@@ -357,7 +374,7 @@ fn tag(state: ParserState<'_>) -> ParserResult<'_, HtmlTag> {
             attributes,
             body: body.unwrap_or(vec![]),
             subtags,
-        },
+        }.merge_subtags(),
         state,
     ))
 }
@@ -437,6 +454,14 @@ fn some_symbol(state: ParserState) -> ParserResult<&char> {
         _ => Err(ParseError::NotSymbol.state_at(&state)),
     }
 }
+
+fn eof(state: ParserState) -> ParserResult<()> {
+    match state.advanced() {
+        (Some(_), next_state) => Err(ParseError::ExpectedEOF.state_at(&next_state)),
+        (_, state) => Ok(((), state)),
+    }
+}
+
 fn literal(state: ParserState) -> ParserResult<&str> {
     match state.advanced() {
         (Some(Token::Word(x)), next_state) => Ok((x, next_state)),
@@ -544,6 +569,8 @@ fn plugin_head(state: ParserState) -> ParserResult<(Ranged<String>, Ranged<Vec<T
         }
     }
 
+    let (_, state) = check_tag_mismatch.parse(state)?;
+
     Err(ParseError::EndlessString.state_at(&state).cut())
 }
 
@@ -634,6 +661,8 @@ fn plugin_body(state: ParserState) -> ParserResult<Ranged<Vec<Token>>> {
         }
     }
 
+    let (_, state) = check_tag_mismatch.parse(state)?;
+
     Err(ParseError::EndlessString.state_at(&state).cut())
 }
 fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
@@ -691,6 +720,7 @@ fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
         }
     }
 
+    let (_, state) = check_tag_mismatch.parse(state)?;
     Err(ParseError::EndlessString.state_at(&state).cut())
 }
 
@@ -750,7 +780,9 @@ pub fn file<'a>(
                 .or(lambda_definition.map(BodyNodes::LambdaDef))
                 .or(variable_definition.map(BodyNodes::VarDef)),
         ),
-    );
+    )
+    .followed_by(check_tag_mismatch)
+    .followed_by(skipped_blanks()).followed_by(eof.or(ignore(cut(tag_closer))));
 
     let state = ParserState::new(&tokens);
     let ast_nodes = match parser.parse(state) {
@@ -764,7 +796,7 @@ pub fn file<'a>(
     let mut output = ParsedFile::new(tokens, path);
     for node in ast_nodes {
         match node {
-            BodyNodes::HtmlTag(tag) => output.body.push(TopNodes::HtmlTag(tag.merge_subtags())),
+            BodyNodes::HtmlTag(tag) => output.body.push(TopNodes::HtmlTag(tag)),
             BodyNodes::MacroDef(mac) => output.defined_macros.push(mac),
             BodyNodes::MacroCall(mac) => output.body.push(TopNodes::MacroCall(mac)),
             BodyNodes::String(_string) => todo!("Markup syntax"),
@@ -786,6 +818,16 @@ where
 {
     move |state| match p1.parse(state) {
         Ok((_, next_state)) => Ok(p2.parse(next_state)?),
+        Err(error) => Err(error),
+    }
+}
+
+fn ignore<'a, P1, O1>(p1: P1) -> impl Parser<'a, ()>
+where
+    P1: Parser<'a, O1>,
+{
+    move |state| match p1.parse(state) {
+        Ok((_, next_state)) => Ok(((), next_state)),
         Err(error) => Err(error),
     }
 }
