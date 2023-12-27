@@ -1,5 +1,7 @@
 <h1 | TEST>
 
-<p
-	wawaweafw <b | oasdfa> asdfas
+<section
+	<p
+		wawaweafw <b | oasdfa> asdfas
+	>
 >

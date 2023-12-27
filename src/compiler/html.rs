@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, path::PathBuf, mem::replace};
 
 use crate::compiler::parser::types::ParsedFile;
 
@@ -8,8 +8,8 @@ use super::{
     parser::{
         state::TokenPos,
         types::{
-            Attribute, BinFunc, Expression, HtmlNodes, HtmlTag, Macro, PlugCall, Ranged,
-            StringParts, TextPos, TopNodes, UniFunc, Scoped, Scope,
+            Attribute, BinFunc, Expression, HtmlNodes, HtmlTag, Macro, PlugCall, Ranged, Scope,
+            Scoped, StringParts, TextPos, TopNodes, UniFunc,
         },
     },
 };
@@ -18,7 +18,7 @@ type CompileResult<'a, T> = Result<T, Vec<ScopedError<'a, CompilerError>>>;
 
 #[derive(Clone, Debug)]
 enum OutputTypes {
-    ContentMark,
+    ContentMark(usize),
     Html(String),
 }
 
@@ -29,23 +29,24 @@ pub struct HtmlOutput {
 
 impl HtmlOutput {
     pub fn new() -> Self {
-        Self {
-            val: Vec::new(),
-        }
+        Self { val: Vec::new() }
     }
-    pub fn new_content() -> Self {
+    pub fn new_content(indents: usize) -> Self {
         Self {
-            val: vec![OutputTypes::ContentMark]
+            val: vec![OutputTypes::ContentMark(indents)],
         }
     }
     pub fn is_empty(&self) -> bool {
         self.val.is_empty()
     }
-    fn push_string<T>(&mut self, new: T) where T: Into<String> {
+    fn push_string<T>(&mut self, new: T)
+    where
+        T: Into<String>,
+    {
         let new = new.into();
         let Some(top) = self.val.last_mut() else {
             self.val.push(OutputTypes::Html(new));
-            return
+            return;
         };
         match top {
             OutputTypes::Html(ref mut old_string) => old_string.push_str(&new),
@@ -55,10 +56,12 @@ impl HtmlOutput {
     fn push(&mut self, new: OutputTypes) {
         let Some(top) = self.val.last_mut() else {
             self.val.push(new);
-            return
+            return;
         };
         match (new, top) {
-            (OutputTypes::Html(ref new_string), OutputTypes::Html(ref mut old_string)) => old_string.push_str(&new_string),
+            (OutputTypes::Html(ref new_string), OutputTypes::Html(ref mut old_string)) => {
+                old_string.push_str(&new_string)
+            }
             (new, _) => self.val.push(new),
         }
     }
@@ -71,7 +74,7 @@ impl HtmlOutput {
         let mut output = String::new();
         for x in self.val.iter() {
             match x {
-                OutputTypes::ContentMark => output.push_str("<content!>"),
+                OutputTypes::ContentMark(x) => output.push_str("<content!>"),
                 OutputTypes::Html(string) => output.push_str(string),
             }
         }
@@ -79,12 +82,16 @@ impl HtmlOutput {
     }
 
     fn trim(&mut self) {
-        let Some(last) = self.val.last_mut() else { return };
+        let Some(last) = self.val.last_mut() else {
+            return;
+        };
         if let OutputTypes::Html(ref mut content) = last {
             *content = content.trim().to_string();
         }
         if self.val.len() > 1 {
-            let Some(first) = self.val.first_mut() else { return };
+            let Some(first) = self.val.first_mut() else {
+                return;
+            };
             if let OutputTypes::Html(ref mut content) = first {
                 *content = content.trim().to_string();
             }
@@ -108,7 +115,11 @@ type ValueRef<'a> = Scoped<'a, Option<&'a Vec<StringParts>>>;
 type VariableScope<'a> = HashMap<String, ValueRef<'a>>;
 
 impl<'a> GenerationState<'a> {
-    pub(crate) fn from(file: &'a ParsedFile, sub_scopes: &[&'a ParsedFile], options: &'a Settings) -> Self {
+    pub(crate) fn from(
+        file: &'a ParsedFile,
+        sub_scopes: &[&'a ParsedFile],
+        options: &'a Settings,
+    ) -> Self {
         Self {
             options,
             variable_scopes: file.get_variable_scope(&sub_scopes),
@@ -121,7 +132,11 @@ impl<'a> GenerationState<'a> {
     }
 }
 
-pub fn generate_html<'a>(file: &'a ParsedFile, sub_scopes: Vec<&'a ParsedFile>, options: &'a Settings) -> CompileResult<'a, HtmlOutput> {
+pub fn generate_html<'a>(
+    file: &'a ParsedFile,
+    sub_scopes: Vec<&'a ParsedFile>,
+    options: &'a Settings,
+) -> CompileResult<'a, HtmlOutput> {
     let state = GenerationState::from(file, &sub_scopes, options);
     let mut errors = Vec::new();
     let mut output = HtmlOutput::new();
@@ -134,7 +149,7 @@ pub fn generate_html<'a>(file: &'a ParsedFile, sub_scopes: Vec<&'a ParsedFile>, 
             Err(mut error) => errors.append(&mut error),
         }
     }
-    
+
     if !errors.is_empty() {
         return Err(errors);
     }
@@ -143,24 +158,45 @@ pub fn generate_html<'a>(file: &'a ParsedFile, sub_scopes: Vec<&'a ParsedFile>, 
         let mut next_scopes = sub_scopes;
         next_scopes.push(file);
         let template_output = generate_html(template, next_scopes, options)?;
-        output.val = template_output.val.into_iter().flat_map(|x| {
-            match x {
-                OutputTypes::ContentMark => output.val.clone(),
+        output.val = template_output
+            .val
+            .into_iter()
+            .flat_map(|x| match x {
+                OutputTypes::ContentMark(indents) => {
+                    let mut out = Vec::new();
+                    let mut is_first_text = true;
+                    for x in output.val.iter() {
+                        match x.clone() {
+                            OutputTypes::ContentMark(x) => out.push(OutputTypes::ContentMark(x + 1)),
+                            OutputTypes::Html(mut output_string) => {
+                                if is_first_text {
+                                    output_string = format!("{}{}", make_indents(indents), output_string);
+                                    is_first_text = false;
+                                }
+                                let output_string = output_string.replace('\n', &format!("\n{}", make_indents(indents)));
+                                out.push(OutputTypes::Html(output_string));
+                            }
+                        }
+                    }
+                    out
+                },
                 x => vec![x],
-            }
-        }).collect();
+            })
+            .collect();
     }
 
-    
     Ok(output)
 }
 
-fn parse_node<'a>(node: &'a TopNodes, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
+fn parse_node<'a>(
+    node: &'a TopNodes,
+    state: &GenerationState<'a>,
+) -> CompileResult<'a, HtmlOutput> {
     match node {
         TopNodes::HtmlTag(t) => tag(t, state),
         TopNodes::MacroCall(t) => mac_call(t, state),
         TopNodes::PlugCall(t) => plug_call(t, state),
-        TopNodes::Content => Ok(HtmlOutput::new_content()),
+        TopNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
     }
 }
 
@@ -172,25 +208,16 @@ fn parse_html_child<'a>(
         HtmlNodes::HtmlTag(t) => tag(t, state),
         HtmlNodes::MacroCall(t) => mac_call(t, state),
         HtmlNodes::PlugCall(t) => plug_call(t, state),
-        HtmlNodes::Content => Ok(HtmlOutput::new_content()),
-        HtmlNodes::String(t) => parse_kis_string(
-            t,
-            (
-                &state.variable_scopes,
-                state.scope,
-            ),
-        ),
+        HtmlNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
+        HtmlNodes::String(t) => parse_kis_string(t, (&state.variable_scopes, state.scope)),
     }
 }
 
 fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
     let mut errors = Vec::new();
-    let template = state
-        .macro_templates
-        .get(&mac.name.value)
-        .ok_or(vec![
-            CompilerError::UndefinedMacroCall.state_at(mac.name.range, state.scope),
-        ])?;
+    let template = state.macro_templates.get(&mac.name.value).ok_or(vec![
+        CompilerError::UndefinedMacroCall.state_at(mac.name.range, state.scope),
+    ])?;
     let mut new_state = state.clone();
     new_state.variable_scopes = {
         let mut base = template.0.get_argument_scope(template.1);
@@ -198,15 +225,20 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
         base.extend(mac.get_argument_scope(state.scope));
         let mut output = VariableScope::new();
         for arg in base.iter() {
-            match arg.1.0 {
+            match arg.1 .0 {
                 None => {
                     errors.push(
-                    CompilerError::UnsetArgNoDefault(arg.0.clone())
-                        .state_at(mac.name.range, state.scope));
-                    errors.push(CompilerError::NoDefaultArgDefinedHere
-                        .state_at(template.0.name.range, template.1));
-                },
-                Some(value) => { let _ =output.insert(arg.0.clone(), (Some(value), template.1)); },
+                        CompilerError::UnsetArgNoDefault(arg.0.clone())
+                            .state_at(mac.name.range, state.scope),
+                    );
+                    errors.push(
+                        CompilerError::NoDefaultArgDefinedHere
+                            .state_at(template.0.name.range, template.1),
+                    );
+                }
+                Some(value) => {
+                    let _ = output.insert(arg.0.clone(), (Some(value), template.1));
+                }
             }
         }
         output
@@ -239,7 +271,6 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 fn plug_call(_plugin: &PlugCall, _state: &GenerationState) -> ! {
     todo!("Plugin calls to html")
 }
-
 
 fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
     let mut errors = Vec::new();
@@ -319,14 +350,12 @@ fn attribute_string<'a>(
     let mut errors = Vec::new();
     for attr in attrs {
         output.push(' ');
-        match parse_kis_string(
-            &attr.value,
-            (
-                &state.variable_scopes,
-                state.scope,
-            ),
-        ) {
-            Ok(value_string) => output.push_str(&format!("{}='{}'", attr.name.value, value_string.to_string_forced())),
+        match parse_kis_string(&attr.value, (&state.variable_scopes, state.scope)) {
+            Ok(value_string) => output.push_str(&format!(
+                "{}='{}'",
+                attr.name.value,
+                value_string.to_string_forced()
+            )),
             Err(mut error) => errors.append(&mut error),
         }
     }
@@ -348,7 +377,9 @@ fn parse_kis_string<'a>(
         match parse {
             StringParts::String(x) => output.push_string(x),
             StringParts::Expression(expr) => match calculate_expression(expr, state)? {
-                ExpressionValues::String(x) => output.push_output(&mut parse_kis_string(&x, state).unwrap()),
+                ExpressionValues::String(x) => {
+                    output.push_output(&mut parse_kis_string(&x, state).unwrap())
+                }
                 ExpressionValues::None => {
                     errors.push(CompilerError::CantWriteNoneValue.state_at(expr.range, state.1))
                 }
@@ -434,11 +465,11 @@ fn calculate_expression<'a>(
                 }
             } else {
                 Err(vec![
-                    CompilerError::UndefinedVariable.state_at(expr.range, state.1),
+                    CompilerError::UndefinedVariable.state_at(expr.range, state.1)
                 ])
             }
         }
-        Expression::Literal(x)=> Ok(ExpressionValues::String(x.clone()))
+        Expression::Literal(x) => Ok(ExpressionValues::String(x.clone())),
     }
 }
 
@@ -483,4 +514,8 @@ impl ErrorKind for CompilerError {
             Self::UndefinedMacroCall => "This macro isn't defined".to_string(),
         }
     }
+}
+
+fn make_indents(indents: usize) -> String {
+    "\t".repeat(indents)
 }

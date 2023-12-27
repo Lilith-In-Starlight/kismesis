@@ -1,4 +1,7 @@
-use std::{fs, path::{PathBuf, Path}, io};
+use std::{
+    fs::{self, File}, io::{self, Write},
+    path::{Path, PathBuf},
+};
 
 use self::{options::Settings, reporting::DrawingInfo};
 
@@ -9,12 +12,13 @@ pub(crate) mod options;
 pub(crate) mod parser;
 mod reporting;
 
-
 pub fn compile_text(string: &str) -> String {
     let tokens = lexer::tokenize(string);
     let tree = match parser::file(tokens, None) {
         Ok(val) => val,
-        Err((x, tokens)) => return reporting::draw_error(&x.unpack(), &DrawingInfo::from((&tokens, None))),
+        Err((x, tokens)) => {
+            return reporting::draw_error(&x.unpack(), &DrawingInfo::from((&tokens, None)))
+        }
     };
     let settings = Settings::new();
     let html = html::generate_html(&tree, vec![], &settings);
@@ -25,19 +29,28 @@ pub fn compile_text(string: &str) -> String {
                 eprintln!("{}", reporting::draw_scoped_error(&error));
             }
             String::new()
-        },
+        }
     }
 }
 
 pub fn compile_project() {
     // let errors = Vec::new();
     let main_path = PathBuf::from("templates/main.ks");
-    let main_template = match parser::file(lexer::tokenize(&fs::read_to_string(&main_path).unwrap()), Some(main_path.clone())) {
+    let main_template = match parser::file(
+        lexer::tokenize(&fs::read_to_string(&main_path).unwrap()),
+        Some(main_path.clone()),
+    ) {
         Ok(x) => x,
         Err(error) => {
-            eprintln!("{}", reporting::draw_error(&error.0.unpack(), &DrawingInfo::from((&error.1, Some(&main_path)))));
-            return
-        },
+            eprintln!(
+                "{}",
+                reporting::draw_error(
+                    &error.0.unpack(),
+                    &DrawingInfo::from((&error.1, Some(&main_path)))
+                )
+            );
+            return;
+        }
     };
     let input_paths = recursive_crawl(&PathBuf::from("input")).0;
     let mut input_files = Vec::new();
@@ -48,7 +61,7 @@ pub fn compile_project() {
             Ok(mut x) => {
                 x.template = Some(&main_template);
                 input_files.push(x);
-            },
+            }
             Err(x) => panic!("handle this"),
         }
     }
@@ -56,12 +69,20 @@ pub fn compile_project() {
     let settings = Settings::new();
     for file in input_files.iter() {
         match html::generate_html(&file, vec![], &settings) {
-            Ok(x) => println!("{}", x.to_string_forced()),
+            Ok(x) => {
+                let output_path = PathBuf::from("output");
+                if let Some(path) = &file.path {
+                    let output_path = output_path.join::<PathBuf>(path.iter().skip(1).collect());
+                    std::fs::create_dir_all(&output_path.parent().unwrap()).unwrap();
+                    let mut file = File::create(&output_path).unwrap();
+                    write!(file, "{}", x.to_string_forced()).unwrap();
+                }
+            },
             Err(errors) => {
                 for error in errors {
                     eprintln!("{}", reporting::draw_scoped_error(&error));
                 }
-            },
+            }
         }
     }
 }
@@ -71,7 +92,7 @@ pub fn recursive_crawl(path: &Path) -> (Vec<PathBuf>, Vec<io::Error>) {
     let mut paths = Vec::new();
     for entry in fs::read_dir(path).unwrap() {
         let entry = entry.unwrap();
-        let path  = entry.path();
+        let path = entry.path();
         if path.is_dir() {
             let (mut a, mut b) = recursive_crawl(&path);
             errors.append(&mut b);

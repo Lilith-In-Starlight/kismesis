@@ -1,4 +1,7 @@
-use std::{collections::HashMap, path::{PathBuf, Path}};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+};
 
 use crate::compiler::lexer::Token;
 
@@ -105,7 +108,7 @@ pub struct ParsedFile<'a> {
 
 pub enum VariableOption<T> {
     Some(T),
-    None, // The variable was not found
+    None,  // The variable was not found
     Unset, // The variable was found, but it's not set
 }
 
@@ -123,8 +126,10 @@ impl<'a> ParsedFile<'a> {
     }
 
     pub fn get_macro_template(&self, predicate: impl Fn(&&Macro) -> bool) -> Option<&Macro> {
-        self.defined_macros.iter().rfind(&predicate)
-            .or(self.template.map(|x| x.get_macro_template(&predicate)).unwrap_or(None))
+        self.defined_macros.iter().rfind(&predicate).or(self
+            .template
+            .map(|x| x.get_macro_template(&predicate))
+            .unwrap_or(None))
     }
 
     pub fn get_path_slice(&self) -> Option<&Path> {
@@ -134,7 +139,7 @@ impl<'a> ParsedFile<'a> {
     pub fn get_variable_value(&self, predicate: &str) -> VariableOption<&Vec<StringParts>> {
         for var in self.defined_variables.iter() {
             if var.name == predicate {
-                return VariableOption::Some(&var.value)
+                return VariableOption::Some(&var.value);
             }
         }
 
@@ -159,12 +164,20 @@ impl<'a> ParsedFile<'a> {
             output.extend(template.get_macro_scope())
         }
 
-        output.extend(self.defined_macros.iter().map(|x| (x.name.value.clone(), (x, (self.local_tokens.as_slice(), self.get_path_slice())))));
+        output.extend(self.defined_macros.iter().map(|x| {
+            (
+                x.name.value.clone(),
+                (x, (self.local_tokens.as_slice(), self.get_path_slice())),
+            )
+        }));
 
         output
     }
 
-    pub fn get_variable_scope(&'a self, sub_scope: &[&'a ParsedFile]) -> HashMap<String, Scoped<Option<&'a Vec<StringParts>>>> {
+    pub fn get_variable_scope(
+        &'a self,
+        sub_scope: &[&'a ParsedFile],
+    ) -> HashMap<String, Scoped<Option<&'a Vec<StringParts>>>> {
         let mut out = HashMap::new();
 
         if let Some(template) = self.template {
@@ -172,21 +185,46 @@ impl<'a> ParsedFile<'a> {
         }
 
         out.extend(self.defined_lambdas.iter().map(|x| {
-                if !sub_scope.is_empty() {
-                    for scope in sub_scope.iter() {
-                        let find = scope.defined_variables.iter().rfind(|y| y.name == x.name);
-                        if let Some(find) = find {
-                            return (find.name.clone(),(Some(&find.value), (scope.local_tokens.as_slice(), scope.get_path_slice())))
-                        }
+            if !sub_scope.is_empty() {
+                for scope in sub_scope.iter() {
+                    let find = scope.defined_variables.iter().rfind(|y| y.name == x.name);
+                    if let Some(find) = find {
+                        return (
+                            find.name.clone(),
+                            (
+                                Some(&find.value),
+                                (scope.local_tokens.as_slice(), scope.get_path_slice()),
+                            ),
+                        );
                     }
-                    (x.name.clone(), (x.value.as_ref(), (self.local_tokens.as_slice(), self.get_path_slice())))
-                } else {
-                    (x.name.clone(), (x.value.as_ref(), (self.local_tokens.as_slice(), self.get_path_slice())))
                 }
-            },
-        ));
+                (
+                    x.name.clone(),
+                    (
+                        x.value.as_ref(),
+                        (self.local_tokens.as_slice(), self.get_path_slice()),
+                    ),
+                )
+            } else {
+                (
+                    x.name.clone(),
+                    (
+                        x.value.as_ref(),
+                        (self.local_tokens.as_slice(), self.get_path_slice()),
+                    ),
+                )
+            }
+        }));
 
-        out.extend(self.defined_variables.iter().map(|x| (x.name.clone(), (Some(&x.value), (self.local_tokens.as_slice(), self.get_path_slice())))));
+        out.extend(self.defined_variables.iter().map(|x| {
+            (
+                x.name.clone(),
+                (
+                    Some(&x.value),
+                    (self.local_tokens.as_slice(), self.get_path_slice()),
+                ),
+            )
+        }));
 
         out.into_iter().collect()
     }
@@ -379,7 +417,10 @@ impl TextPos {
 }
 
 impl Macro {
-    pub fn get_argument_scope<'a>(&'a self, scope: Scope<'a>) -> HashMap<String, Scoped<Option<&Vec<StringParts>>>> {
+    pub fn get_argument_scope<'a>(
+        &'a self,
+        scope: Scope<'a>,
+    ) -> HashMap<String, Scoped<Option<&Vec<StringParts>>>> {
         let mut output = HashMap::new();
 
         output.extend(self.arguments.iter().map(|x| match x.value {
@@ -394,15 +435,24 @@ impl Macro {
 impl HtmlTag {
     pub fn merge_subtags(mut self) -> Self {
         let mut subtag_stack = self.subtags;
-        let Some(top) = subtag_stack.last_mut() else { self.subtags = subtag_stack; return self };
+        let Some(top) = subtag_stack.last_mut() else {
+            self.subtags = subtag_stack;
+            return self;
+        };
         top.body = self.body;
         loop {
             let Some(top) = subtag_stack.pop() else { break };
-            let Some(top_2) = subtag_stack.last_mut() else { subtag_stack.push(top); break };
+            let Some(top_2) = subtag_stack.last_mut() else {
+                subtag_stack.push(top);
+                break;
+            };
             top_2.body.push(HtmlNodes::HtmlTag(top));
         }
 
-        self.body = subtag_stack.into_iter().map(|x| HtmlNodes::HtmlTag(x)).collect();
+        self.body = subtag_stack
+            .into_iter()
+            .map(|x| HtmlNodes::HtmlTag(x))
+            .collect();
 
         self.subtags = Vec::new();
 

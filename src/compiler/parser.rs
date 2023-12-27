@@ -268,8 +268,9 @@ fn variable_definition(state: ParserState) -> ParserResult<Variable> {
 }
 
 fn lambda_definition(state: ParserState) -> ParserResult<Lambda> {
-    let parser =
-        lambda_def_starter.preceding(cut(after_spaces(literal)).and_maybe(after_spaces(equals).preceding(after_spaces(quoted))));
+    let parser = lambda_def_starter.preceding(
+        cut(after_spaces(literal)).and_maybe(after_spaces(equals).preceding(after_spaces(quoted))),
+    );
     let ((name, value), next_state) = parser.parse(state)?;
     Ok((
         Lambda {
@@ -583,15 +584,19 @@ fn skipped_blanks<'a>() -> impl Parser<'a, Vec<&'a char>> {
 }
 
 fn skip_newline_blanks<'a>() -> impl Parser<'a, Vec<&'a char>> {
-    zero_or_more(skip_spaces().preceding(newline))
+    zero_or_more(skip_spaces().preceding(newline).followed_by(skipped_blanks()))
 }
 
 fn tag_body(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
-    let parser = skip_spaces().preceding(body_opener).preceding(skipped_blanks()).preceding(zero_or_more(
-        skip_newline_blanks().preceding(string)
-            .map(HtmlNodes::String)
-            .or(skipped_blanks().preceding(some_child_tag.map(|x| x.into()))),
-    ));
+    let parser = skip_spaces()
+        .preceding(body_opener)
+        .preceding(skipped_blanks())
+        .preceding(zero_or_more(
+            skip_newline_blanks()
+                .preceding(string)
+                .map(HtmlNodes::String)
+                .or(skipped_blanks().preceding(some_child_tag.map(|x| x.into()))),
+        ));
 
     parser.parse(state)
 }
@@ -634,7 +639,6 @@ fn plugin_body(state: ParserState) -> ParserResult<Ranged<Vec<Token>>> {
 fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
     let mut output = Vec::<StringParts>::new();
     let mut escape = false;
-    let mut in_newline = false;
     while let Some(token) = state.first_token() {
         match token {
             Token::Symbol(sym) if *sym == '@' && !escape => {
@@ -662,11 +666,11 @@ fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
                 state = state.next_state();
             }
             Token::Newline(_) => {
-                in_newline = true;
-                state = state.next_state();
-            }
-            Token::Space(_) | Token::Indent(_) if in_newline && !escape => {
-                state = state.next_state();
+                if !output.is_empty() {
+                    return Ok((output, state));
+                } else {
+                    return Err(ParseError::EmptyString.state_at(&state));
+                }
             }
             tok => match output.pop() {
                 Some(StringParts::String(mut string)) => {
@@ -735,7 +739,10 @@ fn argument(state: ParserState) -> ParserResult<Argument> {
     ))
 }
 
-pub fn file<'a>(tokens: Vec<Token>, path: Option<PathBuf>) -> Result<ParsedFile<'a>, (Err, Vec<Token>)> {
+pub fn file<'a>(
+    tokens: Vec<Token>,
+    path: Option<PathBuf>,
+) -> Result<ParsedFile<'a>, (Err, Vec<Token>)> {
     let parser = zero_or_more(
         skipped_blanks().preceding(
             some_tag
@@ -750,8 +757,8 @@ pub fn file<'a>(tokens: Vec<Token>, path: Option<PathBuf>) -> Result<ParsedFile<
         Ok((val, _)) => val,
         Err(err) => {
             drop(parser);
-            return Err((err, tokens))
-        },
+            return Err((err, tokens));
+        }
     };
     drop(parser);
     let mut output = ParsedFile::new(tokens, path);

@@ -5,7 +5,10 @@ use super::{state::ParserState, types::TextPos};
 #[derive(Clone, Debug)]
 pub enum ParseError {
     ExpectedEquals,
-    LiteralNotMatch { expected: String, got: Option<String> },
+    LiteralNotMatch {
+        expected: String,
+        got: Option<String>,
+    },
     ExpectedExprStart,
     ExpectedExprEnd,
     ExpectedMacroMark,
@@ -27,7 +30,10 @@ pub enum ParseError {
     EmptyString,
     NotSymbol,
     NotMacroStart,
-    CharacterNotMatch { expected: char, got: Option<char> },
+    CharacterNotMatch {
+        expected: char,
+        got: Option<char>,
+    },
     NotQuoteMark,
     ExpectedQuoteStart,
     NotASpace,

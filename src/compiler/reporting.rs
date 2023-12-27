@@ -17,7 +17,8 @@ pub struct DrawingInfo<'a> {
 
 impl<'a> DrawingInfo<'a> {
     pub fn from(scope: Scope<'a>) -> Self {
-        let lines: Vec<&[Token]> = scope.0
+        let lines: Vec<&[Token]> = scope
+            .0
             .split_inclusive(|x| matches!(x, Token::Newline(_)))
             .collect();
         let lines = {
@@ -62,9 +63,16 @@ pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo)
     output.push_str(&" in `".black().on_red().to_string());
     match info.scope.1 {
         Some(path) => {
-            output.push_str(&path.to_string_lossy().to_string().black().on_red().to_string());
+            output.push_str(
+                &path
+                    .to_string_lossy()
+                    .to_string()
+                    .black()
+                    .on_red()
+                    .to_string(),
+            );
             output.push_str(&"` ".black().on_red().to_string());
-        },
+        }
         None => output.push_str(&"input` ".black().on_red().to_string()),
     }
     output.push('\n');
