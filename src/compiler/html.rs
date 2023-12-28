@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::collections::HashMap;
 
 use crate::compiler::parser::types::ParsedFile;
 
@@ -53,18 +53,6 @@ impl HtmlOutput {
             _ => self.val.push(OutputTypes::Html(new)),
         }
     }
-    fn push(&mut self, new: OutputTypes) {
-        let Some(top) = self.val.last_mut() else {
-            self.val.push(new);
-            return;
-        };
-        match (new, top) {
-            (OutputTypes::Html(ref new_string), OutputTypes::Html(ref mut old_string)) => {
-                old_string.push_str(&new_string)
-            }
-            (new, _) => self.val.push(new),
-        }
-    }
 
     fn push_output(&mut self, new: &mut HtmlOutput) {
         self.val.append(&mut new.val)
@@ -74,28 +62,22 @@ impl HtmlOutput {
         let mut output = String::new();
         for x in self.val.iter() {
             match x {
-                OutputTypes::ContentMark(x) => output.push_str("<content!>"),
+                OutputTypes::ContentMark(_) => output.push_str("<content!>"),
                 OutputTypes::Html(string) => output.push_str(string),
             }
         }
         output
     }
 
-    fn trim(&mut self) {
-        let Some(last) = self.val.last_mut() else {
-            return;
-        };
-        if let OutputTypes::Html(ref mut content) = last {
-            *content = content.trim().to_string();
-        }
-        if self.val.len() > 1 {
-            let Some(first) = self.val.first_mut() else {
-                return;
-            };
-            if let OutputTypes::Html(ref mut content) = first {
-                *content = content.trim().to_string();
+    pub fn to_string(&self) -> Result<String, CompilerError> {
+        let mut output = String::new();
+        for x in self.val.iter() {
+            match x {
+                OutputTypes::ContentMark(_) => return Err(CompilerError::ContentTagInOutput),
+                OutputTypes::Html(string) => output.push_str(string),
             }
         }
+        Ok(output)
     }
 }
 
@@ -105,9 +87,7 @@ struct GenerationState<'a> {
     variable_scopes: VariableScope<'a>,
     macro_templates: HashMap<String, Scoped<'a, &'a Macro>>,
     indent: usize,
-    inline: bool,
     scope: Scope<'a>,
-    path: Option<&'a PathBuf>,
 }
 
 type ValueRef<'a> = Scoped<'a, Option<&'a Vec<StringParts>>>;
@@ -125,9 +105,7 @@ impl<'a> GenerationState<'a> {
             variable_scopes: file.get_variable_scope(&sub_scopes),
             macro_templates: file.get_macro_scope(),
             indent: 0,
-            inline: false,
             scope: (&file.local_tokens, file.get_path_slice()),
-            path: file.path.as_ref(),
         }
     }
 }
@@ -378,7 +356,10 @@ fn parse_kis_string<'a>(
             StringParts::String(x) => output.push_string(x),
             StringParts::Expression(expr) => match calculate_expression(expr, state)? {
                 ExpressionValues::String(x) => {
-                    output.push_output(&mut parse_kis_string(&x, state).unwrap())
+                    match parse_kis_string(&x, state) {
+                        Ok(mut parsed_kis_string) => output.push_output(&mut parsed_kis_string),
+                        Err(mut kis_string_errors) => errors.append(&mut kis_string_errors),
+                    }
                 }
                 ExpressionValues::None => {
                     errors.push(CompilerError::CantWriteNoneValue.state_at(expr.range, state.1))
@@ -475,6 +456,7 @@ fn calculate_expression<'a>(
 
 #[derive(Clone, Debug)]
 pub enum CompilerError {
+    ContentTagInOutput,
     NoDefaultArgDefinedHere,
     UndefinedVariable,
     CantWriteNoneValue,
@@ -499,6 +481,7 @@ impl CompilerError {
 impl ErrorKind for CompilerError {
     fn get_text(&self) -> String {
         match self {
+            Self::ContentTagInOutput => "Can't write this file to output due to having a <content!> tag".into(),
             Self::NoDefaultArgDefinedHere => "Argument defined here".into(),
             Self::UndefinedVariable => "This variable isn't defined".into(),
             Self::CantWriteNoneValue => {

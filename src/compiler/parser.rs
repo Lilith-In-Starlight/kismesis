@@ -2,6 +2,7 @@ pub(crate) mod errors;
 pub(crate) mod state;
 pub(crate) mod types;
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
@@ -187,6 +188,34 @@ fn macro_name(state: ParserState) -> ParserResult<&str> {
     match literal.parse(state.clone()) {
         Ok(ok) if ok.0 != "content" => Ok(ok),
         _ => Err(ParseError::ExpectedTagName.state_at(&state)),
+    }
+}
+
+fn set_starter(state: ParserState) -> ParserResult<&str> {
+    match literal.parse(state.clone()) {
+        Ok(ok) if ok.0 != "macro" => Ok(ok),
+        _ => Err(ParseError::ExpectedSetStarter.state_at(&state)),
+    }
+}
+
+fn set_stmt(state: ParserState) -> ParserResult<(String, String)> {
+    let parser = set_starter.preceding(cut(after_spaces(literal).and_also(after_spaces(equals).preceding(after_spaces(quoted)))));
+
+    match parser.parse(state.clone()) {
+        Ok(((name, value), next_state)) => {
+            let value = {
+                let mut output = Vec::new();
+                for part in value.iter() {
+                    match part {
+                        StringParts::String(x) => output.push(x.clone()),
+                        StringParts::Expression(_) => return Err(ParseError::ExpressionInSetStmt.state_at(&state)),
+                    }
+                }
+                output.into_iter().collect()
+            };
+            Ok(((name.to_string(), value), next_state))
+        },
+        Err(x) => return Err(x),
     }
 }
 
@@ -772,13 +801,16 @@ fn argument(state: ParserState) -> ParserResult<Argument> {
 pub fn file<'a>(
     tokens: Vec<Token>,
     path: Option<PathBuf>,
+    default_template: Option<&'a ParsedFile>,
+    templates: Option<&'a HashMap<PathBuf, ParsedFile>>,
 ) -> Result<ParsedFile<'a>, (Err, Vec<Token>)> {
     let parser = zero_or_more(
         skipped_blanks().preceding(
             some_tag
                 .map(|x| x.into())
                 .or(lambda_definition.map(BodyNodes::LambdaDef))
-                .or(variable_definition.map(BodyNodes::VarDef)),
+                .or(variable_definition.map(BodyNodes::VarDef))
+                .or(set_stmt.map(|(x, y)| BodyNodes::SetStmt(x, y))),
         ),
     )
     .followed_by(check_tag_mismatch)
@@ -794,6 +826,7 @@ pub fn file<'a>(
     };
     drop(parser);
     let mut output = ParsedFile::new(tokens, path);
+    output.template = default_template;
     for node in ast_nodes {
         match node {
             BodyNodes::HtmlTag(tag) => output.body.push(TopNodes::HtmlTag(tag)),
@@ -804,6 +837,22 @@ pub fn file<'a>(
             BodyNodes::VarDef(var) => output.defined_variables.push(var),
             BodyNodes::PlugCall(plug) => output.body.push(TopNodes::PlugCall(plug)),
             BodyNodes::Content => output.body.push(TopNodes::Content),
+            BodyNodes::SetStmt(config, value) => {
+                match config.as_str() {
+                    "template" => {
+                        let Some(templates) = templates else {
+                            panic!("Tried to set template in a template");
+                        };
+                        let mut value = PathBuf::from(value);
+                        value.set_extension("ks");
+                        match templates.get(&value) {
+                            Some(template) => output.template = Some(template),
+                            None => panic!("Template does not exist"),
+                        }
+                    }
+                    _ => panic!("Non-existant config"),
+                }
+            },
         }
     }
 

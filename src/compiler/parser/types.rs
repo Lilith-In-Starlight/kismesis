@@ -93,6 +93,7 @@ pub enum BodyNodes {
     LambdaDef(Lambda),
     VarDef(Variable),
     Content,
+    SetStmt(String, String),
 }
 
 #[derive(Debug, Clone, PartialEq)]

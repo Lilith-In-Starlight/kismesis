@@ -1,3 +1,5 @@
+set template = "templates/mana"
+
 let title = "Kismesis showcase"
 
 <section
@@ -13,7 +15,6 @@ let title = "Kismesis showcase"
 	<section
 		<h1 | Macros>
 		<p | Macros are one of the ways to make repeated content less tiresome to write. If you do something a lot, simply turn it into a macro!>
-		<testmacro!>
 	>
 	<section
 		<h1 | Templates>

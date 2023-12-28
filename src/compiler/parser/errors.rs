@@ -4,6 +4,8 @@ use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+    ExpressionInSetStmt,
+    ExpectedSetStarter,
     TagOpenerMismatch,
     TagCloserMismatch,
     ExpectedEOF,
@@ -87,6 +89,8 @@ impl ParseError {
 impl ErrorKind for ParseError {
     fn get_text(&self) -> String {
         match self {
+            Self::ExpressionInSetStmt => "Expressions are not allowed in `set` statements".into(),
+            Self::ExpectedSetStarter => "Expected `set`".into(),
             Self::TagOpenerMismatch => "This `<` is never closed".into(),
             Self::TagCloserMismatch => "This `>` is mismatched. Check if all tags before it are closed correctly".into(),
             Self::ExpectedEOF => "Expected the file to end, but it didn't. You might have too many `>`".into(),
