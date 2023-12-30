@@ -10,7 +10,7 @@ impl Settings {
         Self {
             inline: string_vec(&[
                 "p", "b", "i", "strong", "italic", "sub", "sup", "h1", "h2", "h3", "h4", "h5", "a", "li",
-                "title",
+                "title", "span"
             ]),
             in_previous: string_vec(&["b", "i", "strong", "italic", "sub", "sup", "br", "a"]),
             only_opener: string_vec(&["meta", "img"]),

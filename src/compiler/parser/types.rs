@@ -42,6 +42,83 @@ pub struct Macro {
     pub(crate) body: Vec<HtmlNodes>,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub struct Section {
+    pub(crate) depth: usize,
+    pub(crate) name: Vec<StringParts>,
+    pub(crate) subtitle: Option<Vec<StringParts>>,
+    pub(crate) content: Vec<Vec<HtmlNodes>>,
+}
+
+impl Section {
+    pub fn to_tag(mut self) -> HtmlTag {
+        let mut tags = Vec::new();
+        let hstr = format!("h{}", self.depth); 
+        let title = HtmlTag {
+            name: Ranged { value: hstr, range: (TokenPos::new(), TokenPos::new()) },
+            attributes: vec![],
+            body: vec![HtmlNodes::String(self.name)],
+            subtags: vec![]
+        };
+        let header = match self.subtitle {
+            Some(subtitle) => {
+                let subtitle = HtmlTag {
+                    name: Ranged { value: String::from("p"), range: (TokenPos::new(), TokenPos::new()) },
+                    attributes: vec![],
+                    body: vec![HtmlNodes::String(subtitle)],
+                    subtags: vec![]
+                };
+                HtmlTag {
+                    name: Ranged { value: String::from("hgroup"), range: (TokenPos::new(), TokenPos::new()) },
+                    attributes: vec![],
+                    body: vec![HtmlNodes::HtmlTag(title), HtmlNodes::HtmlTag(subtitle)],
+                    subtags: vec![],
+                }
+            }, 
+            None => {
+                title
+            }
+        };
+
+        let mut content = Vec::new();
+
+        for x in self.content {
+            match (x.first().to_owned(), x.len()) {
+                (Some(HtmlNodes::String(_)), 1) | (Some(_), 2..) => {
+                    let r = HtmlTag {
+                        name: Ranged { value: String::from("p"), range: (TokenPos::new(), TokenPos::new()) },
+                        attributes: vec![],
+                        body: x,
+                        subtags: vec![],
+                    };
+                    content.push(HtmlNodes::HtmlTag(r));
+                }
+                (Some(x), 1) => content.push(x.clone()),
+                _ => continue,
+            }
+        }
+
+        tags.push(HtmlNodes::HtmlTag(header));
+        tags.append(&mut content);
+
+        HtmlTag {
+            name: Ranged { value: String::from("section"), range: (TokenPos::new(), TokenPos::new()) },
+            attributes: vec![],
+            body: tags,
+            subtags: vec![],
+        }
+    }
+}
+
+pub fn paragraph_str_to_p(vec: Vec<HtmlNodes>) -> HtmlTag {
+    HtmlTag {
+        name: Ranged { value: String::from("p"), range: (TokenPos::new(), TokenPos::new()) },
+        attributes: vec![],
+        body: vec,
+        subtags: vec![],
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlugCall {
     pub(crate) name: Ranged<String>,
@@ -55,6 +132,7 @@ pub enum HtmlNodes {
     MacroCall(Macro),
     String(Vec<StringParts>),
     PlugCall(Box<PlugCall>),
+    Section(Section),
     Content,
 }
 
@@ -63,6 +141,7 @@ pub enum TopNodes {
     HtmlTag(HtmlTag),
     MacroCall(Macro),
     PlugCall(Box<PlugCall>),
+    Section(Section),
     Content,
 }
 
@@ -71,6 +150,7 @@ pub enum BodyTags {
     HtmlTag(HtmlTag),
     MacroCall(Macro),
     PlugCall(Box<PlugCall>),
+    Section(Section),
     Content,
 }
 
@@ -80,6 +160,7 @@ pub enum Tag {
     MacroDef(Macro),
     MacroCall(Macro),
     PlugCall(Box<PlugCall>),
+    Section(Section),
     Content,
 }
 
@@ -94,6 +175,7 @@ pub enum BodyNodes {
     VarDef(Variable),
     Content,
     SetStmt(String, String),
+    Section(Section),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -238,6 +320,7 @@ impl From<Tag> for BodyNodes {
             Tag::MacroCall(x) => Self::MacroCall(x),
             Tag::MacroDef(x) => Self::MacroDef(x),
             Tag::PlugCall(x) => Self::PlugCall(x),
+            Tag::Section(x) => Self::Section(x),
             Tag::Content => Self::Content,
         }
     }
@@ -249,6 +332,7 @@ impl From<BodyTags> for BodyNodes {
             BodyTags::HtmlTag(x) => Self::HtmlTag(x),
             BodyTags::MacroCall(x) => Self::MacroCall(x),
             BodyTags::PlugCall(x) => Self::PlugCall(x),
+            BodyTags::Section(x) => Self::Section(x),
             BodyTags::Content => Self::Content,
         }
     }
@@ -261,6 +345,7 @@ impl From<BodyTags> for HtmlNodes {
             BodyTags::MacroCall(x) => Self::MacroCall(x),
             BodyTags::PlugCall(x) => Self::PlugCall(x),
             BodyTags::Content => Self::Content,
+            BodyTags::Section(x) => Self::Section(x),
         }
     }
 }
@@ -382,6 +467,7 @@ impl AstNode for HtmlNodes {
             HtmlNodes::HtmlTag(x) => x.find_undefined_vars(defined),
             HtmlNodes::MacroCall(x) => x.find_undefined_vars(defined),
             HtmlNodes::String(x) => x.find_undefined_vars(defined),
+            HtmlNodes::Section(_) => todo!("undefined vars in body"),
             HtmlNodes::PlugCall(_) => Vec::new(),
             Self::Content => Vec::new(),
         }

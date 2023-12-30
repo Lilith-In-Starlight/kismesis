@@ -175,6 +175,7 @@ fn parse_node<'a>(
         TopNodes::MacroCall(t) => mac_call(t, state),
         TopNodes::PlugCall(t) => plug_call(t, state),
         TopNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
+        TopNodes::Section(_) => Ok(HtmlOutput { val: vec![] }),
     }
 }
 
@@ -187,7 +188,17 @@ fn parse_html_child<'a>(
         HtmlNodes::MacroCall(t) => mac_call(t, state),
         HtmlNodes::PlugCall(t) => plug_call(t, state),
         HtmlNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
-        HtmlNodes::String(t) => parse_kis_string(t, (&state.variable_scopes, state.scope)),
+        HtmlNodes::String(t) => match parse_kis_string(t, (&state.variable_scopes, state.scope)) {
+            Ok(mut x) => {
+                let mut a = HtmlOutput {
+                    val: vec![OutputTypes::Html(make_indents(state.indent))]
+                };
+                a.push_output(&mut x);
+                Ok(a)
+            }
+            Err(x) => Err(x),
+        },
+        HtmlNodes::Section(_) => Ok(HtmlOutput { val: vec![] }),
     }
 }
 

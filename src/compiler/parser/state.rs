@@ -8,6 +8,7 @@ pub struct ParserState<'a> {
     pub(crate) position: TokenPos,
     pub(crate) errors: Vec<ErrorState<ParseError>>,
     pub(crate) tag_openers: Vec<TokenPos>,
+    pub(crate) section_depth: usize,
 }
 
 impl<'a> ParserState<'a> {
@@ -17,6 +18,7 @@ impl<'a> ParserState<'a> {
             position: TokenPos::new(),
             errors: vec![],
             tag_openers: Vec::new(),
+            section_depth: 0,
         }
     }
     pub(crate) fn next_state(self) -> Self {
@@ -57,7 +59,23 @@ impl<'a> ParserState<'a> {
         let clone = self.clone();
         Self {
             tag_openers: clone.tag_openers.into_iter().chain(vec![self.position]).collect(),
-            ..self.clone()
+            ..clone
+        }
+    }
+
+    pub(crate) fn below_scope(&self) -> Self {
+        let clone = self.clone();
+        Self {
+            section_depth: clone.section_depth + 1,
+            ..clone
+        }
+    }
+
+    pub(crate) fn above_scope(&self) -> Self {
+        let clone = self.clone();
+        Self {
+            section_depth: clone.section_depth - 1,
+            ..clone
         }
     }
 }

@@ -1,8 +1,14 @@
-lambda test
+lambda title
 
 <html
-	<title | @{{test and "Ampersandia - @test"} or "Ampersandia"}>
-	<body
-		<content!>
-	>
+    <head
+        <title | @{{title and "Ampersandia - @title"} or "Ampersandia"}>
+    >
+    <body
+        <header
+            <span id="logo" | &>
+        >
+		# @title
+        <content!>
+    >
 >

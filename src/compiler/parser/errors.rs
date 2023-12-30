@@ -1,9 +1,15 @@
+use std::ops::Bound;
+
 use crate::compiler::errors::{ErrorKind, ErrorState};
 
 use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+    WronglyNestedSection,
+    ExpectedLambdaStart,
+    ConditionUnmet,
+    NotInRange(Bound<usize>, Bound<usize>),
     ExpressionInSetStmt,
     ExpectedSetStarter,
     TagOpenerMismatch,
@@ -89,6 +95,10 @@ impl ParseError {
 impl ErrorKind for ParseError {
     fn get_text(&self) -> String {
         match self {
+            Self::WronglyNestedSection => "Wrongly nested section".to_string(),
+            Self::ExpectedLambdaStart => "Expected `lambda`".to_string(),
+            Self::ConditionUnmet => "Unmet condition".to_string(),
+            Self::NotInRange(start, end) => format!("Expected this to repeat from {:?} to {:?} times", start, end),
             Self::ExpressionInSetStmt => "Expressions are not allowed in `set` statements".into(),
             Self::ExpectedSetStarter => "Expected `set`".into(),
             Self::TagOpenerMismatch => "This `<` is never closed".into(),
