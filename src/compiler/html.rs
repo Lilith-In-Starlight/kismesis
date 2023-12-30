@@ -433,7 +433,6 @@ fn calculate_expression<'a>(
 				}
 				BinFunc::Or => {
 					if exp1.is_truthy() {
-						println!("{:?}", exp1);
 						Ok(exp1)
 					} else if exp2.is_truthy() {
 						Ok(exp2)

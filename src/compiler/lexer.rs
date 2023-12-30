@@ -37,6 +37,36 @@ impl Token {
 
 /// Converts a string into a `Vec<Token>`, ignoring `\r` characters.
 pub fn tokenize(s: &str) -> Vec<Token> {
+	let s: String = {
+		let mut buffer = Vec::new();
+		let mut buffer2 = Vec::new();
+		let mut comments = false;
+		for x in s.chars() {
+			if !comments { 
+				buffer.push(x);
+				match buffer.as_slice() {
+					[.., '<', '!', '-'] => {
+						buffer.pop();
+						buffer.pop();
+						buffer.pop();
+						comments = true;
+					}
+					_ => (),
+				}
+			} else {
+				buffer2.push(x);
+				match buffer2.as_slice() {
+					[.., '-', '>'] => {
+						buffer2.clear();
+						comments = false;
+					}
+					_ => (),
+				}
+			}
+		}
+		buffer.into_iter().collect()
+	};
+	
 	let mut output: Vec<Token> = vec![];
 
 	let mut current_word: usize = 0;
@@ -59,7 +89,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 					&mut output,
 					&mut current_word,
 					idx,
-					s,
+					&s,
 				);
 			}
 			'\n' => {
@@ -68,7 +98,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 					&mut output,
 					&mut current_word,
 					idx,
-					s,
+					&s,
 				);
 			}
 			'\t' => {
@@ -77,7 +107,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 					&mut output,
 					&mut current_word,
 					idx,
-					s,
+					&s,
 				);
 			}
 			x if !x.is_alphanumeric() => {
@@ -86,7 +116,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 					&mut output,
 					&mut current_word,
 					idx,
-					s,
+					&s,
 				);
 			}
 			_ => (),
