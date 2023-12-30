@@ -401,6 +401,7 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
 			.or(macro_def.map(Tag::MacroDef))
 			.or(plug_call.map(Tag::PlugCall))
 			.or(content_macro.map(|_| Tag::Content))
+			.or(doctype.map(Tag::Doctype))
 			.followed_by(skipped_blanks().preceding(tag_closer)),
 	)));
 
@@ -480,6 +481,10 @@ fn content_macro(state: ParserState<'_>) -> ParserResult<'_, ()> {
 	let parser = specific_literal("content").followed_by(after_spaces(macro_mark));
 	let (_, state) = parser.parse(state)?;
 	Ok(((), state))
+}
+
+fn doctype(state: ParserState<'_>) -> ParserResult<'_, String> {
+	character('!').preceding(cut(after_spaces(specific_literal("doctype")).preceding(after_spaces(literal.map(|x| x.to_string()))))).parse(state)
 }
 
 fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
@@ -930,8 +935,7 @@ pub fn file<'a>(
 	)
 	.followed_by(check_tag_mismatch)
 	.followed_by(skipped_blanks())
-	.followed_by(eof.or(ignore(tag_closer)))
-	.dbg();
+	.followed_by(eof.or(ignore(tag_closer)));
 
 	let state = ParserState::new(&tokens);
 	let ast_nodes = match parser.parse(state) {
@@ -955,6 +959,7 @@ pub fn file<'a>(
 			BodyNodes::PlugCall(plug) => output.body.push(TopNodes::PlugCall(plug)),
 			BodyNodes::Content => output.body.push(TopNodes::Content),
 			BodyNodes::Section(_) => todo!("Add sections"),
+			BodyNodes::Doctype(x) => output.body.push(TopNodes::Doctype(x)),
 			BodyNodes::SetStmt(config, value) => match config.as_str() {
 				"template" => {
 					let Some(templates) = templates else {

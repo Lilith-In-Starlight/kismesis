@@ -51,7 +51,7 @@ pub struct Section {
 }
 
 impl Section {
-	pub fn to_tag(mut self) -> HtmlTag {
+	pub fn to_tag(self) -> HtmlTag {
 		let mut tags = Vec::new();
 		let hstr = format!("h{}", self.depth);
 		let title = HtmlTag {
@@ -159,6 +159,7 @@ pub enum TopNodes {
 	PlugCall(Box<PlugCall>),
 	Section(Section),
 	Content,
+	Doctype(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -178,6 +179,7 @@ pub enum Tag {
 	PlugCall(Box<PlugCall>),
 	Section(Section),
 	Content,
+	Doctype(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -192,6 +194,7 @@ pub enum BodyNodes {
 	Content,
 	SetStmt(String, String),
 	Section(Section),
+	Doctype(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -338,6 +341,7 @@ impl From<Tag> for BodyNodes {
 			Tag::PlugCall(x) => Self::PlugCall(x),
 			Tag::Section(x) => Self::Section(x),
 			Tag::Content => Self::Content,
+			Tag::Doctype(x) => Self::Doctype(x),
 		}
 	}
 }

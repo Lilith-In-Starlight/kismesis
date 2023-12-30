@@ -180,6 +180,11 @@ fn parse_node<'a>(
 		TopNodes::PlugCall(t) => plug_call(t, state),
 		TopNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
 		TopNodes::Section(_) => Ok(HtmlOutput { val: vec![] }),
+		TopNodes::Doctype(string) => {
+			let mut htmlo = HtmlOutput::new();
+			htmlo.push_string(format!("<!DOCTYPE {}>", string));
+			Ok(htmlo)
+		}
 	}
 }
 
