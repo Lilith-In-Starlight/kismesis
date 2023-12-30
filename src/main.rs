@@ -1,5 +1,5 @@
 mod compiler;
 
 fn main() {
-    compiler::compile_project();
+	compiler::compile_project();
 }
