@@ -148,28 +148,28 @@ impl<'a, T> Parser<'a, T> for BoxedParser<'a, T> {
 
 // Parsers
 fn quote_mark(state: ParserState) -> ParserResult<&char> {
-	match character('\'').or(character('"')).parse(state.clone()) {
+	match specific_symbol('\'').or(specific_symbol('"')).parse(state.clone()) {
 		Err(_) => Err(ParseError::NotQuoteMark.state_at(&state)),
 		ok => ok,
 	}
 }
 
 fn tag_opener(state: ParserState) -> ParserResult<&char> {
-	match character('<').parse(state.open_tag()) {
+	match specific_symbol('<').parse(state.open_tag()) {
 		Err(_) => Err(ParseError::ExpectedTagOpener.state_at(&state)),
 		Ok((char, state)) => Ok((char, state)),
 	}
 }
 
 fn subtag_opener(state: ParserState) -> ParserResult<&char> {
-	match character('+').parse(state.clone()) {
+	match specific_symbol('+').parse(state.clone()) {
 		Err(_) => Err(ParseError::ExpectedTagOpener.state_at(&state)),
 		ok => ok,
 	}
 }
 
 fn tag_closer(state: ParserState) -> ParserResult<&char> {
-	match character('>').parse(state.clone()) {
+	match specific_symbol('>').parse(state.clone()) {
 		Err(_) => Err(ParseError::ExpectedTagCloser.state_at(&state)),
 		Ok((val, next_state)) => match next_state.close_tag() {
 			Ok(x) => Ok((val, x)),
@@ -179,35 +179,35 @@ fn tag_closer(state: ParserState) -> ParserResult<&char> {
 }
 
 fn expr_opener(state: ParserState) -> ParserResult<&char> {
-	match character('{').parse(state.clone()) {
+	match specific_symbol('{').parse(state.clone()) {
 		Err(_) => Err(ParseError::ExpectedExprStart.state_at(&state)),
 		ok => ok,
 	}
 }
 
 fn expr_closer(state: ParserState) -> ParserResult<&char> {
-	match character('}').parse(state.clone()) {
+	match specific_symbol('}').parse(state.clone()) {
 		Err(_) => Err(ParseError::ExpectedExprEnd.state_at(&state)),
 		ok => ok,
 	}
 }
 
 fn macro_mark(state: ParserState) -> ParserResult<&char> {
-	match character('!').parse(state.clone()) {
+	match specific_symbol('!').parse(state.clone()) {
 		Err(_) => Err(ParseError::ExpectedMacroMark.state_at(&state)),
 		ok => ok,
 	}
 }
 
 fn plugin_mark(state: ParserState) -> ParserResult<&char> {
-	match character('?').parse(state.clone()) {
+	match specific_symbol('?').parse(state.clone()) {
 		Err(_) => Err(ParseError::ExpectedPluginMark.state_at(&state)),
 		ok => ok,
 	}
 }
 
 fn body_opener(state: ParserState) -> ParserResult<&char> {
-	match character('|').or(newline).parse(state.clone()) {
+	match specific_symbol('|').or(newline).parse(state.clone()) {
 		Err(_) => Err(ParseError::ExpectedBodyOpener.state_at(&state)),
 		ok => ok,
 	}
@@ -254,7 +254,7 @@ fn set_stmt(state: ParserState) -> ParserResult<(String, String)> {
 }
 
 fn equals(state: ParserState) -> ParserResult<&char> {
-	match character('=').parse(state.clone()) {
+	match specific_symbol('=').parse(state.clone()) {
 		Err(_) => Err(ParseError::ExpectedEquals.state_at(&state)),
 		ok => ok,
 	}
@@ -278,7 +278,7 @@ fn check_tag_mismatch(state: ParserState) -> ParserResult<()> {
 }
 
 fn expr_array(state: ParserState) -> ParserResult<Expression> {
-	let parser = zero_or_more(expression.followed_by(after_blanks(character(',').followed_by(skipped_blanks()))))
+	let parser = zero_or_more(expression.followed_by(after_blanks(specific_symbol(',').followed_by(skipped_blanks()))))
 		.and_maybe(expression).map(|(mut vec, maybe)| {
 			if let Some(last) = maybe {
 				vec.push(last)
@@ -341,7 +341,7 @@ fn wrapped_expr(state: ParserState) -> ParserResult<Expression> {
 		.or(unary_func_expr)
 		.or(expr_array)
 		.or(expression)
-		.or(character('!').map(|_x| Expression::None));
+		.or(specific_symbol('!').map(|_x| Expression::None));
 	let parser = expr_opener.preceding(cut(after_blanks(internal_parser)).followed_by(after_blanks(expr_closer)));
 
 	parser.parse(state)
@@ -373,48 +373,6 @@ fn lambda_definition(state: ParserState) -> ParserResult<Lambda> {
 		},
 		next_state,
 	))
-}
-
-fn quoted(state: ParserState) -> ParserResult<Vec<StringParts>> {
-	let (opener, mut state) = quote_mark.parse(state)?;
-	let mut output = Vec::<StringParts>::new();
-	let mut escape = false;
-	while let Some(token) = state.first_token() {
-		match token {
-			Token::Symbol(sym) if *sym == '@' && !escape => {
-				state = state.next_state();
-				let (val, next_state) = get_range(expression).parse(state)?;
-				output.push(StringParts::Expression(val));
-				state = next_state;
-			}
-			Token::Symbol(sym) if sym == opener && !escape => {
-				return Ok((output, state.next_state()))
-			}
-			Token::Symbol(sym) if *sym == '\\' && !escape => {
-				escape = true;
-				state = state.next_state();
-			}
-			Token::Newline(_) => return Err(ParseError::NewlineInQuote.state_at(&state)),
-			tok => match output.pop() {
-				Some(StringParts::String(mut string)) => {
-					tok.push_to_string(&mut string);
-					output.push(StringParts::String(string));
-					state = state.next_state();
-				}
-				Some(StringParts::Expression(var)) => {
-					output.push(StringParts::Expression(var));
-					output.push(StringParts::String(tok.get_as_string()));
-					state = state.next_state();
-				}
-				None => {
-					output.push(StringParts::String(tok.get_as_string()));
-					state = state.next_state();
-				}
-			},
-		}
-	}
-
-	Err(ParseError::UnclosedQuote.state_at(&state).cut())
 }
 
 fn if_tag(state: ParserState) -> ParserResult<IfTag> {
@@ -485,7 +443,7 @@ fn tag(state: ParserState<'_>) -> ParserResult<'_, HtmlTag> {
 }
 
 fn section_block(state: ParserState) -> ParserResult<Section> {
-	let ((depth, title), state) = repeated(character('#'), 1..=state.section_depth + 1)
+	let ((depth, title), state) = repeated(specific_symbol('#'), 1..=state.section_depth + 1)
 		.map(|x| x.len())
 		.and_also(cut(after_spaces(string)))
 		.parse(state)?;
@@ -494,8 +452,8 @@ fn section_block(state: ParserState) -> ParserResult<Section> {
 	}
 	let (subtitle, state) = maybe(
 		skipped_blanks().preceding(
-			character('#')
-				.preceding(character(':'))
+			specific_symbol('#')
+				.preceding(specific_symbol(':'))
 				.preceding(cut(after_spaces(string))),
 		),
 	)
@@ -507,7 +465,7 @@ fn section_block(state: ParserState) -> ParserResult<Section> {
 		skipped_blanks().preceding(
 			some_child_tag
 				.map(|x| vec![x.into()])
-				.or(not(peek(character('#'))).preceding(paragraph_string)),
+				.or(not(peek(specific_symbol('#'))).preceding(paragraph_string)),
 		),
 	)
 	.parse(state)?;
@@ -531,7 +489,7 @@ fn content_macro(state: ParserState<'_>) -> ParserResult<'_, ()> {
 }
 
 fn doctype(state: ParserState<'_>) -> ParserResult<'_, String> {
-	character('!').preceding(cut(after_spaces(specific_literal("doctype")).preceding(after_spaces(literal.map(|x| x.to_string()))))).parse(state)
+	specific_symbol('!').preceding(cut(after_spaces(specific_literal("doctype")).preceding(after_spaces(literal.map(|x| x.to_string()))))).parse(state)
 }
 
 fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
@@ -892,8 +850,8 @@ fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
 }
 
 fn string_tagless_content<'a>() -> impl Parser<'a, StringParts> {
-	character('\\').preceding(any.map(|x| StringParts::String(x.get_as_string())))
-	.or(character('@').preceding(get_range(expression).map(StringParts::Expression)))
+	specific_symbol('\\').preceding(any.map(|x| StringParts::String(x.get_as_string())))
+	.or(specific_symbol('@').preceding(get_range(expression).map(StringParts::Expression)))
 	.or(any.map(|x| StringParts::String(x.get_as_string())))
 }
 
@@ -904,9 +862,9 @@ fn string_tagless(state: ParserState) -> ParserResult<Vec<StringParts>> {
 }
 
 fn attr_string(state: ParserState) -> ParserResult<Vec<StringParts>> {
-	let (quote_mark, state) = character('\'').or(character('"')).parse(state)?;
-	let terminator = newline.or(character(quote_mark.clone()));
-	let parser = maybe_until(string_tagless_content(), terminator).followed_by(character(quote_mark.clone()));
+	let (quote_mark, state) = quote_mark.parse(state)?;
+	let terminator = newline.or(specific_symbol(quote_mark.clone()));
+	let parser = maybe_until(string_tagless_content(), terminator).followed_by(specific_symbol(quote_mark.clone()));
 	parser.parse(state)
 }
 
@@ -1032,8 +990,7 @@ pub fn file<'a>(
 	Ok(output)
 }
 // Generators
-
-pub(super) fn character<'a>(chr: char) -> impl Parser<'a, &'a char> {
+pub(super) fn specific_symbol<'a>(chr: char) -> impl Parser<'a, &'a char> {
 	move |state: ParserState<'a>| match some_symbol.parse(state.clone()) {
 		Ok((x, next_state)) if x == &chr => Ok((x, next_state)),
 		Ok((x, _)) => Err(ParseError::CharacterNotMatch {
