@@ -30,6 +30,34 @@ where
 	}
 }
 
+pub(super) fn maybe_until<'a, P1, O1, P2, O2>(p1: P1, p2: P2) -> impl Parser<'a, Vec<O1>>
+where
+	P1: Parser<'a, O1>,
+	P2: Parser<'a, O2>,
+{
+	move |mut state: ParserState<'a>| {
+		let mut found = Vec::new();
+		loop {
+			match p2.parse(state.clone()) {
+				Ok((_, next_state)) => {
+					if found.is_empty() {
+						return Err(ParseError::EmptyString.state_at(&next_state))
+					} else {
+						return Ok((found, state))
+					}
+				}
+				Err(_) => match p1.parse(state.clone()) {
+					Ok((val, next_state)) => {
+						found.push(val);
+						state = next_state;
+					}
+					Err(_) => return Err(ParseError::ConditionUnmet.state_at(&state)),
+				}
+			}
+		}
+	}
+}
+
 pub(super) fn and_also<'a, P1, O1, P2, O2>(p1: P1, p2: P2) -> impl Parser<'a, (O1, O2)>
 where
 	P1: Parser<'a, O1>,

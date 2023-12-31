@@ -150,6 +150,7 @@ pub enum HtmlNodes {
 	PlugCall(Box<PlugCall>),
 	Section(Section),
 	If(IfTag),
+	For(ForTag),
 	Content,
 }
 
@@ -162,6 +163,7 @@ pub enum TopNodes {
 	Content,
 	Doctype(String),
 	If(IfTag),
+	For(ForTag),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -171,6 +173,7 @@ pub enum BodyTags {
 	PlugCall(Box<PlugCall>),
 	Section(Section),
 	If(IfTag),
+	For(ForTag),
 	Content,
 }
 
@@ -184,6 +187,7 @@ pub enum Tag {
 	Content,
 	Doctype(String),
 	If(IfTag),
+	For(ForTag),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -200,6 +204,7 @@ pub enum BodyNodes {
 	Section(Section),
 	Doctype(String),
 	If(IfTag),
+	For(ForTag),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -348,6 +353,7 @@ impl From<Tag> for BodyNodes {
 			Tag::Content => Self::Content,
 			Tag::Doctype(x) => Self::Doctype(x),
 			Tag::If(x) => Self::If(x),
+			Tag::For(x) => Self::For(x),
 		}
 	}
 }
@@ -361,6 +367,7 @@ impl From<BodyTags> for BodyNodes {
 			BodyTags::Section(x) => Self::Section(x),
 			BodyTags::Content => Self::Content,
 			BodyTags::If(x) => Self::If(x),
+			BodyTags::For(x) => Self::For(x),
 		}
 	}
 }
@@ -374,6 +381,7 @@ impl From<BodyTags> for HtmlNodes {
 			BodyTags::Content => Self::Content,
 			BodyTags::Section(x) => Self::Section(x),
 			BodyTags::If(x) => Self::If(x),
+			BodyTags::For(x) => Self::For(x),
 		}
 	}
 }
@@ -580,5 +588,12 @@ impl HtmlTag {
 #[derive(Clone, Debug, PartialEq)]
 pub struct IfTag {
 	pub condition: Ranged<Expression>,
+	pub body: Vec<HtmlNodes>
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForTag {
+	pub variable: String,
+	pub iterator: Ranged<Expression>,
 	pub body: Vec<HtmlNodes>
 }

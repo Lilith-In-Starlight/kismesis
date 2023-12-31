@@ -9,7 +9,7 @@ use super::{
 		state::TokenPos,
 		types::{
 			Attribute, BinFunc, Expression, HtmlNodes, HtmlTag, Macro, PlugCall, Ranged, Scope,
-			Scoped, StringParts, TextPos, TopNodes, UniFunc, IfTag,
+			Scoped, StringParts, TextPos, TopNodes, UniFunc, IfTag, ForTag,
 		},
 	},
 };
@@ -181,6 +181,7 @@ fn parse_node<'a>(
 		TopNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
 		TopNodes::Section(_) => Ok(HtmlOutput { val: vec![] }),
 		TopNodes::If(x) => if_tag(x, state),
+		TopNodes::For(x) => for_tag(x, state),
 		TopNodes::Doctype(string) => {
 			let mut htmlo = HtmlOutput::new();
 			htmlo.push_string(format!("<!DOCTYPE {}>", string));
@@ -207,6 +208,11 @@ fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<'a, 
 	Ok(output)
 }
 
+fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
+	todo!("FOR tags");
+	// Ok(output)
+}
+
 fn parse_html_child<'a>(
 	node: &'a HtmlNodes,
 	state: &GenerationState<'a>,
@@ -217,6 +223,7 @@ fn parse_html_child<'a>(
 		HtmlNodes::PlugCall(t) => plug_call(t, state),
 		HtmlNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
 		HtmlNodes::If(t) => if_tag(t, state),
+		HtmlNodes::For(t) => for_tag(t, state),
 		HtmlNodes::String(t) => match parse_kis_string(t, (&state.variable_scopes, state.scope)) {
 			Ok(mut x) => {
 				let mut a = HtmlOutput {
