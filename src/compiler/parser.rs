@@ -15,7 +15,7 @@ use self::state::ParserState;
 use self::types::{
 	paragraph_str_to_p, Argument, Attribute, BinFunc, BodyNodes, BodyTags, Expression, HtmlNodes,
 	HtmlTag, Lambda, Macro, ParsedFile, PlugCall, Ranged, Section, StringParts, Tag, TopNodes,
-	UniFunc, Variable,
+	UniFunc, Variable, IfTag,
 };
 
 use super::errors::ErrorState;
@@ -268,6 +268,19 @@ fn check_tag_mismatch(state: ParserState) -> ParserResult<()> {
 	Ok(((), state))
 }
 
+fn expr_array(state: ParserState) -> ParserResult<Expression> {
+	let parser = zero_or_more(expression.followed_by(after_blanks(character(',').followed_by(skipped_blanks()))))
+		.and_maybe(expression).map(|(mut vec, maybe)| {
+			if let Some(last) = maybe {
+				vec.push(last)
+			}
+			vec
+		}
+	).map(Expression::Array);
+
+	parser.parse(state)
+}
+
 fn expression(state: ParserState) -> ParserResult<Expression> {
 	let parser = variable_name
 		.map(|x| Expression::Variable(x.to_owned()))
@@ -319,7 +332,7 @@ fn wrapped_expr(state: ParserState) -> ParserResult<Expression> {
 		.or(unary_func_expr)
 		.or(expression)
 		.or(character('!').map(|_x| Expression::None));
-	let parser = expr_opener.preceding(cut(after_spaces(internal_parser)).followed_by(expr_closer));
+	let parser = expr_opener.preceding(cut(after_blanks(internal_parser)).followed_by(after_blanks(expr_closer)));
 
 	parser.parse(state)
 }
@@ -394,6 +407,15 @@ fn quoted(state: ParserState) -> ParserResult<Vec<StringParts>> {
 	Err(ParseError::UnclosedQuote.state_at(&state).cut())
 }
 
+fn if_tag(state: ParserState) -> ParserResult<IfTag> {
+	let parser = specific_literal("if")
+		.preceding(after_spaces(get_range(expression)))
+		.and_also(maybe(tag_body).map(|x| x.unwrap_or(vec![])))
+		.map(|(condition, body)| IfTag { condition, body } );
+
+	parser.parse(state)
+}
+
 fn some_tag(state: ParserState) -> ParserResult<Tag> {
 	let parser = tag_opener.preceding(cut(after_spaces(
 		tag.map(Tag::HtmlTag)
@@ -402,6 +424,7 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
 			.or(plug_call.map(Tag::PlugCall))
 			.or(content_macro.map(|_| Tag::Content))
 			.or(doctype.map(Tag::Doctype))
+			.or(if_tag.map(Tag::If))
 			.followed_by(skipped_blanks().preceding(tag_closer)),
 	)));
 
@@ -414,6 +437,7 @@ fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
 			tag.map(|x| BodyTags::HtmlTag(x.merge_subtags()))
 				.or(macro_call.map(BodyTags::MacroCall))
 				.or(content_macro.map(|_| BodyTags::Content))
+				.or(if_tag.map(BodyTags::If))
 				.followed_by(skipped_blanks().preceding(tag_closer)),
 		)))
 		.or(section_block.map(BodyTags::Section));
@@ -702,6 +726,14 @@ where
 	skip_spaces().preceding(parser)
 }
 
+fn after_blanks<'a, T1, P>(parser: P) -> impl Parser<'a, T1>
+where
+	P: Parser<'a, T1> + 'a,
+	T1: 'a,
+{
+	skipped_blanks().preceding(parser)
+}
+
 fn skipped_blanks<'a>() -> impl Parser<'a, Vec<&'a char>> {
 	zero_or_more(space.or(indent).or(newline))
 }
@@ -960,6 +992,7 @@ pub fn file<'a>(
 			BodyNodes::Content => output.body.push(TopNodes::Content),
 			BodyNodes::Section(_) => todo!("Add sections"),
 			BodyNodes::Doctype(x) => output.body.push(TopNodes::Doctype(x)),
+			BodyNodes::If(x) => output.body.push(TopNodes::If(x)),
 			BodyNodes::SetStmt(config, value) => match config.as_str() {
 				"template" => {
 					let Some(templates) = templates else {

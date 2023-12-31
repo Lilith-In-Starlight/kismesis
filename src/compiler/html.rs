@@ -9,7 +9,7 @@ use super::{
 		state::TokenPos,
 		types::{
 			Attribute, BinFunc, Expression, HtmlNodes, HtmlTag, Macro, PlugCall, Ranged, Scope,
-			Scoped, StringParts, TextPos, TopNodes, UniFunc,
+			Scoped, StringParts, TextPos, TopNodes, UniFunc, IfTag,
 		},
 	},
 };
@@ -180,12 +180,31 @@ fn parse_node<'a>(
 		TopNodes::PlugCall(t) => plug_call(t, state),
 		TopNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
 		TopNodes::Section(_) => Ok(HtmlOutput { val: vec![] }),
+		TopNodes::If(x) => if_tag(x, state),
 		TopNodes::Doctype(string) => {
 			let mut htmlo = HtmlOutput::new();
 			htmlo.push_string(format!("<!DOCTYPE {}>", string));
 			Ok(htmlo)
 		}
 	}
+}
+
+fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
+	let value = calculate_expression(&tag.condition, (&state.variable_scopes, state.scope))?;
+	let mut output = HtmlOutput::new();
+	if value.is_truthy() {
+		let mut errors = Vec::new();
+		for child in tag.body.iter() {
+			output.push_string('\n');
+			match parse_html_child(child, &state) {
+				Ok(mut string) => output.push_output(&mut string),
+				Err(mut error) => errors.append(&mut error),
+			}
+		}
+
+		output.push_string('\n');
+	}
+	Ok(output)
 }
 
 fn parse_html_child<'a>(
@@ -197,6 +216,7 @@ fn parse_html_child<'a>(
 		HtmlNodes::MacroCall(t) => mac_call(t, state),
 		HtmlNodes::PlugCall(t) => plug_call(t, state),
 		HtmlNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
+		HtmlNodes::If(t) => if_tag(t, state),
 		HtmlNodes::String(t) => match parse_kis_string(t, (&state.variable_scopes, state.scope)) {
 			Ok(mut x) => {
 				let mut a = HtmlOutput {
@@ -385,6 +405,9 @@ fn parse_kis_string<'a>(
 				ExpressionValues::Generic => {
 					errors.push(CompilerError::CantWriteGenericValue.state_at(expr.range, state.1))
 				}
+				ExpressionValues::Array(_) => {
+					errors.push(CompilerError::CantWriteArray.state_at(expr.range, state.1))
+				}
 			},
 		}
 	}
@@ -401,6 +424,7 @@ enum ExpressionValues {
 	String(Vec<StringParts>),
 	None,
 	Generic,
+	Array(Vec<Expression>),
 }
 
 #[derive(Clone, Debug)]
@@ -468,11 +492,13 @@ fn calculate_expression<'a>(
 			}
 		}
 		Expression::Literal(x) => Ok(ExpressionValues::String(x.clone())),
+		Expression::Array(x) => Ok(ExpressionValues::Array(x.clone())),
 	}
 }
 
 #[derive(Clone, Debug)]
 pub enum CompilerError {
+	CantWriteArray,
 	ContentTagInOutput,
 	NoDefaultArgDefinedHere,
 	UndefinedVariable,
@@ -498,6 +524,7 @@ impl CompilerError {
 impl ErrorKind for CompilerError {
 	fn get_text(&self) -> String {
 		match self {
+			Self::CantWriteArray => "This computes to an array, which can't be writen into content.".into(),  
 			Self::ContentTagInOutput => {
 				"Can't write this file to output due to having a <content!> tag".into()
 			}

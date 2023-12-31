@@ -149,6 +149,7 @@ pub enum HtmlNodes {
 	String(Vec<StringParts>),
 	PlugCall(Box<PlugCall>),
 	Section(Section),
+	If(IfTag),
 	Content,
 }
 
@@ -160,6 +161,7 @@ pub enum TopNodes {
 	Section(Section),
 	Content,
 	Doctype(String),
+	If(IfTag),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -168,6 +170,7 @@ pub enum BodyTags {
 	MacroCall(Macro),
 	PlugCall(Box<PlugCall>),
 	Section(Section),
+	If(IfTag),
 	Content,
 }
 
@@ -180,6 +183,7 @@ pub enum Tag {
 	Section(Section),
 	Content,
 	Doctype(String),
+	If(IfTag),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -195,6 +199,7 @@ pub enum BodyNodes {
 	SetStmt(String, String),
 	Section(Section),
 	Doctype(String),
+	If(IfTag),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -342,6 +347,7 @@ impl From<Tag> for BodyNodes {
 			Tag::Section(x) => Self::Section(x),
 			Tag::Content => Self::Content,
 			Tag::Doctype(x) => Self::Doctype(x),
+			Tag::If(x) => Self::If(x),
 		}
 	}
 }
@@ -354,6 +360,7 @@ impl From<BodyTags> for BodyNodes {
 			BodyTags::PlugCall(x) => Self::PlugCall(x),
 			BodyTags::Section(x) => Self::Section(x),
 			BodyTags::Content => Self::Content,
+			BodyTags::If(x) => Self::If(x),
 		}
 	}
 }
@@ -366,6 +373,7 @@ impl From<BodyTags> for HtmlNodes {
 			BodyTags::PlugCall(x) => Self::PlugCall(x),
 			BodyTags::Content => Self::Content,
 			BodyTags::Section(x) => Self::Section(x),
+			BodyTags::If(x) => Self::If(x),
 		}
 	}
 }
@@ -388,6 +396,7 @@ pub enum Expression {
 	Literal(Vec<StringParts>),
 	BinFunc(BinFunc, Box<Ranged<Expression>>, Box<Ranged<Expression>>),
 	UniFunc(UniFunc, Box<Ranged<Expression>>),
+	Array(Vec<Expression>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -417,7 +426,7 @@ impl Ranged<&str> {
 	}
 }
 
-pub trait AstNode {
+/*pub trait AstNode {
 	fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>>;
 }
 
@@ -471,8 +480,8 @@ impl AstNode for Ranged<Expression> {
 		}
 	}
 }
-
-impl AstNode for HtmlTag {
+*/
+/*impl AstNode for HtmlTag {
 	fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
 		self.body
 			.iter()
@@ -480,8 +489,8 @@ impl AstNode for HtmlTag {
 			.collect()
 	}
 }
-
-impl AstNode for HtmlNodes {
+*/
+/*impl AstNode for HtmlNodes {
 	fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
 		match self {
 			HtmlNodes::HtmlTag(x) => x.find_undefined_vars(defined),
@@ -489,11 +498,12 @@ impl AstNode for HtmlNodes {
 			HtmlNodes::String(x) => x.find_undefined_vars(defined),
 			HtmlNodes::Section(_) => todo!("undefined vars in body"),
 			HtmlNodes::PlugCall(_) => Vec::new(),
+			HtmlNodes::If(x) => x.body.find_unde
 			Self::Content => Vec::new(),
 		}
 	}
 }
-
+*/
 #[derive(Clone, Debug)]
 pub enum TextPos {
 	Single(TokenPos),
@@ -565,4 +575,10 @@ impl HtmlTag {
 
 		self
 	}
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct IfTag {
+	pub condition: Ranged<Expression>,
+	pub body: Vec<HtmlNodes>
 }
