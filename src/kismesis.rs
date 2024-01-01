@@ -1,44 +1,113 @@
-use std::{path::{Path, PathBuf}, io, fs};
+use std::{path::{PathBuf, Path}, io, fs, collections::HashMap};
 
-use crate::compiler::{parser::{types::{ParsedFile, Scoped}, errors::Err, self}, html::{ScopedError, CompilerError}, lexer::{self, Token}};
+use crate::compiler::{html::CompilerError, parser::{types::ParsedFile, self, errors::Err}, lexer::{self, Token}};
 
-enum Error<'a> {
+pub type KisResult<T> = Result<T, KismesisError>;
+
+pub enum KismesisError {
 	IOError(io::Error, PathBuf),
+	ParseError(Err, KisID),
 	NoTemplateError,
-	CompileError(ScopedError<'a, CompilerError>),
-	ParsingError((Err, PathBuf, &'a [Token])),
+	CompileError(ScopedError<CompilerError>),
 }
 
-struct Kismesis<'a> {
-	templates: Vec<ParsedFile<'a>>,
-	inputs: Vec<ParsedFile<'a>>,
+pub struct FileRef {
+	pub tokens: Vec<Token>,
+	pub path: Option<PathBuf>,
 }
 
-impl<'a> Kismesis<'a> {
-	pub fn register_template(&mut self, path: PathBuf) -> Result<(), Error> {
-		let text = match fs::read_to_string(&path) {
-			Err(x) => {
-				return Err(Error::IOError(x, path));
-			},
-			Ok(x) => x,
-		};
+pub struct Kismesis {
+	tokens: Vec<FileRef>,
+	templates: HashMap<KisTemplateID, ParsedFile>,
+}
 
-		let tokens = lexer::tokenize(&text);
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct KisID(usize);
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum KisTemplateID {
+	Input(usize),
+	File(PathBuf),
+}
 
-		match parser::file(tokens, Some(path.clone())) {
-			Ok(x) => self.templates.push(x),
-			Err(x) => return Err(Error::ParsingError((x.0, (&x.1, Some(path))))),
+impl Kismesis {
+	pub fn new() -> Self {
+		Self {
+			tokens: vec![],
+			templates: HashMap::new(),
 		}
-
-		Ok(())
 	}
-
-	pub fn generate_output(&mut self) -> Result<(), Error> {
-		let Some(main_template) = self.templates.iter().find(|x| x.path == Some(PathBuf::from("templates/main.ks")))
-		else {
-			return Err(Error::NoTemplateError)
+	pub fn register_tokens(&mut self, tokens: Vec<Token>, path: Option<PathBuf>) -> KisID {
+		self.tokens.push(FileRef { tokens, path });
+		KisID(self.tokens.len() - 1)
+	}
+	pub fn register_file(&mut self, path: PathBuf) -> KisResult<ParsedFile> {
+		let text = fs::read_to_string(&path).map_err(|x| KismesisError::IOError(x, path.clone()))?;
+		let tokens = lexer::tokenize(&text);
+		let tokens = self.register_tokens(tokens, Some(path));
+		let file = parser::file(tokens, self, None).map_err(|x| KismesisError::ParseError(x, tokens))?;
+		Ok(file)
+	}
+	pub fn register_template(&mut self, file: ParsedFile) -> KisTemplateID {
+		let output_id = match self.get_file(file.file_id).and_then(|x| x.path.clone()) {
+			Some(path) => KisTemplateID::File(path),
+			None => KisTemplateID::Input(self.templates.len()),
 		};
+		self.templates.insert(output_id.clone(), file);
+		output_id
+	}
+	pub fn get_template<'a, 'b, T>(&'a self, id: T) -> Option<&'a ParsedFile>
+	where
+		T: Into<KisTemplateID>
+	{
+		self.templates.get(&id.into())
+	}
+	pub fn verify_template_id<T>(&self, id: T) -> Option<KisTemplateID>
+	where
+		T: Into<KisTemplateID>
+	{
+		let id = id.into();
+		if self.has_template(id.clone()) {
+			Some(id)
+		} else {
+			None
+		}
+	}
+	pub fn has_template<T>(&self, id: T) -> bool
+	where
+		T: Into<KisTemplateID>
+	{
+		self.templates.get(&id.into()).is_some()
+	}
+	pub fn get_file(&self, id: KisID) -> Option<&FileRef> {
+		self.tokens.get(id.0)
+	}
+}
 
-		Ok(())
+pub struct ScopedError<T> {
+	kind: T,
+	file: KisID,
+}
+
+impl From<PathBuf> for KisTemplateID {
+	fn from(val: PathBuf) -> KisTemplateID {
+		KisTemplateID::File(val)
+	}
+}
+
+impl From<&Path> for KisTemplateID {
+	fn from(val: &Path) -> KisTemplateID {
+		KisTemplateID::File(val.to_path_buf())
+	}
+}
+
+impl From<&str> for KisTemplateID {
+	fn from(val: &str) -> KisTemplateID {
+		KisTemplateID::File(PathBuf::from(val))
+	}
+}
+
+impl From<&KisTemplateID> for KisTemplateID {
+	fn from(val: &KisTemplateID) -> KisTemplateID {
+		val.clone()
 	}
 }

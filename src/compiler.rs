@@ -1,9 +1,10 @@
 use std::{
-	collections::HashMap,
 	fs::{self, File},
 	io::{self, Write},
 	path::{Path, PathBuf},
 };
+
+use crate::kismesis::{Kismesis, KismesisError};
 
 use self::{options::Settings, reporting::DrawingInfo};
 
@@ -19,34 +20,20 @@ pub enum Error {
 	NoMainTemplate,
 	OutputNotInOutputFolder(PathBuf),
 	TemplateInOutputFolder(PathBuf),
+	EngineError(KismesisError)
 }
 
 pub fn compile_project() {
 	let mut errors = Vec::new();
+	let mut engine =  Kismesis::new();
 
 	let main_template_path = PathBuf::from("templates/main.ks");
 	let template_paths = recursive_crawl(&PathBuf::from("templates")).0;
-	let mut template_files = HashMap::new();
-	for path in template_paths.iter() {
-		let input_string = match fs::read_to_string(path) {
-			Ok(input_string) => input_string,
-			Err(error) => {
-				errors.push(Error::IOError(error, path.clone()));
-				continue;
-			}
-		};
-		let tokens = lexer::tokenize(&input_string);
-		match parser::file(tokens, Some(path.clone()), None, None) {
-			Ok(parsed_file) => {
-				template_files.insert(path.clone(), parsed_file);
-			}
-			Err(error) => eprintln!(
-				"{}",
-				reporting::draw_error(
-					&error.0.unpack(),
-					&DrawingInfo::from((&error.1, Some(&path)))
-				)
-			),
+
+	for path in template_paths {
+		match engine.register_file(path) {
+			Ok(x) => {engine.register_template(x);},
+			Err(x) => errors.push(Error::EngineError(x)),
 		}
 	}
 
@@ -55,7 +42,7 @@ pub fn compile_project() {
 		return;
 	}
 
-	let Some(main_template) = template_files.get(&main_template_path) else {
+	let Some(main_template_id) = engine.verify_template_id(main_template_path) else {
 		errors.push(Error::NoMainTemplate);
 		report_errors(errors);
 		return;
@@ -63,29 +50,13 @@ pub fn compile_project() {
 	let input_paths = recursive_crawl(&PathBuf::from("input")).0;
 	let mut input_files = Vec::new();
 
-	for path in input_paths.iter() {
-		let input_string = match fs::read_to_string(path) {
-			Ok(input_string) => input_string,
-			Err(error) => {
-				errors.push(Error::IOError(error, path.clone()));
-				continue;
-			}
-		};
-		let tokens = lexer::tokenize(&input_string);
-		match parser::file(
-			tokens,
-			Some(path.clone()),
-			Some(&main_template),
-			Some(&template_files),
-		) {
+	for path in input_paths {
+		match engine.register_file(path) {
 			Ok(mut x) => {
-				x.template = Some(&main_template);
+				x.template = Some(main_template_id.clone());
 				input_files.push(x);
 			}
-			Err(x) => eprintln!(
-				"{}",
-				reporting::draw_error(&x.0.unpack(), &DrawingInfo::from((&x.1, Some(&path))))
-			),
+			Err(x) => errors.push(Error::EngineError(x)),
 		}
 	}
 
@@ -96,10 +67,10 @@ pub fn compile_project() {
 
 	let settings = Settings::new();
 	for file in input_files.iter() {
-		match html::generate_html(&file, vec![], &settings) {
+		match html::generate_html(&file, vec![], &settings, &engine) {
 			Ok(x) => {
 				let output_path = PathBuf::from("output");
-				if let Some(path) = &file.path {
+				if let Some(path) = &engine.get_file(file.file_id).unwrap().path {
 					let mut output_path =
 						output_path.join::<PathBuf>(path.iter().skip(1).collect());
 					output_path.set_extension("html");
@@ -138,7 +109,7 @@ pub fn compile_project() {
 			}
 			Err(errors) => {
 				for error in errors {
-					eprintln!("{}", reporting::draw_scoped_error(&error));
+					eprintln!("{}", reporting::draw_scoped_error(&error, &engine));
 				}
 			}
 		}
@@ -182,6 +153,7 @@ pub fn report_errors(errors: Vec<Error>) {
             Error::NoMainTemplate => eprintln!("Coudln't compile project because it doesn't have a template in templates/main.ks"),
             Error::OutputNotInOutputFolder(path) => eprintln!("Tried to output {} to a location outside the project's output folder.\n\nThis is meant to be impossible, please contact the developer at https://ampersandia.net/", path.to_string_lossy()),
             Error::TemplateInOutputFolder(path) => eprintln!("{} is a template, but it is in the input folder", path.to_string_lossy()),
+			Error::EngineError(_) => todo!(),
         }
 	}
 }

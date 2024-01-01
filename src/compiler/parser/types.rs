@@ -1,14 +1,13 @@
 use std::{
 	collections::HashMap,
-	path::{Path, PathBuf},
+	path::Path,
 };
 
-use crate::compiler::lexer::Token;
+use crate::{compiler::lexer::Token, kismesis::{KisID, KisTemplateID, Kismesis}};
 
 use super::state::TokenPos;
 
-pub type Scoped<'a, T> = (T, Scope<'a>);
-pub type Scope<'a> = (&'a [Token], Option<&'a Path>);
+pub type Scoped<'a, T> = (T, KisID);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StringParts {
@@ -208,14 +207,13 @@ pub enum BodyNodes {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParsedFile<'a> {
-	pub local_tokens: Vec<Token>,
+pub struct ParsedFile {
+	pub file_id: KisID,
 	pub body: Vec<TopNodes>,
 	pub defined_macros: Vec<Macro>,
 	pub defined_variables: Vec<Variable>,
 	pub defined_lambdas: Vec<Lambda>,
-	pub template: Option<&'a ParsedFile<'a>>,
-	pub path: Option<PathBuf>,
+	pub template: Option<KisTemplateID>,
 }
 
 pub enum VariableOption<T> {
@@ -224,31 +222,30 @@ pub enum VariableOption<T> {
 	Unset, // The variable was found, but it's not set
 }
 
-impl<'a> ParsedFile<'a> {
-	pub fn new(local_tokens: Vec<Token>, path: Option<PathBuf>) -> Self {
+impl ParsedFile {
+	pub fn new(file_id: KisID) -> Self {
 		Self {
-			local_tokens,
+			file_id,
 			body: vec![],
 			defined_macros: vec![],
 			defined_variables: vec![],
 			defined_lambdas: vec![],
 			template: None,
-			path,
 		}
 	}
 
-	pub fn get_macro_template(&self, predicate: impl Fn(&&Macro) -> bool) -> Option<&Macro> {
+	pub fn get_macro_template<'a>(&'a self, engine: &'a Kismesis, predicate: impl Fn(&&Macro) -> bool) -> Option<&Macro> {
 		self.defined_macros.iter().rfind(&predicate).or(self
-			.template
-			.map(|x| x.get_macro_template(&predicate))
+			.template.as_ref()
+			.map(|x| engine.get_template(x.clone()).unwrap().get_macro_template(engine, &predicate))
 			.unwrap_or(None))
 	}
 
-	pub fn get_path_slice(&self) -> Option<&Path> {
-		self.path.as_ref().map(|x| x.as_path())
+	pub fn get_path_slice<'a>(&'a self, engine: &'a Kismesis) -> Option<&Path> {
+		engine.get_file(self.file_id).unwrap().path.as_ref().map(|x| x.as_path())
 	}
 
-	pub fn get_variable_value(&self, predicate: &str) -> VariableOption<&Ranged<Expression>> {
+	pub fn get_variable_value<'a>(&'a self, engine: &'a Kismesis, predicate: &str) -> VariableOption<&Ranged<Expression>> {
 		for var in self.defined_variables.iter() {
 			if var.name == predicate {
 				return VariableOption::Some(&var.value);
@@ -265,35 +262,36 @@ impl<'a> ParsedFile<'a> {
 		}
 
 		match self.template {
-			Some(template) => template.get_variable_value(predicate),
+			Some(ref template) => engine.get_template(template.clone()).unwrap().get_variable_value(engine, predicate),
 			None => VariableOption::None,
 		}
 	}
 
-	pub fn get_macro_scope(&self) -> HashMap<String, Scoped<&Macro>> {
+	pub fn get_macro_scope<'a>(&'a self, engine: &'a Kismesis) -> HashMap<String, Scoped<&Macro>> {
 		let mut output = HashMap::new();
-		if let Some(template) = self.template {
-			output.extend(template.get_macro_scope())
+		if let Some(ref template) = self.template {
+			output.extend(engine.get_template(template.clone()).unwrap().get_macro_scope(engine))
 		}
 
 		output.extend(self.defined_macros.iter().map(|x| {
 			(
 				x.name.value.clone(),
-				(x, (self.local_tokens.as_slice(), self.get_path_slice())),
+				(x, self.file_id),
 			)
 		}));
 
 		output
 	}
 
-	pub fn get_variable_scope(
+	pub fn get_variable_scope<'a>(
 		&'a self,
 		sub_scope: &[&'a ParsedFile],
-	) -> HashMap<String, Scoped<Option<&'a Ranged<Expression>>>> {
+		engine: &'a Kismesis,
+	) -> HashMap<String, Scoped<Option<&Ranged<Expression>>>> {
 		let mut out = HashMap::new();
 
-		if let Some(template) = self.template {
-			out.extend(template.get_variable_scope(&[]))
+		if let Some(ref template) = self.template {
+			out.extend(engine.get_template(template.clone()).unwrap().get_variable_scope(&[], engine))
 		}
 
 		out.extend(self.defined_lambdas.iter().map(|x| {
@@ -305,7 +303,7 @@ impl<'a> ParsedFile<'a> {
 							find.name.clone(),
 							(
 								Some(&find.value),
-								(scope.local_tokens.as_slice(), scope.get_path_slice()),
+								self.file_id,
 							),
 						);
 					}
@@ -314,7 +312,7 @@ impl<'a> ParsedFile<'a> {
 					x.name.clone(),
 					(
 						x.value.as_ref(),
-						(self.local_tokens.as_slice(), self.get_path_slice()),
+						self.file_id,
 					),
 				)
 			} else {
@@ -322,7 +320,7 @@ impl<'a> ParsedFile<'a> {
 					x.name.clone(),
 					(
 						x.value.as_ref(),
-						(self.local_tokens.as_slice(), self.get_path_slice()),
+						self.file_id,
 					),
 				)
 			}
@@ -333,7 +331,7 @@ impl<'a> ParsedFile<'a> {
 				x.name.clone(),
 				(
 					Some(&x.value),
-					(self.local_tokens.as_slice(), self.get_path_slice()),
+					self.file_id,
 				),
 			)
 		}));
@@ -544,7 +542,7 @@ impl TextPos {
 impl Macro {
 	pub fn get_argument_scope<'a>(
 		&'a self,
-		scope: Scope<'a>,
+		scope: KisID,
 	) -> HashMap<String, Scoped<Option<&Ranged<Expression>>>> {
 		let mut output = HashMap::new();
 

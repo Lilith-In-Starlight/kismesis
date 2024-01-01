@@ -4,11 +4,11 @@ pub(crate) mod state;
 pub(crate) mod types;
 
 use combinators::*;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
 use crate::compiler::lexer::Token;
+use crate::kismesis::{Kismesis, KisID, KisTemplateID};
 
 use self::errors::{Err, ParseError};
 use self::state::ParserState;
@@ -923,11 +923,10 @@ fn argument(state: ParserState) -> ParserResult<Argument> {
 }
 
 pub fn file<'a>(
-	tokens: Vec<Token>,
-	path: Option<PathBuf>,
-	default_template: Option<&'a ParsedFile>,
-	templates: Option<&'a HashMap<PathBuf, ParsedFile>>,
-) -> Result<ParsedFile<'a>, (Err, Vec<Token>)> {
+	tokens_id: KisID,
+	engine: &Kismesis,
+	default_template: Option<KisTemplateID>,
+) -> Result<ParsedFile, Err> {
 	let parser = zero_or_more(
 		skipped_blanks().preceding(
 			some_tag
@@ -945,16 +944,16 @@ pub fn file<'a>(
 	.followed_by(skipped_blanks())
 	.followed_by(eof.or(ignore(tag_closer)));
 
-	let state = ParserState::new(&tokens);
+	let state = ParserState::new(&engine.get_file(tokens_id).unwrap().tokens);
 	let ast_nodes = match parser.parse(state) {
 		Ok((val, _)) => val,
 		Err(err) => {
 			drop(parser);
-			return Err((err, tokens));
+			return Err(err);
 		}
 	};
 	drop(parser);
-	let mut output = ParsedFile::new(tokens, path);
+	let mut output = ParsedFile::new(tokens_id);
 	output.template = default_template;
 	for node in ast_nodes {
 		match node {
@@ -972,12 +971,9 @@ pub fn file<'a>(
 			BodyNodes::For(x) => output.body.push(TopNodes::For(x)),
 			BodyNodes::SetStmt(config, value) => match config.as_str() {
 				"template" => {
-					let Some(templates) = templates else {
-						panic!("Tried to set template in a template");
-					};
 					let mut value = PathBuf::from(value);
 					value.set_extension("ks");
-					match templates.get(&value) {
+					match engine.verify_template_id(value) {
 						Some(template) => output.template = Some(template),
 						None => panic!("Template does not exist"),
 					}

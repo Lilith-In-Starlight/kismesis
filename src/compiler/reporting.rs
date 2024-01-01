@@ -1,24 +1,27 @@
 use std::fmt::Debug;
 
+use crate::kismesis::{KisID, Kismesis, FileRef};
+
 use super::{
 	errors::{ErrorKind, ErrorState},
 	html::ScopedError,
 	lexer::Token,
-	parser::{state::TokenPos, types::Scope},
+	parser::state::TokenPos,
 };
 use colored::*;
 
 pub struct DrawingInfo<'a> {
 	pub(crate) line_number_length: usize,
-	pub(crate) scope: Scope<'a>,
+	pub(crate) scope: &'a FileRef,
 	pub(crate) lines: Vec<(usize, &'a [Token])>,
 	pub(crate) line_offset: (usize, usize),
 }
 
 impl<'a> DrawingInfo<'a> {
-	pub fn from(scope: Scope<'a>) -> Self {
+	pub fn from(scope: KisID, engine :&'a Kismesis) -> Self {
+		let scope = engine.get_file(scope).unwrap();
 		let lines: Vec<&[Token]> = scope
-			.0
+			.tokens
 			.split_inclusive(|x| matches!(x, Token::Newline(_)))
 			.collect();
 		let lines = {
@@ -61,8 +64,8 @@ pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo)
 
 	output.push_str(&" ERROR ".black().on_red().to_string());
 	output.push_str(&" in `".black().on_red().to_string());
-	match info.scope.1 {
-		Some(path) => {
+	match info.scope.path {
+		Some(ref path) => {
 			output.push_str(
 				&path
 					.to_string_lossy()
@@ -153,6 +156,6 @@ fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
 	output
 }
 
-pub fn draw_scoped_error<T: ErrorKind + Debug>(err: &ScopedError<T>) -> String {
-	draw_error(&err.error, &DrawingInfo::from(err.scope))
+pub fn draw_scoped_error<T: ErrorKind + Debug>(err: &ScopedError<T>, engine: &Kismesis) -> String {
+	draw_error(&err.error, &DrawingInfo::from(err.scope, engine))
 }

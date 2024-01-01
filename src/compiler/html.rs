@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::compiler::parser::types::ParsedFile;
+use crate::{compiler::parser::types::ParsedFile, kismesis::{KisID, Kismesis}};
 
 use super::{
 	errors::{ErrorKind, ErrorState},
@@ -8,13 +8,13 @@ use super::{
 	parser::{
 		state::TokenPos,
 		types::{
-			Attribute, BinFunc, Expression, HtmlNodes, HtmlTag, Macro, PlugCall, Ranged, Scope,
+			Attribute, BinFunc, Expression, HtmlNodes, HtmlTag, Macro, PlugCall, Ranged,
 			Scoped, StringParts, TextPos, TopNodes, UniFunc, IfTag, ForTag,
 		},
 	},
 };
 
-type CompileResult<'a, T> = Result<T, Vec<ScopedError<'a, CompilerError>>>;
+type CompileResult<'a, T> = Result<T, Vec<ScopedError<CompilerError>>>;
 
 #[derive(Clone, Debug)]
 enum OutputTypes {
@@ -87,7 +87,7 @@ struct GenerationState<'a> {
 	variable_scopes: VariableScope<'a>,
 	macro_templates: HashMap<String, Scoped<'a, &'a Macro>>,
 	indent: usize,
-	scope: Scope<'a>,
+	scope: KisID,
 }
 
 type ValueRef<'a> = Scoped<'a, Option<&'a Ranged<Expression>>>;
@@ -99,13 +99,14 @@ impl<'a> GenerationState<'a> {
 		file: &'a ParsedFile,
 		sub_scopes: &[&'a ParsedFile],
 		options: &'a Settings,
+		engine: &'a Kismesis,
 	) -> Self {
 		Self {
 			options,
-			variable_scopes: file.get_variable_scope(&sub_scopes),
-			macro_templates: file.get_macro_scope(),
+			variable_scopes: file.get_variable_scope(&sub_scopes, engine),
+			macro_templates: file.get_macro_scope(engine),
 			indent: 0,
-			scope: (&file.local_tokens, file.get_path_slice()),
+			scope: file.file_id,
 		}
 	}
 }
@@ -114,8 +115,9 @@ pub fn generate_html<'a>(
 	file: &'a ParsedFile,
 	sub_scopes: Vec<&'a ParsedFile>,
 	options: &'a Settings,
+	engine: &Kismesis,
 ) -> CompileResult<'a, HtmlOutput> {
-	let state = GenerationState::from(file, &sub_scopes, options);
+	let state = GenerationState::from(file, &sub_scopes, options, engine);
 	let mut errors = Vec::new();
 	let mut output = HtmlOutput::new();
 	for node in file.body.iter() {
@@ -132,10 +134,10 @@ pub fn generate_html<'a>(
 		return Err(errors);
 	}
 
-	if let Some(template) = file.template {
+	if let Some(template) = file.template.as_ref().and_then(|x| engine.get_template(x.clone())) {
 		let mut next_scopes = sub_scopes;
 		next_scopes.push(file);
-		let template_output = generate_html(template, next_scopes, options)?;
+		let template_output = generate_html(template, next_scopes, options, engine)?;
 		output.val = template_output
 			.val
 			.into_iter()
@@ -416,7 +418,7 @@ fn attribute_string<'a>(
 
 fn parse_kis_string<'a>(
 	string: &[StringParts],
-	state: (&VariableScope<'a>, Scope<'a>),
+	state: (&VariableScope<'a>, KisID),
 ) -> CompileResult<'a, HtmlOutput> {
 	let mut output = HtmlOutput::new();
 	let mut errors = Vec::new();
@@ -457,9 +459,9 @@ enum ExpressionValues {
 }
 
 #[derive(Clone, Debug)]
-pub struct ScopedError<'a, T> {
+pub struct ScopedError<T> {
 	pub error: ErrorState<T>,
-	pub scope: Scope<'a>,
+	pub scope: KisID,
 }
 
 impl ExpressionValues {
@@ -470,7 +472,7 @@ impl ExpressionValues {
 
 fn calculate_expression<'a>(
 	expr: &Ranged<Expression>,
-	state: (&VariableScope<'a>, Scope<'a>),
+	state: (&VariableScope<'a>, KisID),
 ) -> CompileResult<'a, ExpressionValues> {
 	match &expr.value {
 		Expression::BinFunc(func, exp1, exp2) => {
@@ -538,7 +540,7 @@ pub enum CompilerError {
 }
 
 impl CompilerError {
-	fn state_at(self, pos: (TokenPos, TokenPos), scope: Scope) -> ScopedError<Self> {
+	fn state_at(self, pos: (TokenPos, TokenPos), scope: KisID) -> ScopedError<Self> {
 		ScopedError {
 			error: ErrorState {
 				error: self,
