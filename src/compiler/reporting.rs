@@ -6,7 +6,7 @@ use super::{
 	errors::{ErrorKind, ErrorState},
 	html::ScopedError,
 	lexer::Token,
-	parser::state::TokenPos,
+	parser::{state::TokenPos, errors::Hint},
 };
 use colored::*;
 
@@ -42,7 +42,7 @@ impl<'a> DrawingInfo<'a> {
 	}
 }
 
-pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo) -> String {
+pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo, engine: &Kismesis) -> String {
 	let minimum_line = {
 		let x = err.text_position.get_start_line();
 		if x < info.line_offset.0 {
@@ -75,6 +75,67 @@ pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo)
 					.to_string(),
 			);
 			output.push_str(&"` ".black().on_red().to_string());
+		}
+		None => output.push_str(&"input` ".black().on_red().to_string()),
+	}
+	output.push('\n');
+
+	for line_number in minimum_line..=maximum_line {
+		if let Some(string) = draw_line(line_number, err, info) {
+			output.push_str(&string);
+			output.push('\n');
+		}
+	}
+
+	for x in err.hints.iter() {
+		match x {
+			Hint::Stateful(x) => output.push_str(&draw_hint(&x.error, &DrawingInfo::from(x.scope, engine))),
+			Hint::Stateless(x) => {
+				output.push_str(&format!("Hint: {}", x.get_text()))
+			}
+		}
+	}
+
+	if !err.text_position.is_one_line() {
+		output.push_str(&format!("\n{}", err.error.get_text()));
+	}
+
+	output
+}
+
+pub fn draw_hint<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo) -> String {
+	let minimum_line = {
+		let x = err.text_position.get_start_line();
+		if x < info.line_offset.0 {
+			0
+		} else {
+			x - info.line_offset.0
+		}
+	};
+	let maximum_line = {
+		let x = err.text_position.get_end_line();
+		if x > info.lines.len() - info.line_offset.1 {
+			info.lines.len()
+		} else {
+			x + info.line_offset.1
+		}
+	};
+
+	let mut output = String::new();
+
+	output.push_str(&" HINT ".black().on_yellow().to_string());
+	output.push_str(&" in `".black().on_yellow().to_string());
+	match info.scope.path {
+		Some(ref path) => {
+			output.push_str(
+				&path
+					.to_string_lossy()
+					.to_string()
+					.black()
+					.on_yellow()
+					.to_string(),
+			);
+			output.push_str(&"` ".black().on_yellow().to_string());
 		}
 		None => output.push_str(&"input` ".black().on_red().to_string()),
 	}
@@ -157,5 +218,6 @@ fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
 }
 
 pub fn draw_scoped_error<T: ErrorKind + Debug>(err: &ScopedError<T>, engine: &Kismesis) -> String {
-	draw_error(&err.error, &DrawingInfo::from(err.scope, engine))
+	draw_error(&err.error, &DrawingInfo::from(err.scope, engine), engine)
 }
+

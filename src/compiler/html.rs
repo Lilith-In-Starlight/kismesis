@@ -10,7 +10,7 @@ use super::{
 		types::{
 			Attribute, BinFunc, Expression, HtmlNodes, HtmlTag, Macro, PlugCall, Ranged,
 			Scoped, StringParts, TextPos, TopNodes, UniFunc, IfTag, ForTag,
-		},
+		}, errors::{Hint, Hintable, Hints},
 	},
 };
 
@@ -256,11 +256,8 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 				None => {
 					errors.push(
 						CompilerError::UnsetArgNoDefault(arg.0.clone())
-							.state_at(mac.name.range, state.scope),
-					);
-					errors.push(
-						CompilerError::NoDefaultArgDefinedHere
-							.state_at(template.0.name.range, template.1),
+							.state_at(mac.name.range, state.scope)
+							.with_hint(Hints::ArgumentDefinedHere.with_state_at(TextPos::Range(template.0.name.range), template.1))
 					);
 				}
 				Some(value) => {
@@ -458,10 +455,16 @@ enum ExpressionValues {
 	Array(Vec<Expression>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ScopedError<T> {
 	pub error: ErrorState<T>,
 	pub scope: KisID,
+}
+
+impl<T> Hintable for ScopedError<T> {
+	fn add_hint(&mut self, hint: Hint) {
+        self.error.hints.push(hint);
+    }
 }
 
 impl ExpressionValues {
@@ -544,7 +547,7 @@ impl CompilerError {
 		ScopedError {
 			error: ErrorState {
 				error: self,
-				previous_errors: vec![],
+				hints: vec![],
 				text_position: TextPos::Range(pos),
 			},
 			scope,

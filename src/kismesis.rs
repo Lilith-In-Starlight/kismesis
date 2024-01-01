@@ -7,8 +7,6 @@ pub type KisResult<T> = Result<T, KismesisError>;
 pub enum KismesisError {
 	IOError(io::Error, PathBuf),
 	ParseError(Err, KisID),
-	NoTemplateError,
-	CompileError(ScopedError<CompilerError>),
 }
 
 pub struct FileRef {
@@ -111,3 +109,4 @@ impl From<&KisTemplateID> for KisTemplateID {
 		val.clone()
 	}
 }
+

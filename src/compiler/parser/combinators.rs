@@ -41,7 +41,7 @@ where
 			match p2.parse(state.clone()) {
 				Ok((_, next_state)) => {
 					if found.is_empty() {
-						return Err(ParseError::EmptyString.state_at(&next_state))
+						return Err(ParseError::EmptyString.error_at(&next_state))
 					} else {
 						return Ok((found, state))
 					}
@@ -51,7 +51,7 @@ where
 						found.push(val);
 						state = next_state;
 					}
-					Err(_) => return Err(ParseError::ConditionUnmet.state_at(&state)),
+					Err(_) => return Err(ParseError::ConditionUnmet.error_at(&state)),
 				}
 			}
 		}
@@ -150,7 +150,7 @@ where
 				Bound::Unbounded => Bound::<usize>::Unbounded,
 			};
 
-			Err(ParseError::NotInRange(start, end).state_at(&state))
+			Err(ParseError::NotInRange(start, end).error_at(&state))
 		}
 	}
 }
@@ -192,7 +192,7 @@ where
 	move |state: ParserState<'a>| match parser.parse(state.clone()) {
 		Err(Err::Error(_)) => Ok(((), state)),
 		Err(Err::Failure(x)) => Err(Err::Failure(x)),
-		Ok((_, state)) => Err(ParseError::ConditionUnmet.state_at(&state)),
+		Ok((_, state)) => Err(ParseError::ConditionUnmet.error_at(&state)),
 	}
 }
 
@@ -249,7 +249,7 @@ where
 		if fun(&val) {
 			Ok((val, state))
 		} else {
-			Err(ParseError::ConditionUnmet.state_at(&state))
+			Err(ParseError::ConditionUnmet.error_at(&state))
 		}
 	}
 }

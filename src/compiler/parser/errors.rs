@@ -1,6 +1,6 @@
 use std::ops::Bound;
 
-use crate::compiler::errors::{ErrorKind, ErrorState};
+use crate::{compiler::{errors::{ErrorKind, ErrorState}, html::ScopedError}, kismesis::KisID};
 
 use super::{state::ParserState, types::TextPos};
 
@@ -81,13 +81,52 @@ impl Err {
 	}
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum Hints {
+	ArgumentDefinedHere,
+}
+
+impl ErrorKind for Hints {
+	fn get_text(&self) -> String {
+        match self {
+			Self::ArgumentDefinedHere => "Argument defined here".into(),
+		}
+    }
+}
+
+impl Hints {
+	pub fn with_state_at(self, state: TextPos, scope: KisID) -> Hint {
+		Hint::Stateful(ScopedError { error: ErrorState { error: self, text_position: state, hints: vec![] }, scope})
+	}
+	pub fn stateless(self) -> Hint {
+		Hint::Stateless(self)
+	}
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Hint {
+	Stateful(ScopedError<Hints>),
+	Stateless(Hints),
+}
+
+pub trait Hintable where Self: Sized {
+	fn add_hint(&mut self, hint: Hint);
+	fn with_hint(mut self, hint: Hint) -> Self {
+		self.add_hint(hint);
+		self
+	}
+}
+
 impl ParseError {
-	pub(crate) fn state_at(self, state: &ParserState) -> Err {
+	/// Unlike the implementation in ErrorKind, this method outputs an [`Err`],
+	/// containing information about when the parser should stop considering
+	/// options and simply should crash
+	pub(crate) fn error_at(self, state: &ParserState) -> Err {
 		let pos = state.position;
 		Err::Error(ErrorState {
 			error: self,
 			text_position: TextPos::Single(pos),
-			previous_errors: state.clone().errors,
+			hints: vec![],
 		})
 	}
 }

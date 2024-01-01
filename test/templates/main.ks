@@ -16,3 +16,5 @@ lambda title
         <content!>
     >
 >
+
+<macro test arg>

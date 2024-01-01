@@ -149,66 +149,66 @@ impl<'a, T> Parser<'a, T> for BoxedParser<'a, T> {
 // Parsers
 fn quote_mark(state: ParserState) -> ParserResult<&char> {
 	match specific_symbol('\'').or(specific_symbol('"')).parse(state.clone()) {
-		Err(_) => Err(ParseError::NotQuoteMark.state_at(&state)),
+		Err(_) => Err(ParseError::NotQuoteMark.error_at(&state)),
 		ok => ok,
 	}
 }
 
 fn tag_opener(state: ParserState) -> ParserResult<&char> {
 	match specific_symbol('<').parse(state.open_tag()) {
-		Err(_) => Err(ParseError::ExpectedTagOpener.state_at(&state)),
+		Err(_) => Err(ParseError::ExpectedTagOpener.error_at(&state)),
 		Ok((char, state)) => Ok((char, state)),
 	}
 }
 
 fn subtag_opener(state: ParserState) -> ParserResult<&char> {
 	match specific_symbol('+').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedTagOpener.state_at(&state)),
+		Err(_) => Err(ParseError::ExpectedTagOpener.error_at(&state)),
 		ok => ok,
 	}
 }
 
 fn tag_closer(state: ParserState) -> ParserResult<&char> {
 	match specific_symbol('>').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedTagCloser.state_at(&state)),
+		Err(_) => Err(ParseError::ExpectedTagCloser.error_at(&state)),
 		Ok((val, next_state)) => match next_state.close_tag() {
 			Ok(x) => Ok((val, x)),
-			Err(x) => Err(x.state_at(&state)),
+			Err(x) => Err(x.error_at(&state)),
 		},
 	}
 }
 
 fn expr_opener(state: ParserState) -> ParserResult<&char> {
 	match specific_symbol('{').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedExprStart.state_at(&state)),
+		Err(_) => Err(ParseError::ExpectedExprStart.error_at(&state)),
 		ok => ok,
 	}
 }
 
 fn expr_closer(state: ParserState) -> ParserResult<&char> {
 	match specific_symbol('}').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedExprEnd.state_at(&state)),
+		Err(_) => Err(ParseError::ExpectedExprEnd.error_at(&state)),
 		ok => ok,
 	}
 }
 
 fn macro_mark(state: ParserState) -> ParserResult<&char> {
 	match specific_symbol('!').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedMacroMark.state_at(&state)),
+		Err(_) => Err(ParseError::ExpectedMacroMark.error_at(&state)),
 		ok => ok,
 	}
 }
 
 fn plugin_mark(state: ParserState) -> ParserResult<&char> {
 	match specific_symbol('?').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedPluginMark.state_at(&state)),
+		Err(_) => Err(ParseError::ExpectedPluginMark.error_at(&state)),
 		ok => ok,
 	}
 }
 
 fn body_opener(state: ParserState) -> ParserResult<&char> {
 	match specific_symbol('|').or(newline).parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedBodyOpener.state_at(&state)),
+		Err(_) => Err(ParseError::ExpectedBodyOpener.error_at(&state)),
 		ok => ok,
 	}
 }
@@ -216,14 +216,14 @@ fn body_opener(state: ParserState) -> ParserResult<&char> {
 fn macro_name(state: ParserState) -> ParserResult<&str> {
 	match literal.parse(state.clone()) {
 		Ok(ok) if ok.0 != "content" => Ok(ok),
-		_ => Err(ParseError::ExpectedTagName.state_at(&state)),
+		_ => Err(ParseError::ExpectedTagName.error_at(&state)),
 	}
 }
 
 fn set_starter(state: ParserState) -> ParserResult<&str> {
 	match literal.parse(state.clone()) {
 		Ok(ok) if ok.0 == "set" => Ok(ok),
-		_ => Err(ParseError::ExpectedSetStarter.state_at(&state)),
+		_ => Err(ParseError::ExpectedSetStarter.error_at(&state)),
 	}
 }
 
@@ -241,7 +241,7 @@ fn set_stmt(state: ParserState) -> ParserResult<(String, String)> {
 					match part {
 						StringParts::String(x) => output.push(x.clone()),
 						StringParts::Expression(_) => {
-							return Err(ParseError::ExpressionInSetStmt.state_at(&state))
+							return Err(ParseError::ExpressionInSetStmt.error_at(&state))
 						}
 					}
 				}
@@ -255,7 +255,7 @@ fn set_stmt(state: ParserState) -> ParserResult<(String, String)> {
 
 fn equals(state: ParserState) -> ParserResult<&char> {
 	match specific_symbol('=').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedEquals.state_at(&state)),
+		Err(_) => Err(ParseError::ExpectedEquals.error_at(&state)),
 		ok => ok,
 	}
 }
@@ -263,14 +263,14 @@ fn equals(state: ParserState) -> ParserResult<&char> {
 fn variable_name(state: ParserState) -> ParserResult<&str> {
 	literal
 		.parse(state.clone())
-		.map_err(|_x| ParseError::ExpectedVarName.state_at(&state))
+		.map_err(|_x| ParseError::ExpectedVarName.error_at(&state))
 }
 
 fn check_tag_mismatch(state: ParserState) -> ParserResult<()> {
 	if let Some(opener) = state.tag_openers.last() {
 		return Err(Err::Failure(ErrorState {
 			error: ParseError::TagOpenerMismatch,
-			previous_errors: state.errors.clone(),
+			hints: vec![],
 			text_position: types::TextPos::Single(opener.clone()),
 		}));
 	}
@@ -301,21 +301,21 @@ fn expression(state: ParserState) -> ParserResult<Expression> {
 fn binary_func(state: ParserState) -> ParserResult<BinFunc> {
 	let (val, next_state) = literal
 		.parse(state.clone())
-		.map_err(|_x| ParseError::ExpectedBinFunc.state_at(&state))?;
+		.map_err(|_x| ParseError::ExpectedBinFunc.error_at(&state))?;
 	match val {
 		"and" => Ok((BinFunc::And, next_state)),
 		"or" => Ok((BinFunc::Or, next_state)),
-		_ => Err(ParseError::ExpectedBinFunc.state_at(&state)),
+		_ => Err(ParseError::ExpectedBinFunc.error_at(&state)),
 	}
 }
 
 fn unary_func(state: ParserState) -> ParserResult<UniFunc> {
 	let (val, next_state) = literal
 		.parse(state.clone())
-		.map_err(|_x| ParseError::ExpectedUniFunc.state_at(&state))?;
+		.map_err(|_x| ParseError::ExpectedUniFunc.error_at(&state))?;
 	match val {
 		"not" => Ok((UniFunc::Not, next_state)),
-		_ => Err(ParseError::ExpectedUniFunc.state_at(&state)),
+		_ => Err(ParseError::ExpectedUniFunc.error_at(&state)),
 	}
 }
 
@@ -448,7 +448,7 @@ fn section_block(state: ParserState) -> ParserResult<Section> {
 		.and_also(cut(after_spaces(string)))
 		.parse(state)?;
 	if depth < state.section_depth + 1 {
-		return Err(ParseError::WronglyNestedSection.state_at(&state));
+		return Err(ParseError::WronglyNestedSection.error_at(&state));
 	}
 	let (subtitle, state) = maybe(
 		skipped_blanks().preceding(
@@ -537,34 +537,34 @@ fn macro_def(state: ParserState<'_>) -> ParserResult<'_, Macro> {
 fn space(state: ParserState) -> ParserResult<&char> {
 	match any.parse(state)? {
 		(Token::Space(space), next_state) => Ok((space, next_state)),
-		(_, next_state) => Err(ParseError::NotASpace.state_at(&next_state)),
+		(_, next_state) => Err(ParseError::NotASpace.error_at(&next_state)),
 	}
 }
 
 fn indent(state: ParserState) -> ParserResult<&char> {
 	match any.parse(state)? {
 		(Token::Indent(indent), next_state) => Ok((indent, next_state)),
-		(_, error_state) => Err(ParseError::NotAnIndent.state_at(&error_state)),
+		(_, error_state) => Err(ParseError::NotAnIndent.error_at(&error_state)),
 	}
 }
 
 fn newline(state: ParserState) -> ParserResult<&char> {
 	match any.parse(state)? {
 		(Token::Newline(newline), next_state) => ParserResult::Ok((newline, next_state)),
-		(_, error_state) => Err(ParseError::NotANewline.state_at(&error_state)),
+		(_, error_state) => Err(ParseError::NotANewline.error_at(&error_state)),
 	}
 }
 
 fn some_symbol(state: ParserState) -> ParserResult<&char> {
 	match any.parse(state)? {
 		(Token::Symbol(x), next_state) => Ok((x, next_state)),
-		(_, state) => Err(ParseError::NotSymbol.state_at(&state)),
+		(_, state) => Err(ParseError::NotSymbol.error_at(&state)),
 	}
 }
 
 fn eof(state: ParserState) -> ParserResult<()> {
 	match any.parse(state.clone()) {
-		Ok(_) => Err(ParseError::ExpectedEOF.state_at(&state)),
+		Ok(_) => Err(ParseError::ExpectedEOF.error_at(&state)),
 		Err(_) => Ok(((), state)),
 	}
 }
@@ -572,7 +572,7 @@ fn eof(state: ParserState) -> ParserResult<()> {
 fn literal(state: ParserState) -> ParserResult<&str> {
 	match any.parse(state)? {
 		(Token::Word(x), next_state) => Ok((x, next_state)),
-		(_, state) => Err(ParseError::NotLiteral.state_at(&state)),
+		(_, state) => Err(ParseError::NotLiteral.error_at(&state)),
 	}
 }
 
@@ -672,7 +672,7 @@ fn plugin_head(state: ParserState) -> ParserResult<(Ranged<String>, Ranged<Vec<T
 
 	let (_, state) = check_tag_mismatch.parse(state)?;
 
-	Err(ParseError::EndlessString.state_at(&state).cut())
+	Err(ParseError::EndlessString.error_at(&state).cut())
 }
 
 fn macro_call_head(state: ParserState) -> ParserResult<(Ranged<String>, Vec<Argument>)> {
@@ -776,7 +776,7 @@ fn plugin_body(state: ParserState) -> ParserResult<Ranged<Vec<Token>>> {
 
 	let (_, state) = check_tag_mismatch.parse(state)?;
 
-	Err(ParseError::EndlessString.state_at(&state).cut())
+	Err(ParseError::EndlessString.error_at(&state).cut())
 }
 fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
 	let mut output = Vec::<StringParts>::new();
@@ -793,14 +793,14 @@ fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
 				if !output.is_empty() {
 					return Ok((output, state));
 				} else {
-					return Err(ParseError::EmptyString.state_at(&state));
+					return Err(ParseError::EmptyString.error_at(&state));
 				}
 			}
 			Token::Symbol(sym) if *sym == '>' && !escape => {
 				if !output.is_empty() {
 					return Ok((output, state));
 				} else {
-					return Err(ParseError::EmptyString.state_at(&state));
+					return Err(ParseError::EmptyString.error_at(&state));
 				}
 			}
 			Token::Symbol(sym) if *sym == '\\' && !escape => {
@@ -815,7 +815,7 @@ fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
 					}) {
 					return Ok((output, state));
 				} else {
-					return Err(ParseError::EmptyString.state_at(&state));
+					return Err(ParseError::EmptyString.error_at(&state));
 				}
 			}
 			tok => match output.pop() {
@@ -845,7 +845,7 @@ fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
 		}) {
 		return Ok((output, state));
 	} else {
-		return Err(ParseError::EmptyString.state_at(&state));
+		return Err(ParseError::EmptyString.error_at(&state));
 	}
 }
 
@@ -993,7 +993,7 @@ pub(super) fn specific_symbol<'a>(chr: char) -> impl Parser<'a, &'a char> {
 			expected: chr,
 			got: Some(*x),
 		}
-		.state_at(&state)),
+		.error_at(&state)),
 		Err(error) => Err(error),
 	}
 }
@@ -1004,7 +1004,7 @@ pub(super) fn specific_literal<'a>(word: &'a str) -> impl Parser<'a, &'a str> {
 			expected: word.to_string(),
 			got: Some(x.to_string()),
 		}
-		.state_at(&state)),
+		.error_at(&state)),
 		Err(error) => Err(error),
 	}
 }
@@ -1012,6 +1012,6 @@ pub(super) fn specific_literal<'a>(word: &'a str) -> impl Parser<'a, &'a str> {
 fn any(state: ParserState) -> ParserResult<&Token> {
 	match state.advanced() {
 		(Some(token), next_state) => Ok((token, next_state)),
-		(None, _) => Err(ParseError::ReachedEOF.state_at(&state)),
+		(None, _) => Err(ParseError::ReachedEOF.error_at(&state)),
 	}
 }

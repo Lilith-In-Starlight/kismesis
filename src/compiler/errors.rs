@@ -1,12 +1,35 @@
-use super::parser::types::TextPos;
+use crate::kismesis::KisID;
 
-pub trait ErrorKind {
+use super::{parser::{types::TextPos, errors::{Hint, Hintable}}, html::ScopedError};
+
+pub trait ErrorKind where Self: Sized {
 	fn get_text(&self) -> String;
+	fn with_state_at(self, position: TextPos) -> ErrorState<Self> {
+		ErrorState {
+			error: self,
+			hints: vec![],
+			text_position: position
+		}
+	}
+	fn with_scope_at(self, scope: KisID, position: TextPos) -> ScopedError<Self> {
+		ScopedError {
+			error: self.with_state_at(position),
+			scope,
+		}
+	}
 }
 
-#[derive(Clone, Debug)]
+impl<T> Hintable for ErrorState<T> {
+	fn add_hint(&mut self, hint: Hint) {
+        self.hints.push(hint);
+    }
+}
+
+pub trait Reportable { }
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct ErrorState<T> {
 	pub error: T,
-	pub previous_errors: Vec<ErrorState<T>>,
 	pub text_position: TextPos,
+	pub hints: Vec<Hint>,
 }

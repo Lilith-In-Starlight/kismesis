@@ -510,7 +510,7 @@ impl AstNode for Ranged<Expression> {
 	}
 }
 */
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TextPos {
 	Single(TokenPos),
 	Range((TokenPos, TokenPos)),
