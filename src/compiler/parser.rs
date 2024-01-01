@@ -350,7 +350,7 @@ fn wrapped_expr(state: ParserState) -> ParserResult<Expression> {
 fn variable_definition(state: ParserState) -> ParserResult<Variable> {
 	let parser = var_def_starter
 		.preceding(after_spaces(literal))
-		.and_also(cut(after_spaces(equals).preceding(after_spaces(attr_string))));
+		.and_also(cut(after_spaces(equals).preceding(after_spaces(get_range(expression)))));
 	let ((name, value), next_state) = parser.parse(state)?;
 	Ok((
 		Variable {
@@ -363,7 +363,7 @@ fn variable_definition(state: ParserState) -> ParserResult<Variable> {
 
 fn lambda_definition(state: ParserState) -> ParserResult<Lambda> {
 	let parser = lambda_def_starter.preceding(
-		cut(after_spaces(literal)).and_maybe(after_spaces(equals).preceding(after_spaces(attr_string))),
+		cut(after_spaces(literal)).and_maybe(after_spaces(equals).preceding(after_spaces(get_range(expression)))),
 	);
 	let ((name, value), next_state) = parser.parse(state)?;
 	Ok((
@@ -896,7 +896,7 @@ fn subtag(state: ParserState) -> ParserResult<HtmlTag> {
 
 fn attribute(state: ParserState) -> ParserResult<Attribute> {
 	let parser = get_range(literal).followed_by(skip_spaces()).and_also(cut(
-		equals.preceding(zero_or_more(space.or(indent)).preceding(attr_string))
+		equals.preceding(zero_or_more(space.or(indent)).preceding(get_range(expression)))
 	));
 	let ((name, value), state) = parser.parse(state)?;
 	Ok((
@@ -911,7 +911,7 @@ fn attribute(state: ParserState) -> ParserResult<Attribute> {
 fn argument(state: ParserState) -> ParserResult<Argument> {
 	let parser = get_range(literal)
 		.followed_by(zero_or_more(space.or(indent)))
-		.and_maybe(equals.preceding(zero_or_more(space.or(indent)).preceding(attr_string)));
+		.and_maybe(equals.preceding(zero_or_more(space.or(indent)).preceding(get_range(expression))));
 	let ((name, value), state) = parser.parse(state)?;
 	Ok((
 		Argument {

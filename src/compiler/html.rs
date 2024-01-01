@@ -90,7 +90,7 @@ struct GenerationState<'a> {
 	scope: Scope<'a>,
 }
 
-type ValueRef<'a> = Scoped<'a, Option<&'a Vec<StringParts>>>;
+type ValueRef<'a> = Scoped<'a, Option<&'a Ranged<Expression>>>;
 
 type VariableScope<'a> = HashMap<String, ValueRef<'a>>;
 
@@ -375,12 +375,34 @@ fn attribute_string<'a>(
 	let mut errors = Vec::new();
 	for attr in attrs {
 		output.push(' ');
-		match parse_kis_string(&attr.value, (&state.variable_scopes, state.scope)) {
-			Ok(value_string) => output.push_str(&format!(
+		match calculate_expression(&attr.value, (&state.variable_scopes, state.scope)) {
+			Ok(value_string) => {
+				let string = match value_string {
+					ExpressionValues::String(x) => match parse_kis_string(&x, (&state.variable_scopes, state.scope)) {
+						Ok(parsed_kis_string) => parsed_kis_string.to_string_forced(),
+						Err(mut kis_string_errors) => {
+							errors.append(&mut kis_string_errors);
+							continue
+						},
+					},
+					ExpressionValues::None => {
+						errors.push(CompilerError::CantWriteNoneValue.state_at(attr.value.range, state.scope));
+						continue
+					}
+					ExpressionValues::Generic => {
+						errors.push(CompilerError::CantWriteGenericValue.state_at(attr.value.range, state.scope));
+						continue
+					}
+					ExpressionValues::Array(_) => {
+						errors.push(CompilerError::CantWriteArray.state_at(attr.value.range, state.scope));
+						continue
+					}
+				};
+				output.push_str(&format!(
 				"{}='{}'",
 				attr.name.value,
-				value_string.to_string_forced()
-			)),
+				string
+			))},
 			Err(mut error) => errors.append(&mut error),
 		}
 	}
@@ -489,7 +511,7 @@ fn calculate_expression<'a>(
 		Expression::Variable(x) => {
 			if let Some(var) = state.0.get(x) {
 				match var.0 {
-					Some(value) => Ok(ExpressionValues::String(value.clone())),
+					Some(value) => Ok(calculate_expression(value, state)?),
 					None => Ok(ExpressionValues::None),
 				}
 			} else {

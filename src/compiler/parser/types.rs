@@ -19,13 +19,13 @@ pub enum StringParts {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Attribute {
 	pub(crate) name: Ranged<String>,
-	pub(crate) value: Vec<StringParts>,
+	pub(crate) value: Ranged<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Argument {
 	pub(crate) name: Ranged<String>,
-	pub(crate) value: Option<Vec<StringParts>>,
+	pub(crate) value: Option<Ranged<Expression>>,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct HtmlTag {
@@ -248,7 +248,7 @@ impl<'a> ParsedFile<'a> {
 		self.path.as_ref().map(|x| x.as_path())
 	}
 
-	pub fn get_variable_value(&self, predicate: &str) -> VariableOption<&Vec<StringParts>> {
+	pub fn get_variable_value(&self, predicate: &str) -> VariableOption<&Ranged<Expression>> {
 		for var in self.defined_variables.iter() {
 			if var.name == predicate {
 				return VariableOption::Some(&var.value);
@@ -289,7 +289,7 @@ impl<'a> ParsedFile<'a> {
 	pub fn get_variable_scope(
 		&'a self,
 		sub_scope: &[&'a ParsedFile],
-	) -> HashMap<String, Scoped<Option<&'a Vec<StringParts>>>> {
+	) -> HashMap<String, Scoped<Option<&'a Ranged<Expression>>>> {
 		let mut out = HashMap::new();
 
 		if let Some(template) = self.template {
@@ -410,13 +410,13 @@ pub enum Expression {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Variable {
 	pub name: String,
-	pub value: Vec<StringParts>,
+	pub value: Ranged<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lambda {
 	pub name: String,
-	pub value: Option<Vec<StringParts>>,
+	pub value: Option<Ranged<Expression>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -545,7 +545,7 @@ impl Macro {
 	pub fn get_argument_scope<'a>(
 		&'a self,
 		scope: Scope<'a>,
-	) -> HashMap<String, Scoped<Option<&Vec<StringParts>>>> {
+	) -> HashMap<String, Scoped<Option<&Ranged<Expression>>>> {
 		let mut output = HashMap::new();
 
 		output.extend(self.arguments.iter().map(|x| match x.value {
