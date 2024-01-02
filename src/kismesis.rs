@@ -1,6 +1,6 @@
 use std::{path::{PathBuf, Path}, io, fs, collections::HashMap};
 
-use crate::compiler::{html::CompilerError, parser::{types::ParsedFile, self, errors::Err}, lexer::{self, Token}};
+use crate::compiler::{parser::{types::ParsedFile, self, errors::Err}, lexer::{self, Token}};
 
 pub type KisResult<T> = Result<T, KismesisError>;
 

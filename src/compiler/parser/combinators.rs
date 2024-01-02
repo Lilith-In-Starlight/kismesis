@@ -6,7 +6,7 @@ use std::{
 use super::{
 	errors::{Err, ParseError},
 	state::ParserState,
-	types::Ranged,
+	types::{Ranged, TextPos},
 	Parser, ParserResult,
 };
 
@@ -262,10 +262,17 @@ where
 		let start = state.position;
 		let (val, next_state) = parser.parse(state)?;
 		let end = next_state.position;
+		let range = {
+			if end.get_idx() == start.get_idx() + 1 {
+				TextPos::Single(start)
+			} else {
+				TextPos::Range((start, end))
+			}
+		};
 		Ok((
 			Ranged {
 				value: val,
-				range: (start, end),
+				range,
 			},
 			next_state,
 		))

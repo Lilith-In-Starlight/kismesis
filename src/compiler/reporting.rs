@@ -87,6 +87,8 @@ pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo,
 		}
 	}
 
+	output.push('\n');
+
 	for x in err.hints.iter() {
 		match x {
 			Hint::Stateful(x) => output.push_str(&draw_hint(&x.error, &DrawingInfo::from(x.scope, engine))),
@@ -161,7 +163,7 @@ fn draw_line<T: ErrorKind>(
 	info: &DrawingInfo,
 ) -> Option<String> {
 	let mut output = draw_line_number(line_number, info)
-		.bright_black()
+		.white()
 		.to_string();
 	let mut error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
 	if let Some(line) = info.lines.get(line_number) {

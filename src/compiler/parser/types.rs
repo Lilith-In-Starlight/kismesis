@@ -56,7 +56,7 @@ impl Section {
 		let title = HtmlTag {
 			name: Ranged {
 				value: hstr,
-				range: (TokenPos::new(), TokenPos::new()),
+				range: TextPos::Single(TokenPos::new()),
 			},
 			attributes: vec![],
 			body: vec![HtmlNodes::String(self.name)],
@@ -67,7 +67,7 @@ impl Section {
 				let subtitle = HtmlTag {
 					name: Ranged {
 						value: String::from("p"),
-						range: (TokenPos::new(), TokenPos::new()),
+						range: TextPos::Single(TokenPos::new()),
 					},
 					attributes: vec![],
 					body: vec![HtmlNodes::String(subtitle)],
@@ -76,7 +76,7 @@ impl Section {
 				HtmlTag {
 					name: Ranged {
 						value: String::from("hgroup"),
-						range: (TokenPos::new(), TokenPos::new()),
+						range: TextPos::Single(TokenPos::new()),
 					},
 					attributes: vec![],
 					body: vec![HtmlNodes::HtmlTag(title), HtmlNodes::HtmlTag(subtitle)],
@@ -94,7 +94,7 @@ impl Section {
 					let r = HtmlTag {
 						name: Ranged {
 							value: String::from("p"),
-							range: (TokenPos::new(), TokenPos::new()),
+							range: TextPos::Single(TokenPos::new()),
 						},
 						attributes: vec![],
 						body: x,
@@ -113,7 +113,7 @@ impl Section {
 		HtmlTag {
 			name: Ranged {
 				value: String::from("section"),
-				range: (TokenPos::new(), TokenPos::new()),
+				range: TextPos::Single(TokenPos::new()),
 			},
 			attributes: vec![],
 			body: tags,
@@ -126,7 +126,7 @@ pub fn paragraph_str_to_p(vec: Vec<HtmlNodes>) -> HtmlTag {
 	HtmlTag {
 		name: Ranged {
 			value: String::from("p"),
-			range: (TokenPos::new(), TokenPos::new()),
+			range: TextPos::Single(TokenPos::new()),
 		},
 		attributes: vec![],
 		body: vec,
@@ -247,13 +247,13 @@ impl ParsedFile {
 
 	pub fn get_variable_value<'a>(&'a self, engine: &'a Kismesis, predicate: &str) -> VariableOption<&Ranged<Expression>> {
 		for var in self.defined_variables.iter() {
-			if var.name == predicate {
+			if var.name.value == predicate {
 				return VariableOption::Some(&var.value);
 			}
 		}
 
 		for var in self.defined_lambdas.iter() {
-			if var.name == predicate {
+			if var.name.value == predicate {
 				match var.value {
 					Some(ref value) => return VariableOption::Some(value),
 					None => return VariableOption::Unset,
@@ -287,7 +287,7 @@ impl ParsedFile {
 		&'a self,
 		sub_scope: &[&'a ParsedFile],
 		engine: &'a Kismesis,
-	) -> HashMap<String, Scoped<Option<&Ranged<Expression>>>> {
+	) -> HashMap<String, Scoped<(Option<&Ranged<Expression>>, TextPos)>> {
 		let mut out = HashMap::new();
 
 		if let Some(ref template) = self.template {
@@ -297,29 +297,29 @@ impl ParsedFile {
 		out.extend(self.defined_lambdas.iter().map(|x| {
 			if !sub_scope.is_empty() {
 				for scope in sub_scope.iter() {
-					let find = scope.defined_variables.iter().rfind(|y| y.name == x.name);
+					let find = scope.defined_variables.iter().rfind(|y| y.name.value == x.name.value);
 					if let Some(find) = find {
 						return (
-							find.name.clone(),
+							find.name.value.clone(),
 							(
-								Some(&find.value),
+								(Some(&find.value), find.name.range.clone()),
 								self.file_id,
 							),
 						);
 					}
 				}
 				(
-					x.name.clone(),
+					x.name.value.clone(),
 					(
-						x.value.as_ref(),
+						(x.value.as_ref(), x.name.range.clone()),
 						self.file_id,
 					),
 				)
 			} else {
 				(
-					x.name.clone(),
+					x.name.value.clone(),
 					(
-						x.value.as_ref(),
+						(x.value.as_ref(), x.name.range.clone()),
 						self.file_id,
 					),
 				)
@@ -328,9 +328,9 @@ impl ParsedFile {
 
 		out.extend(self.defined_variables.iter().map(|x| {
 			(
-				x.name.clone(),
+				x.name.value.clone(),
 				(
-					Some(&x.value),
+					(Some(&x.value), x.name.range.clone()),
 					self.file_id,
 				),
 			)
@@ -402,32 +402,32 @@ pub enum Expression {
 	Literal(Vec<StringParts>),
 	BinFunc(BinFunc, Box<Ranged<Expression>>, Box<Ranged<Expression>>),
 	UniFunc(UniFunc, Box<Ranged<Expression>>),
-	Array(Vec<Expression>),
+	Array(Vec<Ranged<Expression>>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Variable {
-	pub name: String,
+	pub name: Ranged<String>,
 	pub value: Ranged<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lambda {
-	pub name: String,
+	pub name: Ranged<String>,
 	pub value: Option<Ranged<Expression>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ranged<T> {
 	pub(crate) value: T,
-	pub(crate) range: (TokenPos, TokenPos),
+	pub(crate) range: TextPos,
 }
 
 impl Ranged<&str> {
 	pub fn to_own(&self) -> Ranged<String> {
 		Ranged {
 			value: self.value.to_owned(),
-			range: self.range,
+			range: self.range.clone(),
 		}
 	}
 }
@@ -543,12 +543,12 @@ impl Macro {
 	pub fn get_argument_scope<'a>(
 		&'a self,
 		scope: KisID,
-	) -> HashMap<String, Scoped<Option<&Ranged<Expression>>>> {
+	) -> HashMap<String, Scoped<(Option<&Ranged<Expression>>, TextPos)>> {
 		let mut output = HashMap::new();
 
 		output.extend(self.arguments.iter().map(|x| match x.value {
-			Some(ref value) => (x.name.value.clone(), (Some(value), scope)),
-			None => (x.name.value.clone(), (None, scope)),
+			Some(ref value) => (x.name.value.clone(), ((Some(value), x.name.range.clone()), scope)),
+			None => (x.name.value.clone(), ((None, x.name.range.clone()), scope)),
 		}));
 
 		output
@@ -591,7 +591,7 @@ pub struct IfTag {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForTag {
-	pub variable: String,
+	pub variable: Ranged<String>,
 	pub iterator: Ranged<Expression>,
 	pub body: Vec<HtmlNodes>
 }

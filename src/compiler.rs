@@ -4,9 +4,9 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use crate::kismesis::{Kismesis, KismesisError};
+use crate::kismesis::{Kismesis, KismesisError, KisID};
 
-use self::{options::Settings, reporting::DrawingInfo};
+use self::{options::Settings, reporting::{DrawingInfo, draw_error}, parser::errors::Err};
 
 mod errors;
 pub(crate) mod html;
@@ -20,7 +20,7 @@ pub enum Error {
 	NoMainTemplate,
 	OutputNotInOutputFolder(PathBuf),
 	TemplateInOutputFolder(PathBuf),
-	EngineError(KismesisError)
+	ParseError(Err, KisID),
 }
 
 pub fn compile_project() {
@@ -33,18 +33,18 @@ pub fn compile_project() {
 	for path in template_paths {
 		match engine.register_file(path) {
 			Ok(x) => {engine.register_template(x);},
-			Err(x) => errors.push(Error::EngineError(x)),
+			Err(x) => errors.push(x.into()),
 		}
 	}
 
 	if !errors.is_empty() {
-		report_errors(errors);
+		report_errors(errors, &engine);
 		return;
 	}
 
 	let Some(main_template_id) = engine.verify_template_id(main_template_path) else {
 		errors.push(Error::NoMainTemplate);
-		report_errors(errors);
+		report_errors(errors, &engine);
 		return;
 	};
 	let input_paths = recursive_crawl(&PathBuf::from("input")).0;
@@ -56,12 +56,12 @@ pub fn compile_project() {
 				x.template = Some(main_template_id.clone());
 				input_files.push(x);
 			}
-			Err(x) => errors.push(Error::EngineError(x)),
+			Err(x) => errors.push(x.into()),
 		}
 	}
 
 	if !errors.is_empty() {
-		report_errors(errors);
+		report_errors(errors, &engine);
 		return;
 	}
 
@@ -146,14 +146,23 @@ pub fn recursive_crawl(path: &Path) -> (Vec<PathBuf>, Vec<io::Error>) {
 	(paths, errors)
 }
 
-pub fn report_errors(errors: Vec<Error>) {
+impl From<KismesisError> for Error {
+	fn from(value: KismesisError) -> Self {
+        match value {
+			KismesisError::IOError(x, y) => Error::IOError(x, y),
+			KismesisError::ParseError(x, y) => Error::ParseError(x, y),
+		}
+    }
+}
+
+pub fn report_errors(errors: Vec<Error>, engine: &Kismesis) {
 	for error in errors {
 		match error {
             Error::IOError(error, path) => eprintln!("Error reading `{}`: {}", path.to_string_lossy(), error),
             Error::NoMainTemplate => eprintln!("Coudln't compile project because it doesn't have a template in templates/main.ks"),
             Error::OutputNotInOutputFolder(path) => eprintln!("Tried to output {} to a location outside the project's output folder.\n\nThis is meant to be impossible, please contact the developer at https://ampersandia.net/", path.to_string_lossy()),
             Error::TemplateInOutputFolder(path) => eprintln!("{} is a template, but it is in the input folder", path.to_string_lossy()),
-			Error::EngineError(_) => todo!(),
+            Error::ParseError(error, id) => eprintln!("{}", draw_error(&error.unpack(), &DrawingInfo::from(id, engine), engine)),
         }
 	}
 }
