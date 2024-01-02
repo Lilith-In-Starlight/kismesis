@@ -131,7 +131,7 @@ impl TokenPos {
 	}
 	pub fn is_at_an_end(&self, o: &TextPos) -> bool {
 		match o {
-			TextPos::Single(x) => x == self,
+			TextPos::Single(x) => x.idx == self.idx,
 			TextPos::Range((_, nd)) => self.idx == nd.idx - 1,
 			TextPos::Multi(x) => x.iter().any(|x| self.is_at_an_end(x)),
 		}

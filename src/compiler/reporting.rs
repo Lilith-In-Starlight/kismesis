@@ -15,10 +15,11 @@ pub struct DrawingInfo<'a> {
 	pub(crate) scope: &'a FileRef,
 	pub(crate) lines: Vec<(usize, &'a [Token])>,
 	pub(crate) line_offset: (usize, usize),
+	pub(crate) hint: bool,
 }
 
 impl<'a> DrawingInfo<'a> {
-	pub fn from(scope: KisID, engine :&'a Kismesis) -> Self {
+	pub fn from(scope: KisID, engine :&'a Kismesis, hint: bool) -> Self {
 		let scope = engine.get_file(scope).unwrap();
 		let lines: Vec<&[Token]> = scope
 			.tokens
@@ -38,6 +39,7 @@ impl<'a> DrawingInfo<'a> {
 			scope,
 			lines,
 			line_offset: (2, 2),
+			hint
 		}
 	}
 }
@@ -62,21 +64,40 @@ pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo,
 
 	let mut output = String::new();
 
-	output.push_str(&" ERROR ".black().on_red().to_string());
-	output.push_str(&" in `".black().on_red().to_string());
-	match info.scope.path {
-		Some(ref path) => {
-			output.push_str(
-				&path
-					.to_string_lossy()
-					.to_string()
-					.black()
-					.on_red()
-					.to_string(),
-			);
-			output.push_str(&"` ".black().on_red().to_string());
+	if info.hint {
+		output.push_str(&" HINT ".black().on_yellow().to_string());
+		output.push_str(&" in `".black().on_yellow().to_string());
+		match info.scope.path {
+			Some(ref path) => {
+				output.push_str(
+					&path
+						.to_string_lossy()
+						.to_string()
+						.black()
+						.on_yellow()
+						.to_string(),
+				);
+				output.push_str(&"` ".black().on_yellow().to_string());
+			}
+			None => output.push_str(&"input` ".black().on_yellow().to_string()),
 		}
-		None => output.push_str(&"input` ".black().on_red().to_string()),
+	} else {
+		output.push_str(&" ERROR ".black().on_red().to_string());
+		output.push_str(&" in `".black().on_red().to_string());
+		match info.scope.path {
+			Some(ref path) => {
+				output.push_str(
+					&path
+						.to_string_lossy()
+						.to_string()
+						.black()
+						.on_red()
+						.to_string(),
+				);
+				output.push_str(&"` ".black().on_red().to_string());
+			}
+			None => output.push_str(&"input` ".black().on_red().to_string()),
+		}
 	}
 	output.push('\n');
 
@@ -91,62 +112,10 @@ pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo,
 
 	for x in err.hints.iter() {
 		match x {
-			Hint::Stateful(x) => output.push_str(&draw_hint(&x.error, &DrawingInfo::from(x.scope, engine))),
+			Hint::Stateful(x) => output.push_str(&draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine)),
 			Hint::Stateless(x) => {
 				output.push_str(&format!("Hint: {}", x.get_text()))
 			}
-		}
-	}
-
-	if !err.text_position.is_one_line() {
-		output.push_str(&format!("\n{}", err.error.get_text()));
-	}
-
-	output
-}
-
-pub fn draw_hint<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo) -> String {
-	let minimum_line = {
-		let x = err.text_position.get_start_line();
-		if x < info.line_offset.0 {
-			0
-		} else {
-			x - info.line_offset.0
-		}
-	};
-	let maximum_line = {
-		let x = err.text_position.get_end_line();
-		if x > info.lines.len() - info.line_offset.1 {
-			info.lines.len()
-		} else {
-			x + info.line_offset.1
-		}
-	};
-
-	let mut output = String::new();
-
-	output.push_str(&" HINT ".black().on_yellow().to_string());
-	output.push_str(&" in `".black().on_yellow().to_string());
-	match info.scope.path {
-		Some(ref path) => {
-			output.push_str(
-				&path
-					.to_string_lossy()
-					.to_string()
-					.black()
-					.on_yellow()
-					.to_string(),
-			);
-			output.push_str(&"` ".black().on_yellow().to_string());
-		}
-		None => output.push_str(&"input` ".black().on_red().to_string()),
-	}
-	output.push('\n');
-
-	for line_number in minimum_line..=maximum_line {
-		if let Some(string) = draw_line(line_number, err, info) {
-			output.push_str(&string);
-			output.push('\n');
 		}
 	}
 
@@ -175,6 +144,19 @@ fn draw_line<T: ErrorKind>(
 				Token::Indent(_) => " ".repeat(4),
 				x => x.get_as_string(),
 			};
+			if token_idx % 40 == 0 && token_idx != 0 {
+				if error_line.chars().any(|x| !x.is_whitespace()) {
+					output.push('\n');
+					output.push_str(error_line.yellow().to_string().trim_end());
+					output.push('\n');
+					output.push_str(&turn_to_chars(draw_line_number(line_number, info), ' '));
+					error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
+				} else {
+					output.push('\n');
+					output.push_str(&turn_to_chars(draw_line_number(line_number, info), ' '));
+					error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
+				}
+			}
 			output.push_str(&tkstr);
 			let char = if token_pos.is_in(&err.text_position) {
 				'^'
@@ -182,6 +164,13 @@ fn draw_line<T: ErrorKind>(
 				' '
 			};
 			error_line.push_str(&turn_to_chars(tkstr, char));
+			if token_pos.is_at_an_end(&err.text_position){ 
+				if err.text_position.is_one_line() {
+					error_line.push_str(&format!(" {}", err.error.get_text()));
+				} else {
+					error_line.push_str(" Error happened here");
+				}
+			}
 		}
 	} else {
 		return None;
@@ -189,11 +178,6 @@ fn draw_line<T: ErrorKind>(
 
 	error_line = error_line.trim_end().to_string();
 	if !error_line.is_empty() {
-		if err.text_position.is_one_line() {
-			error_line.push_str(&format!(" {}", err.error.get_text()));
-		} else {
-			error_line.push_str(" Error happened here");
-		}
 		Some(format!("{}\n{}", output, error_line.yellow()))
 	} else {
 		Some(output)
@@ -220,6 +204,6 @@ fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
 }
 
 pub fn draw_scoped_error<T: ErrorKind + Debug>(err: &ScopedError<T>, engine: &Kismesis) -> String {
-	draw_error(&err.error, &DrawingInfo::from(err.scope, engine), engine)
+	draw_error(&err.error, &DrawingInfo::from(err.scope, engine, false), engine)
 }
 
