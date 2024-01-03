@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use crate::kismesis::{KisID, Kismesis, FileRef};
 
 use super::{
-	errors::{ErrorKind, ErrorState},
+	errors::{ErrorKind, ErrorState, StatelessError},
 	html::ScopedError,
 	lexer::Token,
 	parser::{state::TokenPos, errors::Hint},
@@ -18,9 +18,22 @@ pub struct DrawingInfo<'a> {
 	pub(crate) hint: bool,
 }
 
+#[derive(Debug)]
+enum ReportingError {
+	InvalidKismesisID,
+}
+
+impl ErrorKind for ReportingError {
+	fn get_text(&self) -> String {
+		match self {
+			ReportingError::InvalidKismesisID => "Tried to report an error ocurring on a file with an invalid Kismesis ID.\nPlease contact the developer of the engine you're using.".into(),
+		}
+	}
+}
+
 impl<'a> DrawingInfo<'a> {
-	pub fn from(scope: KisID, engine :&'a Kismesis, hint: bool) -> Self {
-		let scope = engine.get_file(scope).unwrap();
+	pub fn from(scope: KisID, engine :&'a Kismesis, hint: bool) -> Result<Self, ()> {
+		let scope = engine.get_file(scope).ok_or(())?;
 		let lines: Vec<&[Token]> = scope
 			.tokens
 			.split_inclusive(|x| matches!(x, Token::Newline(_)))
@@ -34,17 +47,24 @@ impl<'a> DrawingInfo<'a> {
 			}
 			out
 		};
-		Self {
-			line_number_length: 3,
-			scope,
-			lines,
-			line_offset: (2, 2),
-			hint
-		}
+		Ok(Self {
+        			line_number_length: 3,
+        			scope,
+        			lines,
+        			line_offset: (2, 2),
+        			hint
+        		})
 	}
 }
 
-pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo, engine: &Kismesis) -> String {
+pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &Result<DrawingInfo, ()>, engine: &Kismesis) -> String {
+	let info = match info.as_ref() {
+		Ok(x) => x,
+		Err(_) => {
+			let err = ReportingError::InvalidKismesisID.stateless();
+			return draw_stateless_error(&err, false, engine);
+		},
+	};
 	let minimum_line = {
 		let x = err.text_position.get_start_line();
 		if x < info.line_offset.0 {
@@ -113,14 +133,34 @@ pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &DrawingInfo,
 	for x in err.hints.iter() {
 		match x {
 			Hint::Stateful(x) => output.push_str(&draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine)),
-			Hint::Stateless(x) => {
-				output.push_str(&format!("Hint: {}", x.get_text()))
-			}
+			Hint::Stateless(x) => output.push_str(&draw_stateless_error(&x, true, engine)),
 		}
 	}
 
 	if !err.text_position.is_one_line() {
 		output.push_str(&format!("\n{}", err.error.get_text()));
+	}
+
+	output
+}
+
+pub fn draw_stateless_error<T: ErrorKind + Debug>(err: &StatelessError<T>, hint: bool, engine: &Kismesis) -> String {
+	let mut output = String::new();
+
+	if hint {
+		output.push_str(&" HINT ".black().on_yellow().to_string());
+	} else {
+		output.push_str(&" ERROR ".black().on_red().to_string());
+	}
+	output.push('\n');
+
+	output.push_str(&format!("\n{}", err.error.get_text()));
+
+	for x in err.hints.iter() {
+		match x {
+			Hint::Stateful(x) => todo!("Stateful hints in stateless errors"),
+			Hint::Stateless(x) => output.push_str(&draw_stateless_error(&x, true, engine)),
+		}
 	}
 
 	output
@@ -135,7 +175,10 @@ fn draw_line<T: ErrorKind>(
 		.white()
 		.to_string();
 	let mut error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
+	let termsize = termsize::get().map(|size| size.cols).unwrap_or(40) as usize;
+	let termsize = std::cmp::min(termsize, termsize - err.error.get_text().len());
 	if let Some(line) = info.lines.get(line_number) {
+		let mut char_idx: usize = 0;
 		for (token_idx, token) in line.1.iter().enumerate() {
 			let token_pos = TokenPos::new_at(line.0 + token_idx, line_number, token_idx);
 			let tkstr = match token {
@@ -144,7 +187,8 @@ fn draw_line<T: ErrorKind>(
 				Token::Indent(_) => " ".repeat(4),
 				x => x.get_as_string(),
 			};
-			if token_idx % 40 == 0 && token_idx != 0 {
+			char_idx += tkstr.len();
+			if char_idx + tkstr.len() >= termsize && token_idx != 0 {
 				if error_line.chars().any(|x| !x.is_whitespace()) {
 					output.push('\n');
 					output.push_str(error_line.yellow().to_string().trim_end());
@@ -156,6 +200,7 @@ fn draw_line<T: ErrorKind>(
 					output.push_str(&turn_to_chars(draw_line_number(line_number, info), ' '));
 					error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
 				}
+				char_idx = tkstr.len();
 			}
 			output.push_str(&tkstr);
 			let char = if token_pos.is_in(&err.text_position) {

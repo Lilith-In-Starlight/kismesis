@@ -1,11 +1,12 @@
 use std::ops::Bound;
 
-use crate::{compiler::{errors::{ErrorKind, ErrorState}, html::ScopedError}, kismesis::KisID};
+use crate::{compiler::{errors::{ErrorKind, ErrorState, StatelessError}, html::ScopedError}, kismesis::KisID};
 
 use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+	TriedToParseInvalidID(KisID),
 	WronglyNestedSection,
 	ExpectedLambdaStart,
 	ConditionUnmet,
@@ -91,14 +92,14 @@ impl Hints {
 		Hint::Stateful(ScopedError { error: ErrorState { error: self, text_position: state, hints: vec![] }, scope})
 	}
 	pub fn stateless(self) -> Hint {
-		Hint::Stateless(self)
+		Hint::Stateless(StatelessError { error: self, hints: vec![] })
 	}
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Hint {
 	Stateful(ScopedError<Hints>),
-	Stateless(Hints),
+	Stateless(StatelessError<Hints>),
 }
 
 pub trait Hintable where Self: Sized {
@@ -126,6 +127,7 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
+			Self::TriedToParseInvalidID(id) => format!("Tried to parse a file with invalid ID: {:?}", id),
 			Self::WronglyNestedSection => "Wrongly nested section".to_string(),
 			Self::ExpectedLambdaStart => "Expected `lambda`".to_string(),
 			Self::ConditionUnmet => "Unmet condition".to_string(),

@@ -922,7 +922,7 @@ fn argument(state: ParserState) -> ParserResult<Argument> {
 	))
 }
 
-pub fn file<'a>(
+pub(crate) fn file<'a>(
 	tokens_id: KisID,
 	engine: &Kismesis,
 	default_template: Option<KisTemplateID>,

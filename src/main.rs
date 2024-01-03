@@ -1,5 +1,5 @@
 mod compiler;
-mod kismesis;
+pub mod kismesis;
 
 fn main() {
 	compiler::compile_project();

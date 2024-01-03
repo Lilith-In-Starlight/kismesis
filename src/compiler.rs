@@ -21,6 +21,7 @@ pub enum Error {
 	OutputNotInOutputFolder(PathBuf),
 	TemplateInOutputFolder(PathBuf),
 	ParseError(Err, KisID),
+	TriedToGetNonExistentTemplate(KisID),
 }
 
 pub fn compile_project() {
@@ -70,7 +71,14 @@ pub fn compile_project() {
 		match html::generate_html(&file, vec![], &settings, &engine) {
 			Ok(x) => {
 				let output_path = PathBuf::from("output");
-				if let Some(path) = &engine.get_file(file.file_id).unwrap().path {
+				let file = match engine.get_file(file.file_id) {
+					Some(x) => x,
+					None => {
+						errors.push(Error::TriedToGetNonExistentTemplate(file.file_id));
+						return
+					},
+				};
+				if let Some(path) = &file.path {
 					let mut output_path =
 						output_path.join::<PathBuf>(path.iter().skip(1).collect());
 					output_path.set_extension("html");
@@ -163,6 +171,7 @@ pub fn report_errors(errors: Vec<Error>, engine: &Kismesis) {
             Error::OutputNotInOutputFolder(path) => eprintln!("Tried to output {} to a location outside the project's output folder.\n\nThis is meant to be impossible, please contact the developer at https://ampersandia.net/", path.to_string_lossy()),
             Error::TemplateInOutputFolder(path) => eprintln!("{} is a template, but it is in the input folder", path.to_string_lossy()),
             Error::ParseError(error, id) => eprintln!("{}", draw_error(&error.unpack(), &DrawingInfo::from(id, engine, false), engine)),
+			Error::TriedToGetNonExistentTemplate(id) => eprintln!("Tried to get a non-existent kismesis template {:?}", id)
         }
 	}
 }

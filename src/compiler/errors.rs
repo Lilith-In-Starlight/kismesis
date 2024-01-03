@@ -17,9 +17,27 @@ pub trait ErrorKind where Self: Sized {
 			scope,
 		}
 	}
+	fn stateless(self) -> StatelessError<Self> {
+		StatelessError {
+			error: self,
+			hints: vec![],
+		}
+	}
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct StatelessError<T> {
+	pub error: T,
+	pub hints: Vec<Hint>,
 }
 
 impl<T> Hintable for ErrorState<T> {
+	fn add_hint(&mut self, hint: Hint) {
+        self.hints.push(hint);
+    }
+}
+
+impl<T> Hintable for StatelessError<T> {
 	fn add_hint(&mut self, hint: Hint) {
         self.hints.push(hint);
     }
