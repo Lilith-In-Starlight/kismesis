@@ -1,6 +1,5 @@
 pub struct Settings {
 	inline: Vec<String>,
-	in_previous: Vec<String>,
 	only_closer: Vec<String>,
 	only_opener: Vec<String>,
 }
@@ -12,7 +11,6 @@ impl Settings {
 				"p", "b", "i", "strong", "italic", "sub", "sup", "h1", "h2", "h3", "h4", "h5", "h6", "a",
 				"li", "title", "span", "emphasis"
 			]),
-			in_previous: string_vec(&["b", "i", "strong", "italic", "sub", "sup", "br", "a"]),
 			only_opener: string_vec(&["meta", "img", "link"]),
 			only_closer: string_vec(&["br"]),
 		}

@@ -438,7 +438,13 @@ fn parse_kis_string<'a, 'b>(
 	for parse in string {
 		match parse {
 			StringParts::String(x) => output.push_string(x),
-			StringParts::Expression(expr) => output.push_string(calculate_expression(expr, state)?.to_string(expr.range.clone(), state.scope, state)?),
+			StringParts::Expression(expr) => match calculate_expression(expr, state) {
+				Ok(calculated_expression) => match calculated_expression.to_string(expr.range.clone(), state.scope, state) {
+					Ok(string) => output.push_string(string),
+					Err(mut x) => errors.append(&mut x),
+				},
+				Err(mut x) => errors.append(&mut x),
+			}
 		}
 	}
 

@@ -131,10 +131,11 @@ pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &Result<Drawi
 	output.push('\n');
 
 	for x in err.hints.iter() {
-		match x {
-			Hint::Stateful(x) => output.push_str(&draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine)),
-			Hint::Stateless(x) => output.push_str(&draw_stateless_error(&x, true, engine)),
-		}
+		let hint = match x {
+			Hint::Stateful(x) => draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine),
+			Hint::Stateless(x) => draw_stateless_error(&x, true, engine),
+		};
+		output.push_str(&hint);
 	}
 
 	if !err.text_position.is_one_line() {
@@ -157,10 +158,11 @@ pub fn draw_stateless_error<T: ErrorKind + Debug>(err: &StatelessError<T>, hint:
 	output.push_str(&format!("\n{}", err.error.get_text()));
 
 	for x in err.hints.iter() {
-		match x {
-			Hint::Stateful(x) => todo!("Stateful hints in stateless errors"),
-			Hint::Stateless(x) => output.push_str(&draw_stateless_error(&x, true, engine)),
-		}
+		let hint = match x {
+			Hint::Stateful(x) => draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine),
+			Hint::Stateless(x) => draw_stateless_error(&x, true, engine),
+		};
+		output.push_str(&hint);
 	}
 
 	output

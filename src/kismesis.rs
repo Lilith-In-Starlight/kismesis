@@ -81,11 +81,6 @@ impl Kismesis {
 	}
 }
 
-pub struct ScopedError<T> {
-	kind: T,
-	file: KisID,
-}
-
 impl From<PathBuf> for KisTemplateID {
 	fn from(val: PathBuf) -> KisTemplateID {
 		KisTemplateID::File(val)
