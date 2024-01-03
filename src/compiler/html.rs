@@ -1,15 +1,19 @@
 use std::collections::HashMap;
 
-use crate::{compiler::parser::types::ParsedFile, kismesis::{KisID, Kismesis}};
+use crate::{
+	compiler::parser::types::ParsedFile,
+	kismesis::{KisID, Kismesis},
+};
 
 use super::{
 	errors::{ErrorKind, ErrorState},
 	options::Settings,
 	parser::{
+		errors::{Hint, Hintable, Hints},
 		types::{
-			Attribute, BinFunc, Expression, HtmlNodes, HtmlTag, Macro, PlugCall, Ranged,
-			Scoped, StringParts, TopNodes, UniFunc, IfTag, ForTag, TextPos,
-		}, errors::{Hint, Hintable, Hints},
+			Attribute, BinFunc, Expression, ForTag, HtmlNodes, HtmlTag, IfTag, Macro, PlugCall,
+			Ranged, Scoped, StringParts, TextPos, TopNodes, UniFunc,
+		},
 	},
 };
 
@@ -133,7 +137,11 @@ pub fn generate_html<'a>(
 		return Err(errors);
 	}
 
-	if let Some(template) = file.template.as_ref().and_then(|x| engine.get_template(x.clone())) {
+	if let Some(template) = file
+		.template
+		.as_ref()
+		.and_then(|x| engine.get_template(x.clone()))
+	{
 		let mut next_scopes = sub_scopes;
 		next_scopes.push(file);
 		let template_output = generate_html(template, next_scopes, options, engine)?;
@@ -209,13 +217,16 @@ fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<'a, 
 	Ok(output)
 }
 
-fn to_iterator<'a>(expr: &'a Ranged<Expression>, state: &GenerationState<'a>) -> CompileResult<'a, Vec<Ranged<Expression>>> {
+fn to_iterator<'a>(
+	expr: &'a Ranged<Expression>,
+	state: &GenerationState<'a>,
+) -> CompileResult<'a, Vec<Ranged<Expression>>> {
 	match expr.value {
 		Expression::Array(ref x) => Ok(x.clone()),
 		Expression::Variable(_) => match calculate_expression(expr, state)? {
 			ExpressionValues::Array(x) => Ok(x),
 			ExpressionValues::Reference(x, _, _) => to_iterator(&x, state),
-			_ => Ok(vec![expr.clone()])
+			_ => Ok(vec![expr.clone()]),
 		},
 		_ => Ok(vec![expr.clone()]),
 	}
@@ -228,7 +239,10 @@ fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<'a
 
 	for expr in condition.iter() {
 		let mut variable_scopes = state.variable_scopes.clone();
-		variable_scopes.insert(tag.variable.value.clone(), ((Some(expr), tag.variable.range.clone()), state.scope));
+		variable_scopes.insert(
+			tag.variable.value.clone(),
+			((Some(expr), tag.variable.range.clone()), state.scope),
+		);
 		let state = GenerationState {
 			variable_scopes,
 			..state.clone()
@@ -241,7 +255,6 @@ fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<'a
 				Err(mut error) => errors.append(&mut error),
 			}
 		}
-		
 	}
 
 	if !errors.is_empty() {
@@ -278,9 +291,12 @@ fn parse_html_child<'a>(
 
 fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
 	let mut errors = Vec::new();
-	let template = state.macro_templates.get(&mac.name.value).ok_or(vec![
-		CompilerError::UndefinedMacroCall.with_scope_at(state.scope, mac.name.range.clone()),
-	])?;
+	let template =
+		state
+			.macro_templates
+			.get(&mac.name.value)
+			.ok_or(vec![CompilerError::UndefinedMacroCall
+				.with_scope_at(state.scope, mac.name.range.clone())])?;
 	let mut new_state = state.clone();
 	new_state.variable_scopes = {
 		let mut base = template.0.get_argument_scope(template.1);
@@ -293,11 +309,17 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 					errors.push(
 						CompilerError::UnsetArgNoDefault(arg.0.clone())
 							.with_scope_at(state.scope, mac.name.range.clone())
-							.with_hint(Hints::ArgumentDefinedHere.with_state_at(template.0.name.range.clone(), template.1))
+							.with_hint(
+								Hints::ArgumentDefinedHere
+									.with_state_at(template.0.name.range.clone(), template.1),
+							),
 					);
 				}
 				Some(value) => {
-					let _ = output.insert(arg.0.clone(), ((Some(value), arg.1. 0. 1.clone()), template.1));
+					let _ = output.insert(
+						arg.0.clone(),
+						((Some(value), arg.1 .0 .1.clone()), template.1),
+					);
 				}
 			}
 		}
@@ -412,12 +434,10 @@ fn attribute_string<'a>(
 		output.push(' ');
 		match calculate_expression(&attr.value, state) {
 			Ok(value_string) => {
-				let string = value_string.to_string(attr.value.range.clone(),state.scope, state)?;
-				output.push_str(&format!(
-				"{}='{}'",
-				attr.name.value,
-				string
-			))},
+				let string =
+					value_string.to_string(attr.value.range.clone(), state.scope, state)?;
+				output.push_str(&format!("{}='{}'", attr.name.value, string))
+			}
 			Err(mut error) => errors.append(&mut error),
 		}
 	}
@@ -439,12 +459,14 @@ fn parse_kis_string<'a, 'b>(
 		match parse {
 			StringParts::String(x) => output.push_string(x),
 			StringParts::Expression(expr) => match calculate_expression(expr, state) {
-				Ok(calculated_expression) => match calculated_expression.to_string(expr.range.clone(), state.scope, state) {
-					Ok(string) => output.push_string(string),
-					Err(mut x) => errors.append(&mut x),
-				},
+				Ok(calculated_expression) => {
+					match calculated_expression.to_string(expr.range.clone(), state.scope, state) {
+						Ok(string) => output.push_string(string),
+						Err(mut x) => errors.append(&mut x),
+					}
+				}
 				Err(mut x) => errors.append(&mut x),
-			}
+			},
 		}
 	}
 
@@ -461,7 +483,7 @@ enum ExpressionValues {
 	None,
 	Generic,
 	Array(Vec<Ranged<Expression>>),
-	Reference(Ranged<Expression>, KisID, TextPos)
+	Reference(Ranged<Expression>, KisID, TextPos),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -472,8 +494,8 @@ pub struct ScopedError<T> {
 
 impl<T> Hintable for ScopedError<T> {
 	fn add_hint(&mut self, hint: Hint) {
-        self.error.hints.push(hint);
-    }
+		self.error.hints.push(hint);
+	}
 }
 
 impl ExpressionValues {
@@ -485,26 +507,33 @@ impl ExpressionValues {
 		}
 	}
 
-	fn to_string<'a, 'b>(&'a self, range: TextPos, scope: KisID, state: &'b GenerationState<'a>) -> CompileResult<'a, String> {
+	fn to_string<'a, 'b>(
+		&'a self,
+		range: TextPos,
+		scope: KisID,
+		state: &'b GenerationState<'a>,
+	) -> CompileResult<'a, String> {
 		match self {
 			ExpressionValues::String(x) => match parse_kis_string(&x, state) {
 				Ok(parsed_kis_string) => Ok(parsed_kis_string.to_string_forced()),
 				Err(kis_string_errors) => Err(kis_string_errors),
 			},
-			ExpressionValues::None => {
-				Err(vec![CompilerError::CantWriteNoneValue.with_scope_at(scope, range.clone())])
-			}
-			ExpressionValues::Generic => {
-				Err(vec![CompilerError::CantWriteGenericValue.with_scope_at(scope, range.clone())])
-			}
-			ExpressionValues::Array(_) => {
-				Err(vec![CompilerError::CantWriteArray.with_scope_at(scope, range.clone())])
-			}
-			ExpressionValues::Reference(x, id, pos) => match calculate_expression(x, state)?.to_string(range.clone(), scope, state) {
-				Ok(x) => Ok(x),
-				Err(mut x) => {
-					x[0].add_hint(Hints::ReferenceToThis.with_state_at(pos.clone(), *id));
-					Err(x)
+			ExpressionValues::None => Err(vec![
+				CompilerError::CantWriteNoneValue.with_scope_at(scope, range.clone())
+			]),
+			ExpressionValues::Generic => Err(vec![
+				CompilerError::CantWriteGenericValue.with_scope_at(scope, range.clone())
+			]),
+			ExpressionValues::Array(_) => Err(vec![
+				CompilerError::CantWriteArray.with_scope_at(scope, range.clone())
+			]),
+			ExpressionValues::Reference(x, id, pos) => {
+				match calculate_expression(x, state)?.to_string(range.clone(), scope, state) {
+					Ok(x) => Ok(x),
+					Err(mut x) => {
+						x[0].add_hint(Hints::ReferenceToThis.with_state_at(pos.clone(), *id));
+						Err(x)
+					}
 				}
 			}
 		}
@@ -553,9 +582,20 @@ fn calculate_expression<'a, 'b>(
 		}
 		Expression::Variable(x) => {
 			if let Some(var) = state.variable_scopes.get(x) {
-				match var.0.0 {
-					Some(value) => Ok(ExpressionValues::Reference(value.clone(), var.1, value.range.clone())),
-					None => Ok(ExpressionValues::Reference(Ranged { value: Expression::None, range: var.0.1.clone()}, var.1, var.0.1.clone())),
+				match var.0 .0 {
+					Some(value) => Ok(ExpressionValues::Reference(
+						value.clone(),
+						var.1,
+						value.range.clone(),
+					)),
+					None => Ok(ExpressionValues::Reference(
+						Ranged {
+							value: Expression::None,
+							range: var.0 .1.clone(),
+						},
+						var.1,
+						var.0 .1.clone(),
+					)),
 				}
 			} else {
 				Err(vec![
@@ -582,7 +622,9 @@ pub enum CompilerError {
 impl ErrorKind for CompilerError {
 	fn get_text(&self) -> String {
 		match self {
-			Self::CantWriteArray => "This computes to an array, which can't be writen into content.".into(),  
+			Self::CantWriteArray => {
+				"This computes to an array, which can't be writen into content.".into()
+			}
 			Self::ContentTagInOutput => {
 				"Can't write this file to output due to having a <content!> tag".into()
 			}

@@ -8,14 +8,14 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 
 use crate::compiler::lexer::Token;
-use crate::kismesis::{Kismesis, KisID, KisTemplateID};
+use crate::kismesis::{KisID, KisTemplateID, Kismesis};
 
 use self::errors::{Err, ParseError};
 use self::state::ParserState;
 use self::types::{
-	paragraph_str_to_p, Argument, Attribute, BinFunc, BodyNodes, BodyTags, Expression, HtmlNodes,
-	HtmlTag, Lambda, Macro, ParsedFile, PlugCall, Ranged, Section, StringParts, Tag, TopNodes,
-	UniFunc, Variable, IfTag, ForTag,
+	paragraph_str_to_p, Argument, Attribute, BinFunc, BodyNodes, BodyTags, Expression, ForTag,
+	HtmlNodes, HtmlTag, IfTag, Lambda, Macro, ParsedFile, PlugCall, Ranged, Section, StringParts,
+	Tag, TopNodes, UniFunc, Variable,
 };
 
 use super::errors::ErrorState;
@@ -148,7 +148,10 @@ impl<'a, T> Parser<'a, T> for BoxedParser<'a, T> {
 
 // Parsers
 fn quote_mark(state: ParserState) -> ParserResult<&char> {
-	match specific_symbol('\'').or(specific_symbol('"')).parse(state.clone()) {
+	match specific_symbol('\'')
+		.or(specific_symbol('"'))
+		.parse(state.clone())
+	{
 		Err(_) => Err(ParseError::NotQuoteMark.error_at(&state)),
 		ok => ok,
 	}
@@ -207,7 +210,10 @@ fn plugin_mark(state: ParserState) -> ParserResult<&char> {
 }
 
 fn body_opener(state: ParserState) -> ParserResult<&char> {
-	match specific_symbol('|').or(specific_symbol(':')).parse(state.clone()) {
+	match specific_symbol('|')
+		.or(specific_symbol(':'))
+		.parse(state.clone())
+	{
 		Err(_) => Err(ParseError::ExpectedBodyOpener.error_at(&state)),
 		ok => ok,
 	}
@@ -229,9 +235,8 @@ fn set_starter(state: ParserState) -> ParserResult<&str> {
 
 fn set_stmt(state: ParserState) -> ParserResult<(String, String)> {
 	let parser =
-		set_starter
-			.preceding(cut(after_spaces(literal)
-				.and_also(after_spaces(equals).preceding(after_spaces(attr_string)))));
+		set_starter.preceding(cut(after_spaces(literal)
+			.and_also(after_spaces(equals).preceding(after_spaces(attr_string)))));
 
 	match parser.parse(state.clone()) {
 		Ok(((name, value), next_state)) => {
@@ -278,14 +283,17 @@ fn check_tag_mismatch(state: ParserState) -> ParserResult<()> {
 }
 
 fn expr_array(state: ParserState) -> ParserResult<Expression> {
-	let parser = zero_or_more(get_range(expression).followed_by(after_blanks(specific_symbol(',').followed_by(skipped_blanks()))))
-		.and_maybe(get_range(expression)).map(|(mut vec, maybe)| {
-			if let Some(last) = maybe {
-				vec.push(last)
-			}
-			vec
+	let parser = zero_or_more(get_range(expression).followed_by(after_blanks(
+		specific_symbol(',').followed_by(skipped_blanks()),
+	)))
+	.and_maybe(get_range(expression))
+	.map(|(mut vec, maybe)| {
+		if let Some(last) = maybe {
+			vec.push(last)
 		}
-	).map(Expression::Array);
+		vec
+	})
+	.map(Expression::Array);
 
 	parser.parse(state)
 }
@@ -342,7 +350,8 @@ fn wrapped_expr(state: ParserState) -> ParserResult<Expression> {
 		.or(expr_array)
 		.or(expression)
 		.or(specific_symbol('!').map(|_x| Expression::None));
-	let parser = expr_opener.preceding(cut(after_blanks(internal_parser)).followed_by(after_blanks(expr_closer)));
+	let parser = expr_opener
+		.preceding(cut(after_blanks(internal_parser)).followed_by(after_blanks(expr_closer)));
 
 	parser.parse(state)
 }
@@ -350,7 +359,9 @@ fn wrapped_expr(state: ParserState) -> ParserResult<Expression> {
 fn variable_definition(state: ParserState) -> ParserResult<Variable> {
 	let parser = var_def_starter
 		.preceding(after_spaces(get_range(literal)))
-		.and_also(cut(after_spaces(equals).preceding(after_spaces(get_range(expression)))));
+		.and_also(cut(
+			after_spaces(equals).preceding(after_spaces(get_range(expression)))
+		));
 	let ((name, value), next_state) = parser.parse(state)?;
 	Ok((
 		Variable {
@@ -363,7 +374,8 @@ fn variable_definition(state: ParserState) -> ParserResult<Variable> {
 
 fn lambda_definition(state: ParserState) -> ParserResult<Lambda> {
 	let parser = lambda_def_starter.preceding(
-		cut(after_spaces(get_range(literal))).and_maybe(after_spaces(equals).preceding(after_spaces(get_range(expression)))),
+		cut(after_spaces(get_range(literal)))
+			.and_maybe(after_spaces(equals).preceding(after_spaces(get_range(expression)))),
 	);
 	let ((name, value), next_state) = parser.parse(state)?;
 	Ok((
@@ -379,18 +391,23 @@ fn if_tag(state: ParserState) -> ParserResult<IfTag> {
 	let parser = specific_literal("if")
 		.preceding(after_spaces(get_range(expression)))
 		.and_also(maybe(tag_body).map(|x| x.unwrap_or(vec![])))
-		.map(|(condition, body)| IfTag { condition, body } );
+		.map(|(condition, body)| IfTag { condition, body });
 
 	parser.parse(state)
 }
 
 fn for_tag(state: ParserState) -> ParserResult<ForTag> {
-	let parser = specific_literal("for")
-		.preceding(cut(after_spaces(get_range(literal)))
-		.followed_by(after_spaces(specific_literal("in")))
-		.and_also(after_spaces(get_range(expression)))
-		.and_also(maybe(tag_body).map(|x| x.unwrap_or(vec![])))
-		.map(|((variable, iterator), body)| ForTag { variable: variable.to_own(), iterator, body }));
+	let parser = specific_literal("for").preceding(
+		cut(after_spaces(get_range(literal)))
+			.followed_by(after_spaces(specific_literal("in")))
+			.and_also(after_spaces(get_range(expression)))
+			.and_also(maybe(tag_body).map(|x| x.unwrap_or(vec![])))
+			.map(|((variable, iterator), body)| ForTag {
+				variable: variable.to_own(),
+				iterator,
+				body,
+			}),
+	);
 
 	parser.parse(state)
 }
@@ -489,7 +506,10 @@ fn content_macro(state: ParserState<'_>) -> ParserResult<'_, ()> {
 }
 
 fn doctype(state: ParserState<'_>) -> ParserResult<'_, String> {
-	specific_symbol('!').preceding(cut(after_spaces(specific_literal("doctype")).preceding(after_spaces(literal.map(|x| x.to_string()))))).parse(state)
+	specific_symbol('!')
+		.preceding(cut(after_spaces(specific_literal("doctype"))
+			.preceding(after_spaces(literal.map(|x| x.to_string())))))
+		.parse(state)
 }
 
 fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
@@ -728,15 +748,14 @@ fn skip_newline_blanks<'a>() -> impl Parser<'a, Vec<&'a char>> {
 }
 
 fn tag_body(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
-	let parser = skip_spaces()
-		.preceding(body_opener)
-		.preceding(cut(skipped_blanks())
-		.preceding(zero_or_more(
+	let parser = skip_spaces().preceding(body_opener).preceding(
+		cut(skipped_blanks()).preceding(zero_or_more(
 			skip_newline_blanks()
 				.preceding(section_block.map(|x| HtmlNodes::HtmlTag(Section::to_tag(x))))
 				.or(string_tagless.map(HtmlNodes::String))
 				.or(skipped_blanks().preceding(some_child_tag.map(|x| x.into()))),
-		)));
+		)),
+	);
 
 	parser.parse(state)
 }
@@ -850,9 +869,10 @@ fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
 }
 
 fn string_tagless_content<'a>() -> impl Parser<'a, StringParts> {
-	specific_symbol('\\').preceding(any.map(|x| StringParts::String(x.get_as_string())))
-	.or(specific_symbol('@').preceding(get_range(expression).map(StringParts::Expression)))
-	.or(any.map(|x| StringParts::String(x.get_as_string())))
+	specific_symbol('\\')
+		.preceding(any.map(|x| StringParts::String(x.get_as_string())))
+		.or(specific_symbol('@').preceding(get_range(expression).map(StringParts::Expression)))
+		.or(any.map(|x| StringParts::String(x.get_as_string())))
 }
 
 fn string_tagless(state: ParserState) -> ParserResult<Vec<StringParts>> {
@@ -864,12 +884,14 @@ fn string_tagless(state: ParserState) -> ParserResult<Vec<StringParts>> {
 fn attr_string(state: ParserState) -> ParserResult<Vec<StringParts>> {
 	let (quote_mark, state) = quote_mark.parse(state)?;
 	let terminator = newline.or(specific_symbol(quote_mark.clone()));
-	let parser = maybe_until(string_tagless_content(), terminator).followed_by(specific_symbol(quote_mark.clone()));
+	let parser = maybe_until(string_tagless_content(), terminator)
+		.followed_by(specific_symbol(quote_mark.clone()));
 	parser.parse(state)
 }
 
 fn paragraph_string(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
-	let inside = string_tagless.map(HtmlNodes::String)
+	let inside = string_tagless
+		.map(HtmlNodes::String)
 		.or(some_child_tag.map(|x| x.into()));
 
 	let terminator = newline;
@@ -911,7 +933,9 @@ fn attribute(state: ParserState) -> ParserResult<Attribute> {
 fn argument(state: ParserState) -> ParserResult<Argument> {
 	let parser = get_range(literal)
 		.followed_by(zero_or_more(space.or(indent)))
-		.and_maybe(equals.preceding(zero_or_more(space.or(indent)).preceding(get_range(expression))));
+		.and_maybe(
+			equals.preceding(zero_or_more(space.or(indent)).preceding(get_range(expression))),
+		);
 	let ((name, value), state) = parser.parse(state)?;
 	Ok((
 		Argument {

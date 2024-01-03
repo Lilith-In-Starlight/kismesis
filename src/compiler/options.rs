@@ -8,8 +8,8 @@ impl Settings {
 	pub fn new() -> Self {
 		Self {
 			inline: string_vec(&[
-				"p", "b", "i", "strong", "italic", "sub", "sup", "h1", "h2", "h3", "h4", "h5", "h6", "a",
-				"li", "title", "span", "emphasis"
+				"p", "b", "i", "strong", "italic", "sub", "sup", "h1", "h2", "h3", "h4", "h5",
+				"h6", "a", "li", "title", "span", "emphasis",
 			]),
 			only_opener: string_vec(&["meta", "img", "link"]),
 			only_closer: string_vec(&["br"]),

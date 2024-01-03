@@ -4,9 +4,13 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use crate::kismesis::{Kismesis, KismesisError, KisID};
+use crate::kismesis::{KisID, Kismesis, KismesisError};
 
-use self::{options::Settings, reporting::{DrawingInfo, draw_error}, parser::errors::Err};
+use self::{
+	options::Settings,
+	parser::errors::Err,
+	reporting::{draw_error, DrawingInfo},
+};
 
 mod errors;
 pub(crate) mod html;
@@ -26,14 +30,16 @@ pub enum Error {
 
 pub fn compile_project() {
 	let mut errors = Vec::new();
-	let mut engine =  Kismesis::new();
+	let mut engine = Kismesis::new();
 
 	let main_template_path = PathBuf::from("templates/main.ks");
 	let template_paths = recursive_crawl(&PathBuf::from("templates")).0;
 
 	for path in template_paths {
 		match engine.register_file(path) {
-			Ok(x) => {engine.register_template(x);},
+			Ok(x) => {
+				engine.register_template(x);
+			}
 			Err(x) => errors.push(x.into()),
 		}
 	}
@@ -75,8 +81,8 @@ pub fn compile_project() {
 					Some(x) => x,
 					None => {
 						errors.push(Error::TriedToGetNonExistentTemplate(file.file_id));
-						return
-					},
+						return;
+					}
 				};
 				if let Some(path) = &file.path {
 					let mut output_path =
@@ -156,11 +162,11 @@ pub fn recursive_crawl(path: &Path) -> (Vec<PathBuf>, Vec<io::Error>) {
 
 impl From<KismesisError> for Error {
 	fn from(value: KismesisError) -> Self {
-        match value {
+		match value {
 			KismesisError::IOError(x, y) => Error::IOError(x, y),
 			KismesisError::ParseError(x, y) => Error::ParseError(x, y),
 		}
-    }
+	}
 }
 
 pub fn report_errors(errors: Vec<Error>, engine: &Kismesis) {

@@ -1,6 +1,13 @@
-use std::{path::{PathBuf, Path}, io, fs, collections::HashMap};
+use std::{
+	collections::HashMap,
+	fs, io,
+	path::{Path, PathBuf},
+};
 
-use crate::compiler::{parser::{types::ParsedFile, self, errors::Err}, lexer::{self, Token}};
+use crate::compiler::{
+	lexer::{self, Token},
+	parser::{self, errors::Err, types::ParsedFile},
+};
 
 pub type KisResult<T> = Result<T, KismesisError>;
 
@@ -39,10 +46,12 @@ impl Kismesis {
 		KisID(self.tokens.len() - 1)
 	}
 	pub fn register_file(&mut self, path: PathBuf) -> KisResult<ParsedFile> {
-		let text = fs::read_to_string(&path).map_err(|x| KismesisError::IOError(x, path.clone()))?;
+		let text =
+			fs::read_to_string(&path).map_err(|x| KismesisError::IOError(x, path.clone()))?;
 		let tokens = lexer::tokenize(&text);
 		let tokens = self.register_tokens(tokens, Some(path));
-		let file = parser::file(tokens, self, None).map_err(|x| KismesisError::ParseError(x, tokens))?;
+		let file =
+			parser::file(tokens, self, None).map_err(|x| KismesisError::ParseError(x, tokens))?;
 		Ok(file)
 	}
 	pub fn register_template(&mut self, file: ParsedFile) -> KisTemplateID {
@@ -55,13 +64,13 @@ impl Kismesis {
 	}
 	pub fn get_template<'a, 'b, T>(&'a self, id: T) -> Option<&'a ParsedFile>
 	where
-		T: Into<KisTemplateID>
+		T: Into<KisTemplateID>,
 	{
 		self.templates.get(&id.into())
 	}
 	pub fn verify_template_id<T>(&self, id: T) -> Option<KisTemplateID>
 	where
-		T: Into<KisTemplateID>
+		T: Into<KisTemplateID>,
 	{
 		let id = id.into();
 		if self.has_template(id.clone()) {
@@ -72,7 +81,7 @@ impl Kismesis {
 	}
 	pub fn has_template<T>(&self, id: T) -> bool
 	where
-		T: Into<KisTemplateID>
+		T: Into<KisTemplateID>,
 	{
 		self.templates.get(&id.into()).is_some()
 	}
@@ -104,4 +113,3 @@ impl From<&KisTemplateID> for KisTemplateID {
 		val.clone()
 	}
 }
-

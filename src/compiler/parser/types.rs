@@ -1,9 +1,9 @@
-use std::{
-	collections::HashMap,
-	path::Path,
-};
+use std::{collections::HashMap, path::Path};
 
-use crate::{compiler::lexer::Token, kismesis::{KisID, KisTemplateID, Kismesis}};
+use crate::{
+	compiler::lexer::Token,
+	kismesis::{KisID, KisTemplateID, Kismesis},
+};
 
 use super::state::TokenPos;
 
@@ -234,18 +234,37 @@ impl ParsedFile {
 		}
 	}
 
-	pub fn get_macro_template<'a>(&'a self, engine: &'a Kismesis, predicate: impl Fn(&&Macro) -> bool) -> Option<&Macro> {
+	pub fn get_macro_template<'a>(
+		&'a self,
+		engine: &'a Kismesis,
+		predicate: impl Fn(&&Macro) -> bool,
+	) -> Option<&Macro> {
 		self.defined_macros.iter().rfind(&predicate).or(self
-			.template.as_ref()
-			.map(|x| engine.get_template(x.clone()).unwrap().get_macro_template(engine, &predicate))
+			.template
+			.as_ref()
+			.map(|x| {
+				engine
+					.get_template(x.clone())
+					.unwrap()
+					.get_macro_template(engine, &predicate)
+			})
 			.unwrap_or(None))
 	}
 
 	pub fn get_path_slice<'a>(&'a self, engine: &'a Kismesis) -> Option<&Path> {
-		engine.get_file(self.file_id).unwrap().path.as_ref().map(|x| x.as_path())
+		engine
+			.get_file(self.file_id)
+			.unwrap()
+			.path
+			.as_ref()
+			.map(|x| x.as_path())
 	}
 
-	pub fn get_variable_value<'a>(&'a self, engine: &'a Kismesis, predicate: &str) -> VariableOption<&Ranged<Expression>> {
+	pub fn get_variable_value<'a>(
+		&'a self,
+		engine: &'a Kismesis,
+		predicate: &str,
+	) -> VariableOption<&Ranged<Expression>> {
 		for var in self.defined_variables.iter() {
 			if var.name.value == predicate {
 				return VariableOption::Some(&var.value);
@@ -262,7 +281,10 @@ impl ParsedFile {
 		}
 
 		match self.template {
-			Some(ref template) => engine.get_template(template.clone()).unwrap().get_variable_value(engine, predicate),
+			Some(ref template) => engine
+				.get_template(template.clone())
+				.unwrap()
+				.get_variable_value(engine, predicate),
 			None => VariableOption::None,
 		}
 	}
@@ -270,15 +292,19 @@ impl ParsedFile {
 	pub fn get_macro_scope<'a>(&'a self, engine: &'a Kismesis) -> HashMap<String, Scoped<&Macro>> {
 		let mut output = HashMap::new();
 		if let Some(ref template) = self.template {
-			output.extend(engine.get_template(template.clone()).unwrap().get_macro_scope(engine))
+			output.extend(
+				engine
+					.get_template(template.clone())
+					.unwrap()
+					.get_macro_scope(engine),
+			)
 		}
 
-		output.extend(self.defined_macros.iter().map(|x| {
-			(
-				x.name.value.clone(),
-				(x, self.file_id),
-			)
-		}));
+		output.extend(
+			self.defined_macros
+				.iter()
+				.map(|x| (x.name.value.clone(), (x, self.file_id))),
+		);
 
 		output
 	}
@@ -291,37 +317,36 @@ impl ParsedFile {
 		let mut out = HashMap::new();
 
 		if let Some(ref template) = self.template {
-			out.extend(engine.get_template(template.clone()).unwrap().get_variable_scope(&[], engine))
+			out.extend(
+				engine
+					.get_template(template.clone())
+					.unwrap()
+					.get_variable_scope(&[], engine),
+			)
 		}
 
 		out.extend(self.defined_lambdas.iter().map(|x| {
 			if !sub_scope.is_empty() {
 				for scope in sub_scope.iter() {
-					let find = scope.defined_variables.iter().rfind(|y| y.name.value == x.name.value);
+					let find = scope
+						.defined_variables
+						.iter()
+						.rfind(|y| y.name.value == x.name.value);
 					if let Some(find) = find {
 						return (
 							find.name.value.clone(),
-							(
-								(Some(&find.value), find.name.range.clone()),
-								self.file_id,
-							),
+							((Some(&find.value), find.name.range.clone()), self.file_id),
 						);
 					}
 				}
 				(
 					x.name.value.clone(),
-					(
-						(x.value.as_ref(), x.name.range.clone()),
-						self.file_id,
-					),
+					((x.value.as_ref(), x.name.range.clone()), self.file_id),
 				)
 			} else {
 				(
 					x.name.value.clone(),
-					(
-						(x.value.as_ref(), x.name.range.clone()),
-						self.file_id,
-					),
+					((x.value.as_ref(), x.name.range.clone()), self.file_id),
 				)
 			}
 		}));
@@ -329,10 +354,7 @@ impl ParsedFile {
 		out.extend(self.defined_variables.iter().map(|x| {
 			(
 				x.name.value.clone(),
-				(
-					(Some(&x.value), x.name.range.clone()),
-					self.file_id,
-				),
+				((Some(&x.value), x.name.range.clone()), self.file_id),
 			)
 		}));
 
@@ -547,7 +569,10 @@ impl Macro {
 		let mut output = HashMap::new();
 
 		output.extend(self.arguments.iter().map(|x| match x.value {
-			Some(ref value) => (x.name.value.clone(), ((Some(value), x.name.range.clone()), scope)),
+			Some(ref value) => (
+				x.name.value.clone(),
+				((Some(value), x.name.range.clone()), scope),
+			),
 			None => (x.name.value.clone(), ((None, x.name.range.clone()), scope)),
 		}));
 
@@ -586,12 +611,12 @@ impl HtmlTag {
 #[derive(Clone, Debug, PartialEq)]
 pub struct IfTag {
 	pub condition: Ranged<Expression>,
-	pub body: Vec<HtmlNodes>
+	pub body: Vec<HtmlNodes>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForTag {
 	pub variable: Ranged<String>,
 	pub iterator: Ranged<Expression>,
-	pub body: Vec<HtmlNodes>
+	pub body: Vec<HtmlNodes>,
 }

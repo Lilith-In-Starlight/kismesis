@@ -1,12 +1,12 @@
 use std::fmt::Debug;
 
-use crate::kismesis::{KisID, Kismesis, FileRef};
+use crate::kismesis::{FileRef, KisID, Kismesis};
 
 use super::{
 	errors::{ErrorKind, ErrorState, StatelessError},
 	html::ScopedError,
 	lexer::Token,
-	parser::{state::TokenPos, errors::Hint},
+	parser::{errors::Hint, state::TokenPos},
 };
 use colored::*;
 
@@ -32,7 +32,7 @@ impl ErrorKind for ReportingError {
 }
 
 impl<'a> DrawingInfo<'a> {
-	pub fn from(scope: KisID, engine :&'a Kismesis, hint: bool) -> Result<Self, ()> {
+	pub fn from(scope: KisID, engine: &'a Kismesis, hint: bool) -> Result<Self, ()> {
 		let scope = engine.get_file(scope).ok_or(())?;
 		let lines: Vec<&[Token]> = scope
 			.tokens
@@ -48,22 +48,26 @@ impl<'a> DrawingInfo<'a> {
 			out
 		};
 		Ok(Self {
-        			line_number_length: 3,
-        			scope,
-        			lines,
-        			line_offset: (2, 2),
-        			hint
-        		})
+			line_number_length: 3,
+			scope,
+			lines,
+			line_offset: (2, 2),
+			hint,
+		})
 	}
 }
 
-pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &Result<DrawingInfo, ()>, engine: &Kismesis) -> String {
+pub fn draw_error<T: ErrorKind + Debug>(
+	err: &ErrorState<T>,
+	info: &Result<DrawingInfo, ()>,
+	engine: &Kismesis,
+) -> String {
 	let info = match info.as_ref() {
 		Ok(x) => x,
 		Err(_) => {
 			let err = ReportingError::InvalidKismesisID.stateless();
 			return draw_stateless_error(&err, false, engine);
-		},
+		}
 	};
 	let minimum_line = {
 		let x = err.text_position.get_start_line();
@@ -132,7 +136,9 @@ pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &Result<Drawi
 
 	for x in err.hints.iter() {
 		let hint = match x {
-			Hint::Stateful(x) => draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine),
+			Hint::Stateful(x) => {
+				draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine)
+			}
 			Hint::Stateless(x) => draw_stateless_error(&x, true, engine),
 		};
 		output.push_str(&hint);
@@ -145,7 +151,11 @@ pub fn draw_error<T: ErrorKind + Debug>(err: &ErrorState<T>, info: &Result<Drawi
 	output
 }
 
-pub fn draw_stateless_error<T: ErrorKind + Debug>(err: &StatelessError<T>, hint: bool, engine: &Kismesis) -> String {
+pub fn draw_stateless_error<T: ErrorKind + Debug>(
+	err: &StatelessError<T>,
+	hint: bool,
+	engine: &Kismesis,
+) -> String {
 	let mut output = String::new();
 
 	if hint {
@@ -159,7 +169,9 @@ pub fn draw_stateless_error<T: ErrorKind + Debug>(err: &StatelessError<T>, hint:
 
 	for x in err.hints.iter() {
 		let hint = match x {
-			Hint::Stateful(x) => draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine),
+			Hint::Stateful(x) => {
+				draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine)
+			}
 			Hint::Stateless(x) => draw_stateless_error(&x, true, engine),
 		};
 		output.push_str(&hint);
@@ -173,9 +185,7 @@ fn draw_line<T: ErrorKind>(
 	err: &ErrorState<T>,
 	info: &DrawingInfo,
 ) -> Option<String> {
-	let mut output = draw_line_number(line_number, info)
-		.white()
-		.to_string();
+	let mut output = draw_line_number(line_number, info).white().to_string();
 	let mut error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
 	let termsize = termsize::get().map(|size| size.cols).unwrap_or(40) as usize;
 	let termsize = std::cmp::min(termsize, termsize - err.error.get_text().len());
@@ -211,7 +221,7 @@ fn draw_line<T: ErrorKind>(
 				' '
 			};
 			error_line.push_str(&turn_to_chars(tkstr, char));
-			if token_pos.is_at_an_end(&err.text_position){ 
+			if token_pos.is_at_an_end(&err.text_position) {
 				if err.text_position.is_one_line() {
 					error_line.push_str(&format!(" {}", err.error.get_text()));
 				} else {
@@ -251,6 +261,9 @@ fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
 }
 
 pub fn draw_scoped_error<T: ErrorKind + Debug>(err: &ScopedError<T>, engine: &Kismesis) -> String {
-	draw_error(&err.error, &DrawingInfo::from(err.scope, engine, false), engine)
+	draw_error(
+		&err.error,
+		&DrawingInfo::from(err.scope, engine, false),
+		engine,
+	)
 }
-

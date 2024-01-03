@@ -41,9 +41,9 @@ where
 			match p2.parse(state.clone()) {
 				Ok((_, next_state)) => {
 					if found.is_empty() {
-						return Err(ParseError::EmptyString.error_at(&next_state))
+						return Err(ParseError::EmptyString.error_at(&next_state));
 					} else {
-						return Ok((found, state))
+						return Ok((found, state));
 					}
 				}
 				Err(_) => match p1.parse(state.clone()) {
@@ -52,7 +52,7 @@ where
 						state = next_state;
 					}
 					Err(_) => return Err(ParseError::ConditionUnmet.error_at(&state)),
-				}
+				},
 			}
 		}
 	}
@@ -269,12 +269,6 @@ where
 				TextPos::Range((start, end))
 			}
 		};
-		Ok((
-			Ranged {
-				value: val,
-				range,
-			},
-			next_state,
-		))
+		Ok((Ranged { value: val, range }, next_state))
 	}
 }

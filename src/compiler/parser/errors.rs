@@ -1,6 +1,12 @@
 use std::ops::Bound;
 
-use crate::{compiler::{errors::{ErrorKind, ErrorState, StatelessError}, html::ScopedError}, kismesis::KisID};
+use crate::{
+	compiler::{
+		errors::{ErrorKind, ErrorState, StatelessError},
+		html::ScopedError,
+	},
+	kismesis::KisID,
+};
 
 use super::{state::ParserState, types::TextPos};
 
@@ -80,19 +86,29 @@ pub enum Hints {
 
 impl ErrorKind for Hints {
 	fn get_text(&self) -> String {
-        match self {
+		match self {
 			Self::ArgumentDefinedHere => "Argument defined here".into(),
 			Self::ReferenceToThis => "Value comes from here".into(),
 		}
-    }
+	}
 }
 
 impl Hints {
 	pub fn with_state_at(self, state: TextPos, scope: KisID) -> Hint {
-		Hint::Stateful(ScopedError { error: ErrorState { error: self, text_position: state, hints: vec![] }, scope})
+		Hint::Stateful(ScopedError {
+			error: ErrorState {
+				error: self,
+				text_position: state,
+				hints: vec![],
+			},
+			scope,
+		})
 	}
 	pub fn stateless(self) -> Hint {
-		Hint::Stateless(StatelessError { error: self, hints: vec![] })
+		Hint::Stateless(StatelessError {
+			error: self,
+			hints: vec![],
+		})
 	}
 }
 
@@ -102,7 +118,10 @@ pub enum Hint {
 	Stateless(StatelessError<Hints>),
 }
 
-pub trait Hintable where Self: Sized {
+pub trait Hintable
+where
+	Self: Sized,
+{
 	fn add_hint(&mut self, hint: Hint);
 	fn with_hint(mut self, hint: Hint) -> Self {
 		self.add_hint(hint);
@@ -127,7 +146,9 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
-			Self::TriedToParseInvalidID(id) => format!("Tried to parse a file with invalid ID: {:?}", id),
+			Self::TriedToParseInvalidID(id) => {
+				format!("Tried to parse a file with invalid ID: {:?}", id)
+			}
 			Self::WronglyNestedSection => "Wrongly nested section".to_string(),
 			Self::ExpectedLambdaStart => "Expected `lambda`".to_string(),
 			Self::ConditionUnmet => "Unmet condition".to_string(),

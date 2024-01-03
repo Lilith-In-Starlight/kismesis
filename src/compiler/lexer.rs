@@ -42,7 +42,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 		let mut buffer2 = Vec::new();
 		let mut comments = false;
 		for x in s.chars() {
-			if !comments { 
+			if !comments {
 				buffer.push(x);
 				match buffer.as_slice() {
 					[.., '<', '!', '-'] => {
@@ -66,7 +66,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 		}
 		buffer.into_iter().collect()
 	};
-	
+
 	let mut output: Vec<Token> = vec![];
 
 	let mut current_word: usize = 0;
