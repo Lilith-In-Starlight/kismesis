@@ -74,7 +74,7 @@ pub fn compile_project() {
 
 	let settings = Settings::new();
 	for file in input_files.iter() {
-		match html::generate_html(&file, vec![], &settings, &engine) {
+		match html::generate_html(file, vec![], &settings, &engine) {
 			Ok(x) => {
 				let output_path = PathBuf::from("output");
 				let file = match engine.get_file(file.file_id) {
@@ -151,7 +151,7 @@ pub fn recursive_crawl(path: &Path) -> (Vec<PathBuf>, Vec<io::Error>) {
 			errors.append(&mut b);
 			paths.append(&mut a)
 		} else if let Some(ext) = path.extension() {
-			if ext.to_string_lossy().to_string() == "ks" {
+			if ext.to_string_lossy() == "ks" {
 				paths.push(path)
 			}
 		}

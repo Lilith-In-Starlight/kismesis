@@ -21,6 +21,7 @@ pub struct FileRef {
 	pub path: Option<PathBuf>,
 }
 
+#[derive(Default)]
 pub struct Kismesis {
 	tokens: Vec<FileRef>,
 	templates: HashMap<KisTemplateID, ParsedFile>,
@@ -62,7 +63,7 @@ impl Kismesis {
 		self.templates.insert(output_id.clone(), file);
 		output_id
 	}
-	pub fn get_template<'a, 'b, T>(&'a self, id: T) -> Option<&'a ParsedFile>
+	pub fn get_template<T>(&self, id: T) -> Option<&ParsedFile>
 	where
 		T: Into<KisTemplateID>,
 	{

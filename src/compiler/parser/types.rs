@@ -253,11 +253,9 @@ impl ParsedFile {
 
 	pub fn get_path_slice<'a>(&'a self, engine: &'a Kismesis) -> Option<&Path> {
 		engine
-			.get_file(self.file_id)
-			.unwrap()
+			.get_file(self.file_id)?
 			.path
-			.as_ref()
-			.map(|x| x.as_path())
+			.as_deref()
 	}
 
 	pub fn get_variable_value<'a>(
@@ -562,8 +560,8 @@ impl TextPos {
 }
 
 impl Macro {
-	pub fn get_argument_scope<'a>(
-		&'a self,
+	pub fn get_argument_scope(
+		&self,
 		scope: KisID,
 	) -> HashMap<String, Scoped<(Option<&Ranged<Expression>>, TextPos)>> {
 		let mut output = HashMap::new();
@@ -599,7 +597,7 @@ impl HtmlTag {
 
 		self.body = subtag_stack
 			.into_iter()
-			.map(|x| HtmlNodes::HtmlTag(x))
+			.map(HtmlNodes::HtmlTag)
 			.collect();
 
 		self.subtags = Vec::new();

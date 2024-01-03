@@ -139,7 +139,7 @@ pub fn draw_error<T: ErrorKind + Debug>(
 			Hint::Stateful(x) => {
 				draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine)
 			}
-			Hint::Stateless(x) => draw_stateless_error(&x, true, engine),
+			Hint::Stateless(x) => draw_stateless_error(x, true, engine),
 		};
 		output.push_str(&hint);
 	}
@@ -172,7 +172,7 @@ pub fn draw_stateless_error<T: ErrorKind + Debug>(
 			Hint::Stateful(x) => {
 				draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine)
 			}
-			Hint::Stateless(x) => draw_stateless_error(&x, true, engine),
+			Hint::Stateless(x) => draw_stateless_error(x, true, engine),
 		};
 		output.push_str(&hint);
 	}

@@ -140,13 +140,13 @@ where
 			Ok((found, state))
 		} else {
 			let start = match range.start_bound() {
-				Bound::Included(x) => Bound::Included(x.clone()),
-				Bound::Excluded(x) => Bound::Excluded(x.clone()),
+				Bound::Included(x) => Bound::Included(*x),
+				Bound::Excluded(x) => Bound::Excluded(*x),
 				Bound::Unbounded => Bound::<usize>::Unbounded,
 			};
 			let end = match range.end_bound() {
-				Bound::Included(x) => Bound::Included(x.clone()),
-				Bound::Excluded(x) => Bound::Excluded(x.clone()),
+				Bound::Included(x) => Bound::Included(*x),
+				Bound::Excluded(x) => Bound::Excluded(*x),
 				Bound::Unbounded => Bound::<usize>::Unbounded,
 			};
 

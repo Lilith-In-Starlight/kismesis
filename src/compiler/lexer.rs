@@ -44,23 +44,17 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 		for x in s.chars() {
 			if !comments {
 				buffer.push(x);
-				match buffer.as_slice() {
-					[.., '<', '!', '-'] => {
-						buffer.pop();
-						buffer.pop();
-						buffer.pop();
-						comments = true;
-					}
-					_ => (),
+				if let [.., '<', '!', '-'] = buffer.as_slice() {
+					buffer.pop();
+					buffer.pop();
+					buffer.pop();
+					comments = true;
 				}
 			} else {
 				buffer2.push(x);
-				match buffer2.as_slice() {
-					[.., '-', '>'] => {
-						buffer2.clear();
-						comments = false;
-					}
-					_ => (),
+				if let [.., '-', '>'] = buffer2.as_slice() {
+					buffer2.clear();
+					comments = false;
 				}
 			}
 		}

@@ -106,7 +106,7 @@ impl<'a> GenerationState<'a> {
 	) -> Self {
 		Self {
 			options,
-			variable_scopes: file.get_variable_scope(&sub_scopes, engine),
+			variable_scopes: file.get_variable_scope(sub_scopes, engine),
 			macro_templates: file.get_macro_scope(engine),
 			indent: 0,
 			scope: file.file_id,
@@ -206,7 +206,7 @@ fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<'a, 
 		let mut errors = Vec::new();
 		for child in tag.body.iter() {
 			output.push_string('\n');
-			match parse_html_child(child, &state) {
+			match parse_html_child(child, state) {
 				Ok(mut string) => output.push_output(&mut string),
 				Err(mut error) => errors.append(&mut error),
 			}
@@ -449,9 +449,9 @@ fn attribute_string<'a>(
 	}
 }
 
-fn parse_kis_string<'a, 'b>(
+fn parse_kis_string<'a>(
 	string: &'a [StringParts],
-	state: &'b GenerationState<'a>,
+	state: &GenerationState<'a>,
 ) -> CompileResult<'a, HtmlOutput> {
 	let mut output = HtmlOutput::new();
 	let mut errors = Vec::new(); // TODO actually use this vector, remove elvis operators below
@@ -502,19 +502,19 @@ impl ExpressionValues {
 	fn is_truthy<'a>(&self, state: &GenerationState<'a>) -> CompileResult<'a, bool> {
 		match self {
 			Self::Generic | Self::String(_) | Self::Array(_) => Ok(true),
-			Self::Reference(x, _, _) => calculate_expression(&x, state)?.is_truthy(state),
+			Self::Reference(x, _, _) => calculate_expression(x, state)?.is_truthy(state),
 			Self::None => Ok(false),
 		}
 	}
 
-	fn to_string<'a, 'b>(
+	fn to_string<'a>(
 		&'a self,
 		range: TextPos,
 		scope: KisID,
-		state: &'b GenerationState<'a>,
+		state: &GenerationState<'a>,
 	) -> CompileResult<'a, String> {
 		match self {
-			ExpressionValues::String(x) => match parse_kis_string(&x, state) {
+			ExpressionValues::String(x) => match parse_kis_string(x, state) {
 				Ok(parsed_kis_string) => Ok(parsed_kis_string.to_string_forced()),
 				Err(kis_string_errors) => Err(kis_string_errors),
 			},
@@ -540,9 +540,9 @@ impl ExpressionValues {
 	}
 }
 
-fn calculate_expression<'a, 'b>(
+fn calculate_expression<'a>(
 	expr: &'a Ranged<Expression>,
-	state: &'b GenerationState<'a>,
+	state: &GenerationState<'a>,
 ) -> CompileResult<'a, ExpressionValues> {
 	match &expr.value {
 		Expression::BinFunc(func, exp1, exp2) => {

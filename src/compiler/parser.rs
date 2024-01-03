@@ -254,7 +254,7 @@ fn set_stmt(state: ParserState) -> ParserResult<(String, String)> {
 			};
 			Ok(((name.to_string(), value), next_state))
 		}
-		Err(x) => return Err(x),
+		Err(x) => Err(x),
 	}
 }
 
@@ -276,7 +276,7 @@ fn check_tag_mismatch(state: ParserState) -> ParserResult<()> {
 		return Err(Err::Failure(ErrorState {
 			error: ParseError::TagOpenerMismatch,
 			hints: vec![],
-			text_position: types::TextPos::Single(opener.clone()),
+			text_position: types::TextPos::Single(*opener),
 		}));
 	}
 	Ok(((), state))
@@ -862,9 +862,9 @@ fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
 			StringParts::Expression(_) => true,
 			StringParts::String(x) => x.chars().any(|x| !x.is_whitespace()),
 		}) {
-		return Ok((output, state));
+		Ok((output, state))
 	} else {
-		return Err(ParseError::EmptyString.error_at(&state));
+		Err(ParseError::EmptyString.error_at(&state))
 	}
 }
 
@@ -883,9 +883,9 @@ fn string_tagless(state: ParserState) -> ParserResult<Vec<StringParts>> {
 
 fn attr_string(state: ParserState) -> ParserResult<Vec<StringParts>> {
 	let (quote_mark, state) = quote_mark.parse(state)?;
-	let terminator = newline.or(specific_symbol(quote_mark.clone()));
+	let terminator = newline.or(specific_symbol(*quote_mark));
 	let parser = maybe_until(string_tagless_content(), terminator)
-		.followed_by(specific_symbol(quote_mark.clone()));
+		.followed_by(specific_symbol(*quote_mark));
 	parser.parse(state)
 }
 
@@ -946,7 +946,7 @@ fn argument(state: ParserState) -> ParserResult<Argument> {
 	))
 }
 
-pub(crate) fn file<'a>(
+pub(crate) fn file(
 	tokens_id: KisID,
 	engine: &Kismesis,
 	default_template: Option<KisTemplateID>,

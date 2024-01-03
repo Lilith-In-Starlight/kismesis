@@ -84,7 +84,7 @@ impl<'a> ParserState<'a> {
 	}
 }
 
-#[derive(Clone, Debug, Copy, PartialEq)]
+#[derive(Clone, Debug, Copy, PartialEq, Default)]
 pub struct TokenPos {
 	idx: usize,
 	line: usize,
