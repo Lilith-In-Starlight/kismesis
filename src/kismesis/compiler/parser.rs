@@ -7,7 +7,7 @@ use combinators::*;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
-use crate::compiler::lexer::Token;
+use crate::kismesis::compiler::lexer::Token;
 use crate::kismesis::{KisID, KisTemplateID, Kismesis};
 
 use self::errors::{Err, ParseError};

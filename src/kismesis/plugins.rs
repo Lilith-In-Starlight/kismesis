@@ -2,7 +2,7 @@ use rhai::{export_module, exported_module, Module};
 use rhai::plugin::*;
 use rhai::{Array, Dynamic, Engine};
 
-use crate::compiler::{parser::types::{HtmlNodes, HtmlTag, Expression, Attribute, TextPos, Ranged}, lexer::Token};
+use super::compiler::{parser::types::{HtmlNodes, HtmlTag, Expression, Attribute, TextPos, Ranged}, lexer::Token};
 
 // TODO: Change all cast() calls for try_cast()
 
@@ -58,7 +58,7 @@ pub fn dyn_try_html_node(object: Dynamic) -> Option<HtmlNodes> {
 
 #[export_module]
 mod exprs {
-    use crate::compiler::parser::types::StringParts;
+    use crate::kismesis::compiler::parser::types::StringParts;
 
 	pub fn literal(x: String) -> Expression {
 		Expression::Literal(vec![StringParts::String(x)])
@@ -67,7 +67,7 @@ mod exprs {
 
 #[export_module]
 mod parsers {
-    use crate::{compiler::{lexer::Token, parser::{self, state::ParserState}}, kismesis::Kismesis};
+    use crate::kismesis::{compiler::{lexer::Token, parser::{self, state::ParserState}}, Kismesis};
 
 	pub fn get_attributes(params: Vec<Token>) -> Array {
 		let x = parser::multiple_attributes(ParserState::new(&params, &Kismesis::new())).unwrap().0;

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::{
+use crate::kismesis::{
 	compiler::parser::types::ParsedFile,
-	kismesis::{KisID, Kismesis},
+	{KisID, Kismesis},
 };
 
 use super::{

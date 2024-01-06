@@ -1,11 +1,11 @@
 use std::ops::Bound;
 
-use crate::{
+use crate::kismesis::{
 	compiler::{
 		errors::{ErrorKind, ErrorState, StatelessError},
 		html::ScopedError,
 	},
-	kismesis::KisID,
+	KisID,
 };
 
 use super::{state::ParserState, types::TextPos};

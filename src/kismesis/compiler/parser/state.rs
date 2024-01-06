@@ -1,4 +1,4 @@
-use crate::{compiler::{errors::ErrorState, lexer::Token}, kismesis::Kismesis};
+use crate::kismesis::{compiler::{errors::ErrorState, lexer::Token}, Kismesis};
 
 use super::{errors::ParseError, types::TextPos};
 

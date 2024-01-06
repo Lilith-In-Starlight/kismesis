@@ -1,3 +1,6 @@
+pub(crate) mod compiler;
+mod plugins;
+
 use std::{
 	collections::HashMap,
 	fs, io,
@@ -6,10 +9,10 @@ use std::{
 
 use rhai::{Engine, AST, Scope, Array};
 
-use crate::{compiler::{
+use compiler::{
 	lexer::{self, Token},
 	parser::{self, errors::Err, types::{ParsedFile, TextPos, Ranged, HtmlNodes}},
-}, plugins};
+};
 
 pub type KisResult<T> = Result<T, KismesisError>;
 
