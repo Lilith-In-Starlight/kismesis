@@ -250,10 +250,7 @@ impl ParsedFile {
 	}
 
 	pub fn get_path_slice<'a>(&'a self, engine: &'a Kismesis) -> Option<&Path> {
-		engine
-			.get_file(self.file_id)?
-			.path
-			.as_deref()
+		engine.get_file(self.file_id)?.path.as_deref()
 	}
 
 	pub fn get_variable_value<'a>(
@@ -602,10 +599,7 @@ impl HtmlTag {
 			top_2.body.push(HtmlNodes::HtmlTag(top));
 		}
 
-		self.body = subtag_stack
-			.into_iter()
-			.map(HtmlNodes::HtmlTag)
-			.collect();
+		self.body = subtag_stack.into_iter().map(HtmlNodes::HtmlTag).collect();
 
 		self.subtags = Vec::new();
 

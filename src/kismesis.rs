@@ -7,11 +7,15 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use rhai::{Engine, AST, Scope, Array};
+use rhai::{Array, Engine, Scope, AST};
 
 use compiler::{
 	lexer::{self, Token},
-	parser::{self, errors::Err, types::{ParsedFile, TextPos, Ranged, HtmlNodes}},
+	parser::{
+		self,
+		errors::Err,
+		types::{HtmlNodes, ParsedFile, Ranged, TextPos},
+	},
 };
 
 pub type KisResult<T> = Result<T, KismesisError>;
@@ -58,9 +62,23 @@ impl Kismesis {
 		self.plugins.insert(name.to_string(), ast);
 	}
 
-	pub fn run_plugin(&self, name: &str, range: TextPos, params: Ranged<Vec<Token>>, body: Option<Ranged<Vec<Token>>>) -> Vec<HtmlNodes> {
+	pub fn run_plugin(
+		&self,
+		name: &str,
+		range: TextPos,
+		params: Ranged<Vec<Token>>,
+		body: Option<Ranged<Vec<Token>>>,
+	) -> Vec<HtmlNodes> {
 		let plugin = self.plugins.get(name).unwrap();
-		let string: Array = self.plugin_engine.call_fn(&mut Scope::new(), plugin, "token_call", (range, params.value, body.map(|x| x.value).unwrap_or(vec![]))).unwrap();
+		let string: Array = self
+			.plugin_engine
+			.call_fn(
+				&mut Scope::new(),
+				plugin,
+				"token_call",
+				(range, params.value, body.map(|x| x.value).unwrap_or(vec![])),
+			)
+			.unwrap();
 		plugins::into_html_nodes(string)
 	}
 

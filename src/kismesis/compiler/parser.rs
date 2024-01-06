@@ -517,15 +517,14 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 
 	let (((name, arguments), body), state) = parser.parse(state)?;
 
-	let body = state.engine.run_plugin(&name.value, name.range.clone(), arguments.clone(), body.clone());
+	let body = state.engine.run_plugin(
+		&name.value,
+		name.range.clone(),
+		arguments.clone(),
+		body.clone(),
+	);
 
-	Ok((
-		Box::new(PlugCall {
-			name,
-			body,
-		}),
-		state,
-	))
+	Ok((Box::new(PlugCall { name, body }), state))
 }
 
 fn macro_call(state: ParserState<'_>) -> ParserResult<'_, Macro> {
@@ -886,8 +885,8 @@ fn string_tagless(state: ParserState) -> ParserResult<Vec<StringParts>> {
 fn attr_string(state: ParserState) -> ParserResult<Vec<StringParts>> {
 	let (quote_mark, state) = quote_mark.parse(state)?;
 	let terminator = newline.or(specific_symbol(*quote_mark));
-	let parser = maybe_until(string_tagless_content(), terminator)
-		.followed_by(specific_symbol(*quote_mark));
+	let parser =
+		maybe_until(string_tagless_content(), terminator).followed_by(specific_symbol(*quote_mark));
 	parser.parse(state)
 }
 
