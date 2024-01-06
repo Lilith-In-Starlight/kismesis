@@ -29,7 +29,7 @@ mut title  <!-- Lambdas are like variables but their value can be changed by the
 			<title | @title >
 		>
 		<if {not title}:
-			<title | "Ampersandia" >
+			<title | Ampersandia >
 		>
 	>
 	<body:

@@ -516,10 +516,12 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 	let parser = plugin_head.and_maybe(plugin_body);
 
 	let (((name, arguments), body), state) = parser.parse(state)?;
+
+	let body = state.engine.run_plugin(&name.value, name.range.clone(), arguments.clone(), body.clone());
+
 	Ok((
 		Box::new(PlugCall {
 			name,
-			arguments,
 			body,
 		}),
 		state,
@@ -968,7 +970,7 @@ pub(crate) fn file(
 	.followed_by(skipped_blanks())
 	.followed_by(eof.or(ignore(tag_closer)));
 
-	let state = ParserState::new(&engine.get_file(tokens_id).unwrap().tokens);
+	let state = ParserState::new(&engine.get_file(tokens_id).unwrap().tokens, engine);
 	let ast_nodes = match parser.parse(state) {
 		Ok((val, _)) => val,
 		Err(err) => {
@@ -1038,4 +1040,8 @@ fn any(state: ParserState) -> ParserResult<&Token> {
 		(Some(token), next_state) => Ok((token, next_state)),
 		(None, _) => Err(ParseError::ReachedEOF.error_at(&state)),
 	}
+}
+
+pub(crate) fn multiple_attributes(state: ParserState) -> ParserResult<Vec<Attribute>> {
+	zero_or_more(after_spaces(attribute)).parse(state)
 }

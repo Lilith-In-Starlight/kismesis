@@ -31,6 +31,11 @@ pub enum Error {
 pub fn compile_project() {
 	let mut errors = Vec::new();
 	let mut engine = Kismesis::new();
+	let project_path = directories::ProjectDirs::from("net.ampersandia", "ampersandia", "kismesis").unwrap();
+	let plugin_path = project_path.data_dir().join("plugins/helloworld.rhai");
+	println!("{}", &plugin_path.display());
+	let plugin = fs::read_to_string(&plugin_path).unwrap();
+	engine.register_plugin(&plugin, &plugin_path.file_stem().unwrap().to_string_lossy());
 
 	let main_template_path = PathBuf::from("templates/main.ks");
 	let template_paths = recursive_crawl(&PathBuf::from("templates")).0;

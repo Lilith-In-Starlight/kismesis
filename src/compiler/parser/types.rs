@@ -1,9 +1,8 @@
 use std::{collections::HashMap, path::Path};
 
-use crate::{
-	compiler::lexer::Token,
-	kismesis::{KisID, KisTemplateID, Kismesis},
-};
+use rhai::Dynamic;
+
+use crate::kismesis::{KisID, KisTemplateID, Kismesis};
 
 use super::state::TokenPos;
 
@@ -137,8 +136,7 @@ pub fn paragraph_str_to_p(vec: Vec<HtmlNodes>) -> HtmlTag {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PlugCall {
 	pub(crate) name: Ranged<String>,
-	pub(crate) arguments: Ranged<Vec<Token>>,
-	pub(crate) body: Option<Ranged<Vec<Token>>>,
+	pub(crate) body: Vec<HtmlNodes>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -447,6 +445,15 @@ impl Ranged<&str> {
 	pub fn to_own(&self) -> Ranged<String> {
 		Ranged {
 			value: self.value.to_owned(),
+			range: self.range.clone(),
+		}
+	}
+}
+
+impl Ranged<Dynamic> {
+	pub fn cast<T: Clone + 'static>(self) -> Ranged<T> {
+		Ranged {
+			value: self.value.cast(),
 			range: self.range.clone(),
 		}
 	}

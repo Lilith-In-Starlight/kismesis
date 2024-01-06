@@ -7,4 +7,6 @@ edition = "2021"
 
 [dependencies]
 colored = "2.1.0"
+directories = "5.0.1"
+rhai = "1.16.3"
 termsize = "0.1.6"

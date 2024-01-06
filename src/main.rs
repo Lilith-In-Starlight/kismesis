@@ -1,4 +1,5 @@
 mod compiler;
+mod plugins;
 pub mod kismesis;
 
 fn main() {

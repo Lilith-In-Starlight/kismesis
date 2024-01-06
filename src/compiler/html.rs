@@ -202,8 +202,8 @@ fn parse_node<'a>(
 fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
 	let value = calculate_expression(&tag.condition, state)?;
 	let mut output = HtmlOutput::new();
+	let mut errors = Vec::new();
 	if value.is_truthy(state)? {
-		let mut errors = Vec::new();
 		for child in tag.body.iter() {
 			output.push_string('\n');
 			match parse_html_child(child, state) {
@@ -214,7 +214,11 @@ fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<'a, 
 
 		output.push_string('\n');
 	}
-	Ok(output)
+	if errors.is_empty() {
+		Ok(output)
+	} else {
+		Err(errors)
+	}
 }
 
 fn to_iterator<'a>(
@@ -350,8 +354,22 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 		Err(errors)
 	}
 }
-fn plug_call(_plugin: &PlugCall, _state: &GenerationState) -> ! {
-	todo!("Plugin calls to html")
+fn plug_call<'a>(plugin: &'a PlugCall, state: &GenerationState) -> CompileResult<'a, HtmlOutput> {
+	let mut output = HtmlOutput::new();
+	let mut errors = Vec::new();
+	for child in plugin.body.iter() {
+		output.push_string('\n');
+		match parse_html_child(child, state) {
+			Ok(mut string) => output.push_output(&mut string),
+			Err(mut error) => errors.append(&mut error),
+		}
+	}
+
+	if errors.is_empty() {
+		Ok(output)
+	} else {
+		Err(errors)
+	}
 }
 
 fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {

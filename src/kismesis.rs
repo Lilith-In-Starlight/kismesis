@@ -4,10 +4,12 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use crate::compiler::{
+use rhai::{Engine, AST, Scope, Array};
+
+use crate::{compiler::{
 	lexer::{self, Token},
-	parser::{self, errors::Err, types::ParsedFile},
-};
+	parser::{self, errors::Err, types::{ParsedFile, TextPos, Ranged, HtmlNodes}},
+}, plugins};
 
 pub type KisResult<T> = Result<T, KismesisError>;
 
@@ -16,15 +18,18 @@ pub enum KismesisError {
 	ParseError(Err, KisID),
 }
 
+#[derive(Debug)]
 pub struct FileRef {
 	pub tokens: Vec<Token>,
 	pub path: Option<PathBuf>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Kismesis {
 	tokens: Vec<FileRef>,
 	templates: HashMap<KisTemplateID, ParsedFile>,
+	plugin_engine: Engine,
+	plugins: HashMap<String, AST>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -38,14 +43,29 @@ pub enum KisTemplateID {
 impl Kismesis {
 	pub fn new() -> Self {
 		Self {
+			plugin_engine: plugins::new_engine(),
 			tokens: vec![],
 			templates: HashMap::new(),
+			plugins: HashMap::new(),
 		}
 	}
+
+	pub fn register_plugin(&mut self, plugin: &str, name: &str) {
+		let ast = self.plugin_engine.compile(plugin).unwrap();
+		self.plugins.insert(name.to_string(), ast);
+	}
+
+	pub fn run_plugin(&self, name: &str, range: TextPos, params: Ranged<Vec<Token>>, body: Option<Ranged<Vec<Token>>>) -> Vec<HtmlNodes> {
+		let plugin = self.plugins.get(name).unwrap();
+		let string: Array = self.plugin_engine.call_fn(&mut Scope::new(), plugin, "token_call", (range, params.value, body.map(|x| x.value).unwrap_or(vec![]))).unwrap();
+		plugins::into_html_nodes(string)
+	}
+
 	pub fn register_tokens(&mut self, tokens: Vec<Token>, path: Option<PathBuf>) -> KisID {
 		self.tokens.push(FileRef { tokens, path });
 		KisID(self.tokens.len() - 1)
 	}
+
 	pub fn register_file(&mut self, path: PathBuf) -> KisResult<ParsedFile> {
 		let text =
 			fs::read_to_string(&path).map_err(|x| KismesisError::IOError(x, path.clone()))?;
@@ -55,6 +75,7 @@ impl Kismesis {
 			parser::file(tokens, self, None).map_err(|x| KismesisError::ParseError(x, tokens))?;
 		Ok(file)
 	}
+
 	pub fn register_template(&mut self, file: ParsedFile) -> KisTemplateID {
 		let output_id = match self.get_file(file.file_id).and_then(|x| x.path.clone()) {
 			Some(path) => KisTemplateID::File(path),
@@ -63,6 +84,7 @@ impl Kismesis {
 		self.templates.insert(output_id.clone(), file);
 		output_id
 	}
+
 	pub fn get_template<T>(&self, id: T) -> Option<&ParsedFile>
 	where
 		T: Into<KisTemplateID>,

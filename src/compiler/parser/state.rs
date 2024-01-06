@@ -1,4 +1,4 @@
-use crate::compiler::{errors::ErrorState, lexer::Token};
+use crate::{compiler::{errors::ErrorState, lexer::Token}, kismesis::Kismesis};
 
 use super::{errors::ParseError, types::TextPos};
 
@@ -9,16 +9,18 @@ pub struct ParserState<'a> {
 	pub(crate) errors: Vec<ErrorState<ParseError>>,
 	pub(crate) tag_openers: Vec<TokenPos>,
 	pub(crate) section_depth: usize,
+	pub(crate) engine: &'a Kismesis,
 }
 
 impl<'a> ParserState<'a> {
-	pub(crate) fn new(tokens: &'a [Token]) -> Self {
+	pub(crate) fn new(tokens: &'a [Token], engine: &'a Kismesis) -> Self {
 		Self {
 			tokens,
 			position: TokenPos::new(),
 			errors: vec![],
 			tag_openers: Vec::new(),
 			section_depth: 0,
+			engine,
 		}
 	}
 	pub(crate) fn next_state(self) -> Self {
