@@ -31,18 +31,20 @@ pub enum Error {
 pub fn compile_project() {
 	let mut errors = Vec::new();
 	let mut engine = Kismesis::new();
-	let project_path =
+	let program_path =
 		directories::ProjectDirs::from("net.ampersandia", "ampersandia", "kismesis").unwrap();
-	let plugin_path = project_path.data_dir().join("plugins/helloworld.rhai");
+	let plugin_path = program_path.data_dir().join("plugins/helloworld.rhai");
 	println!("{}", &plugin_path.display());
 	let plugin = fs::read_to_string(&plugin_path).unwrap();
 	engine.register_plugin(&plugin, &plugin_path.file_stem().unwrap().to_string_lossy());
+
+	let project_path = std::env::current_dir().unwrap();
 
 	let main_template_path = PathBuf::from("templates/main.ks");
 	let template_paths = recursive_crawl(&PathBuf::from("templates")).0;
 
 	for path in template_paths {
-		match engine.register_file(path) {
+		match engine.register_file(path, Some(project_path.clone())) {
 			Ok(x) => {
 				engine.register_template(x);
 			}
@@ -61,32 +63,26 @@ pub fn compile_project() {
 		return;
 	};
 	let input_paths = recursive_crawl(&PathBuf::from("input")).0;
-	let mut input_files = Vec::new();
-
-	for path in input_paths {
-		match engine.register_file(path) {
-			Ok(mut x) => {
-				x.template = Some(main_template_id.clone());
-				input_files.push(x);
-			}
-			Err(x) => errors.push(x.into()),
-		}
-	}
-
-	if !errors.is_empty() {
-		report_errors(errors, &engine);
-		return;
-	}
 
 	let settings = Settings::new();
-	for file in input_files.iter() {
-		match html::generate_html(file, vec![], &settings, &engine) {
+	for path in input_paths {
+		let parsed_file = match engine.register_file(path, Some(project_path.clone())) {
+			Ok(mut x) => {
+				x.template = Some(main_template_id.clone());
+				x
+			}
+			Err(x) => {
+				errors.push(x.into());
+				continue
+			},
+		};
+		match html::generate_html(&parsed_file, vec![], &settings, &engine) {
 			Ok(x) => {
 				let output_path = PathBuf::from("output");
-				let file = match engine.get_file(file.file_id) {
+				let file = match engine.get_file(parsed_file.file_id) {
 					Some(x) => x,
 					None => {
-						errors.push(Error::TriedToGetNonExistentTemplate(file.file_id));
+						errors.push(Error::TriedToGetNonExistentTemplate(parsed_file.file_id));
 						return;
 					}
 				};
@@ -119,7 +115,10 @@ pub fn compile_project() {
 						}
 					};
 					match write!(file, "{}", file_text) {
-						Ok(x) => x,
+						Ok(x) => {
+							engine.drop_id(&parsed_file.file_id);
+							x
+						},
 						Err(x) => {
 							errors.push(Error::IOError(x, output_path.clone()));
 							continue;
@@ -133,6 +132,11 @@ pub fn compile_project() {
 				}
 			}
 		}
+	}
+
+	if !errors.is_empty() {
+		report_errors(errors, &engine);
+		return;
 	}
 }
 

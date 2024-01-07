@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::kismesis::{
 	compiler::{errors::ErrorState, lexer::Token},
 	Kismesis,
@@ -12,11 +14,12 @@ pub struct ParserState<'a> {
 	pub(crate) errors: Vec<ErrorState<ParseError>>,
 	pub(crate) tag_openers: Vec<TokenPos>,
 	pub(crate) section_depth: usize,
+	pub(crate) project_path: Option<PathBuf>,
 	pub(crate) engine: &'a Kismesis,
 }
 
 impl<'a> ParserState<'a> {
-	pub(crate) fn new(tokens: &'a [Token], engine: &'a Kismesis) -> Self {
+	pub(crate) fn new(tokens: &'a [Token], project_path: Option<PathBuf>, engine: &'a Kismesis) -> Self {
 		Self {
 			tokens,
 			position: TokenPos::new(),
@@ -24,6 +27,7 @@ impl<'a> ParserState<'a> {
 			tag_openers: Vec::new(),
 			section_depth: 0,
 			engine,
+			project_path
 		}
 	}
 	pub(crate) fn next_state(self) -> Self {

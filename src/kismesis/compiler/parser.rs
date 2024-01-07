@@ -522,6 +522,7 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 		name.range.clone(),
 		arguments.clone(),
 		body.clone(),
+		state.project_path.clone(),
 	);
 
 	Ok((Box::new(PlugCall { name, body }), state))
@@ -951,6 +952,7 @@ pub(crate) fn file(
 	tokens_id: KisID,
 	engine: &Kismesis,
 	default_template: Option<KisTemplateID>,
+	project_path: Option<PathBuf>,
 ) -> Result<ParsedFile, Err> {
 	let parser = zero_or_more(
 		skipped_blanks().preceding(
@@ -969,7 +971,7 @@ pub(crate) fn file(
 	.followed_by(skipped_blanks())
 	.followed_by(eof.or(ignore(tag_closer)));
 
-	let state = ParserState::new(&engine.get_file(tokens_id).unwrap().tokens, engine);
+	let state = ParserState::new(&engine.get_file(tokens_id).unwrap().tokens, project_path, engine);
 	let ast_nodes = match parser.parse(state) {
 		Ok((val, _)) => val,
 		Err(err) => {
