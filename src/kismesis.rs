@@ -92,7 +92,9 @@ impl Kismesis {
 		let engine_tag = engine_tag;
 
 		let old_engine_tag: Rc<RefCell<EngineTag>> = self.plugin_engine.default_tag().clone_cast();
-		*old_engine_tag.borrow_mut() = engine_tag;
+		let mut borrow = old_engine_tag.borrow_mut();
+		*borrow = engine_tag;
+		drop(borrow);
 
 		
 		let string: Array = self.plugin_engine.call_fn(&mut Scope::new(), plugin, "token_call", (range, params.value, body.map(|x| x.value).unwrap_or(vec![]))).unwrap();
