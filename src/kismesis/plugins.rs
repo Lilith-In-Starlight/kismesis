@@ -14,6 +14,8 @@ use super::compiler::{
 #[derive(Clone)]
 struct PluginParseError {
 	message: String,
+	column: usize,
+	line: usize,
 }
 
 /// Simplified parsing API exposed to the plugins
@@ -22,6 +24,8 @@ pub struct Parser {
 	input: Vec<Dynamic>,
 	errors: Vec<Dynamic>,
 	output: Dynamic,
+	column: usize,
+	line: usize,
 }
 
 type PluginParseResult = Result<Parser, PluginParseError>;
@@ -30,11 +34,24 @@ impl Parser {
 	fn any(this: PluginParseResult) -> PluginParseResult {
 		let this = this?;
 		if this.input.is_empty() {
-			return Err(PluginParseError { message: "Reached EOF".to_string() })
+			return Err(PluginParseError {
+				message: "Reached EOF".to_string(),
+				line: this.line,
+				column: this.column,
+			})
+		}
+		let output = this.input[0].clone();
+		let mut column = this.column;
+		let mut line = this.line;
+		if matches!(output.clone_cast(), Token::Newline(_)) {
+			line += 1;
+			column = 1;
 		}
 		Ok(Self {
 			input: this.input[1..].to_vec(),
-			output: Dynamic::from(this.input[0].clone()),
+			output,
+			line,
+			column,
 			..this
 		})
 	}
@@ -43,8 +60,16 @@ impl Parser {
 		let result = predicate.call_within_context::<bool>(&ctx, (this.output.clone(), ));
 		match result {
 			Ok(x) if x => Ok(this),
-			Ok(_) => Err(PluginParseError { message: "Predicate unsuccessful".to_string() }),
-			Err(_) => Err(PluginParseError { message: "Error evaluating is predicate".to_string() })
+			Ok(_) => Err(PluginParseError {
+				message: "Predicate unsuccessful".to_string(),
+				line: this.line,
+				column: this.column,
+			}),
+			Err(_) => Err(PluginParseError {
+				message: "Error evaluating is predicate".to_string(),
+				line: this.line,
+				column: this.column,
+			})
 		}
 	}
 	fn parse(ctx: NativeCallContext, this: PluginParseResult, predicate: FnPtr) -> PluginParseResult {
@@ -55,7 +80,7 @@ impl Parser {
 		let sequence = sequence.into_iter().map(|x| x.cast::<FnPtr>());
 		let mut values = Vec::new();
 		let mut parser = this;
-		for (idx, fun) in sequence.into_iter().enumerate() {
+		for fun in sequence.into_iter() {
 			let clone: PluginParseResult = Ok(parser.clone());
 			let result = fun.call_within_context::<PluginParseResult>(&ctx, (clone, )).unwrap();
 			match result {
@@ -77,7 +102,11 @@ impl Parser {
 		option.get(idx as usize).map(|x| Parser {
 			output: x.clone(),
 			..this
-		}).ok_or(PluginParseError { message: "Tried ot get out of bounds".to_string() })
+		}).ok_or(PluginParseError {
+			message: "Tried ot get out of bounds".to_string(),
+			column: this.column,
+			line: this.line,
+		})
 	}
 	fn map(ctx: NativeCallContext, this: PluginParseResult, predicate: FnPtr) -> PluginParseResult {
 		let this = this?; 
@@ -115,16 +144,28 @@ pub(crate) fn new_engine() -> Engine {
 	plugin_engine.set_max_call_levels(128);
 
 	plugin_engine.register_type::<PluginParseError>()
-		.register_fn("to_string", |x: PluginParseError| x.message)
-		.register_fn("error", |message| PluginParseError { message });
+		.register_fn("to_string", |x: PluginParseError| format!("{} at ({}, {})", x.message, x.line, x.column));
 	
 	plugin_engine.register_type::<Parser>()
-		.register_fn("new_parser", |input: Vec<Token>| PluginParseResult::Ok(Parser { input: input.into_iter().map(|x| Dynamic::from(x)).collect(), errors: vec![], output: Dynamic::UNIT }))
+		.register_fn("new_parser", |input: Vec<Token>| PluginParseResult::Ok(Parser { 
+			input: input.into_iter().map(|x| Dynamic::from(x)).collect(), 
+			errors: vec![], 
+			output: Dynamic::UNIT, 
+			column: 1, 
+			line: 1 
+		}))
 		.register_fn("any", Parser::any)
 		.register_fn("is_pred", Parser::is)
 		.register_fn("sequence", Parser::sequence)
 		.register_fn("map", Parser::map)
-		.register_fn("map_err", |x: PluginParseResult, message| x.map_err(|_| PluginParseError { message } ))
+		.register_fn("map_err", |x: PluginParseResult, message| x.map_err(|x| {
+			let (line, column) = (x.line, x.column);
+			PluginParseError {
+				message,
+				line,
+				column
+			}
+		} ))
 		.register_fn("map_err", Parser::map_err)
 		.register_fn("parse", Parser::parse);
 
