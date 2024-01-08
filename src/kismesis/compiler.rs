@@ -36,7 +36,6 @@ pub fn compile_project() {
 	let plugin_path = program_path.data_dir().join("plugins/helloworld.rhai");
 	println!("{}", &plugin_path.display());
 	let plugin = fs::read_to_string(&plugin_path).unwrap();
-	engine.register_plugin(&plugin, &plugin_path.file_stem().unwrap().to_string_lossy());
 
 	let project_path = std::env::current_dir().unwrap();
 

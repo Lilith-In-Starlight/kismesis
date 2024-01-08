@@ -12,17 +12,17 @@ mod plugins;
 use std::{
 	collections::HashMap,
 	fs, io,
-	path::{Path, PathBuf}, cell::RefCell, rc::Rc,
+	path::{Path, PathBuf},
 };
 
-use rhai::{Engine, AST, Scope, Array};
+
 
 use compiler::{
 	lexer::{self, Token},
 	parser::{self, errors::Err, types::{ParsedFile, TextPos, Ranged, HtmlNodes}},
 };
 
-use self::plugins::EngineTag;
+
 
 pub type KisResult<T> = Result<T, KismesisError>;
 
@@ -41,8 +41,8 @@ pub struct FileRef {
 pub struct Kismesis {
 	tokens: HashMap<KisID, FileRef>,
 	templates: HashMap<KisTemplateID, ParsedFile>,
-	plugin_engine: Engine,
-	plugins: HashMap<String, AST>,
+	plugin_engine: (),
+	plugins: HashMap<String, ()>,
 	id: usize,
 }
 
@@ -57,7 +57,7 @@ pub enum KisTemplateID {
 impl Kismesis {
 	pub fn new() -> Self {
 		Self {
-			plugin_engine: plugins::new_engine(),
+			plugin_engine: (),
 			tokens: HashMap::new(),
 			templates: HashMap::new(),
 			plugins: HashMap::new(),
@@ -69,10 +69,6 @@ impl Kismesis {
 		self.tokens.remove(id);
 	}
 
-	pub fn register_plugin(&mut self, plugin: &str, name: &str) {
-		let ast = self.plugin_engine.compile(plugin).unwrap();
-		self.plugins.insert(name.to_string(), ast);
-	}
 
 	pub fn run_plugin(
 		&self,
@@ -83,22 +79,7 @@ impl Kismesis {
 		project_path: Option<PathBuf>,
 	) -> Vec<HtmlNodes>
 	{
-		let plugin = self.plugins.get(name).unwrap();
-
-		let engine_tag = plugins::EngineTag {
-			project_path,
-		};
-
-		let engine_tag = engine_tag;
-
-		let old_engine_tag: Rc<RefCell<EngineTag>> = self.plugin_engine.default_tag().clone_cast();
-		let mut borrow = old_engine_tag.borrow_mut();
-		*borrow = engine_tag;
-		drop(borrow);
-
-		
-		let string: Array = self.plugin_engine.call_fn(&mut Scope::new(), plugin, "token_call", (range, params.value, body.map(|x| x.value).unwrap_or(vec![]))).unwrap();
-		plugins::into_html_nodes(string)
+		todo!();
 	}
 
 	pub fn register_tokens(&mut self, tokens: Vec<Token>, path: Option<PathBuf>) -> KisID {
