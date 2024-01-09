@@ -1,8 +1,11 @@
 use std::fmt;
 
+use serde::Serialize;
+
 #[derive(Debug, Clone, PartialEq)]
 
 /// The different tokens that can be in an input string
+#[derive(Serialize)]
 pub enum Token {
 	Word(String),
 	Space(char),

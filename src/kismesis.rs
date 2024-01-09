@@ -9,6 +9,7 @@
 pub(crate) mod compiler;
 mod plugins;
 
+use extism::{Wasm, Plugin, Manifest};
 use std::{
 	collections::HashMap,
 	fs, io,
@@ -41,8 +42,7 @@ pub struct FileRef {
 pub struct Kismesis {
 	tokens: HashMap<KisID, FileRef>,
 	templates: HashMap<KisTemplateID, ParsedFile>,
-	plugin_engine: (),
-	plugins: HashMap<String, ()>,
+	plugins: HashMap<String, Manifest>,
 	id: usize,
 }
 
@@ -57,7 +57,6 @@ pub enum KisTemplateID {
 impl Kismesis {
 	pub fn new() -> Self {
 		Self {
-			plugin_engine: (),
 			tokens: HashMap::new(),
 			templates: HashMap::new(),
 			plugins: HashMap::new(),
@@ -86,7 +85,15 @@ impl Kismesis {
 		name: String,
 		path: &Path
 	) {
-		let plugin = Wasm::url("");
+		let plugin = Wasm::file(path);
+		let manifest = Manifest::new([plugin]);
+		self.plugins.insert(name, manifest);
+	}
+
+	pub fn call_plugin(&self, name: &str) {
+		let manifest = self.plugins.get(name).unwrap().clone();
+		let mut plugin = Plugin::new(&manifest, [], false).unwrap();
+		println!("{}", plugin.call::<_, String>("parser", "").unwrap());
 	}
 
 	pub fn register_tokens(&mut self, tokens: Vec<Token>, path: Option<PathBuf>) -> KisID {

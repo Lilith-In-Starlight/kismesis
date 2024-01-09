@@ -517,15 +517,11 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 
 	let (((name, arguments), body), state) = parser.parse(state)?;
 
-	let body = state.engine.run_plugin(
+	let body = state.engine.call_plugin(
 		&name.value,
-		name.range.clone(),
-		arguments.clone(),
-		body.clone(),
-		state.project_path.clone(),
 	);
 
-	Ok((Box::new(PlugCall { name, body }), state))
+	Ok((Box::new(PlugCall { name, body: vec![] }), state))
 }
 
 fn macro_call(state: ParserState<'_>) -> ParserResult<'_, Macro> {

@@ -33,9 +33,9 @@ pub fn compile_project() {
 	let mut engine = Kismesis::new();
 	let program_path =
 		directories::ProjectDirs::from("net.ampersandia", "ampersandia", "kismesis").unwrap();
-	let plugin_path = program_path.data_dir().join("plugins/helloworld.rhai");
+	let plugin_path = program_path.data_dir().join("plugins/helloworld.wasm");
+	engine.register_plugin(plugin_path.file_stem().unwrap().to_string_lossy().to_string(), &plugin_path);
 	println!("{}", &plugin_path.display());
-	let plugin = fs::read_to_string(&plugin_path).unwrap();
 
 	let project_path = std::env::current_dir().unwrap();
 
