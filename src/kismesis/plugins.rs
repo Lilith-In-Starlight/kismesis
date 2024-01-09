@@ -21,11 +21,11 @@ struct PluginParseError {
 /// Simplified parsing API exposed to the plugins
 #[derive(Clone)]
 pub struct Parser {
-	input: Vec<Dynamic>,
-	errors: Vec<Dynamic>,
+	input: Rc<Vec<Dynamic>>,
 	output: Dynamic,
 	column: usize,
 	line: usize,
+	idx: usize,
 }
 
 type PluginParseResult = Result<Parser, PluginParseError>;
@@ -33,22 +33,24 @@ type PluginParseResult = Result<Parser, PluginParseError>;
 impl Parser {
 	fn any(this: PluginParseResult) -> PluginParseResult {
 		let this = this?;
-		if this.input.is_empty() {
+		if this.idx >=this.input.len(){
 			return Err(PluginParseError {
 				message: "Reached EOF".to_string(),
 				line: this.line,
 				column: this.column,
 			})
 		}
-		let output = this.input[0].clone();
+		let output = this.input[this.idx].clone();
 		let mut column = this.column;
 		let mut line = this.line;
 		if matches!(output.clone_cast(), Token::Newline(_)) {
 			line += 1;
 			column = 1;
+		} else {
+			column += output.clone_cast::<Token>().get_as_string().len();
 		}
 		Ok(Self {
-			input: this.input[1..].to_vec(),
+			idx: this.idx + 1,
 			output,
 			line,
 			column,
@@ -74,39 +76,6 @@ impl Parser {
 	}
 	fn parse(ctx: NativeCallContext, this: PluginParseResult, predicate: FnPtr) -> PluginParseResult {
 		predicate.call_within_context::<PluginParseResult>(&ctx, (this, )).unwrap()
-	}
-	fn sequence(ctx: NativeCallContext, this: PluginParseResult, sequence: Vec<Dynamic>) -> PluginParseResult {
-		let this = this?;
-		let sequence = sequence.into_iter().map(|x| x.cast::<FnPtr>());
-		let mut values = Vec::new();
-		let mut parser = this;
-		for fun in sequence.into_iter() {
-			let clone: PluginParseResult = Ok(parser.clone());
-			let result = fun.call_within_context::<PluginParseResult>(&ctx, (clone, )).unwrap();
-			match result {
-				Ok(x) => {
-					values.push(x.output.clone());
-					parser = x;
-				},
-				Err(x) => return Err(x)
-			}
-		}
-		Ok(Parser {
-			output: Dynamic::from_array(values),
-			..parser
-		})
-	}
-	fn get(this: PluginParseResult, idx: i64) -> PluginParseResult {
-		let this = this?; 
-		let option: Vec<Dynamic> = this.output.cast();
-		option.get(idx as usize).map(|x| Parser {
-			output: x.clone(),
-			..this
-		}).ok_or(PluginParseError {
-			message: "Tried ot get out of bounds".to_string(),
-			column: this.column,
-			line: this.line,
-		})
 	}
 	fn map(ctx: NativeCallContext, this: PluginParseResult, predicate: FnPtr) -> PluginParseResult {
 		let this = this?; 
@@ -143,20 +112,37 @@ pub(crate) fn new_engine() -> Engine {
 	plugin_engine.set_max_expr_depths(0, 0);
 	plugin_engine.set_max_call_levels(128);
 
+	plugin_engine.register_type_with_name::<PluginParseResult>("ParserState");
+
+	plugin_engine.register_custom_operator("into", 255).unwrap()
+		.register_fn("into", |ctx: NativeCallContext, obj: Dynamic, fun: FnPtr| {
+			fun.call_within_context::<Dynamic>(&ctx, (obj, )).unwrap()
+		});
+
 	plugin_engine.register_type::<PluginParseError>()
-		.register_fn("to_string", |x: PluginParseError| format!("{} at ({}, {})", x.message, x.line, x.column));
+		.register_fn("to_string", |x: PluginParseError| format!("{} at ({}, {})", x.message, x.line, x.column))
+		.register_fn("error", |message: String, p: PluginParseResult| {
+			let (line, column) = match p {
+				Ok(x) => (x.line, x.column),
+				Err(x) => (x.line, x.column),
+			};
+			PluginParseResult::Err(PluginParseError {
+				message,
+				line,
+				column
+			})
+		});
 	
 	plugin_engine.register_type::<Parser>()
 		.register_fn("new_parser", |input: Vec<Token>| PluginParseResult::Ok(Parser { 
-			input: input.into_iter().map(|x| Dynamic::from(x)).collect(), 
-			errors: vec![], 
+			input: Rc::new(input.into_iter().map(|x| Dynamic::from(x)).collect()), 
 			output: Dynamic::UNIT, 
 			column: 1, 
-			line: 1 
+			line: 1, 
+			idx: 0,
 		}))
 		.register_fn("any", Parser::any)
-		.register_fn("is_pred", Parser::is)
-		.register_fn("sequence", Parser::sequence)
+		.register_fn("filter", Parser::is)
 		.register_fn("map", Parser::map)
 		.register_fn("map_err", |x: PluginParseResult, message| x.map_err(|x| {
 			let (line, column) = (x.line, x.column);
@@ -169,7 +155,6 @@ pub(crate) fn new_engine() -> Engine {
 		.register_fn("map_err", Parser::map_err)
 		.register_fn("parse", Parser::parse);
 
-	plugin_engine.register_fn("get", Parser::get);
 	plugin_engine.register_fn("is_ok", Parser::is_ok);
 	plugin_engine.register_fn("get_value", |input: Result<Parser, PluginParseError>| {
 		match input {
