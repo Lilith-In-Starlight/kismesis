@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 colored = "2.1.0"
 directories = "5.0.1"
-extism = "0.5.5"
-rhai = "1.16.3"
+extism = "1.0.0"
 serde = "1.0.195"
 termsize = "0.1.6"

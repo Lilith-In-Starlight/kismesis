@@ -69,7 +69,6 @@ impl Kismesis {
 		self.tokens.remove(id);
 	}
 
-
 	pub fn run_plugin(
 		&self,
 		name: &str,
@@ -80,6 +79,14 @@ impl Kismesis {
 	) -> Vec<HtmlNodes>
 	{
 		todo!();
+	}
+
+	pub fn register_plugin(
+		&mut self,
+		name: String,
+		path: &Path
+	) {
+		let plugin = Wasm::url("");
 	}
 
 	pub fn register_tokens(&mut self, tokens: Vec<Token>, path: Option<PathBuf>) -> KisID {

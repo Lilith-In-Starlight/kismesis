@@ -1,6 +1,5 @@
 use std::{collections::HashMap, path::Path};
 
-use rhai::Dynamic;
 
 use crate::kismesis::{KisID, KisTemplateID, Kismesis};
 
@@ -442,15 +441,6 @@ impl Ranged<&str> {
 	pub fn to_own(&self) -> Ranged<String> {
 		Ranged {
 			value: self.value.to_owned(),
-			range: self.range.clone(),
-		}
-	}
-}
-
-impl Ranged<Dynamic> {
-	pub fn cast<T: Clone + 'static>(self) -> Ranged<T> {
-		Ranged {
-			value: self.value.cast(),
 			range: self.range.clone(),
 		}
 	}
