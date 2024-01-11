@@ -28,14 +28,19 @@ pub enum Error {
 	TriedToGetNonExistentTemplate(KisID),
 }
 
+/// Compile a kismesis project
 pub fn compile_project() {
 	let mut errors = Vec::new();
 	let mut engine = Kismesis::new();
 	let program_path =
 		directories::ProjectDirs::from("net.ampersandia", "ampersandia", "kismesis").unwrap();
-	let plugin_path = program_path.data_dir().join("plugins/helloworld.wasm");
-	engine.register_plugin(plugin_path.file_stem().unwrap().to_string_lossy().to_string(), &plugin_path);
-	println!("{}", &plugin_path.display());
+	if cfg!(feature =  "plugins") {
+		let plugin_path = program_path.data_dir().join("plugins/helloworld.wasm");
+		engine.register_plugin(plugin_path.file_stem().unwrap().to_string_lossy().to_string(), &plugin_path);
+		println!("{}", &plugin_path.display());
+	} else {
+		println!("Plugins are not being registered because this version of Kismesis was compiled without plugins")
+	}
 
 	let project_path = std::env::current_dir().unwrap();
 
@@ -178,6 +183,7 @@ impl From<KismesisError> for Error {
 	}
 }
 
+/// Reports any errors from the project compilation
 pub fn report_errors(errors: Vec<Error>, engine: &Kismesis) {
 	for error in errors {
 		match error {

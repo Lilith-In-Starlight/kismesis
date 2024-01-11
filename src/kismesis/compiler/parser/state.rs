@@ -7,6 +7,9 @@ use crate::kismesis::{
 
 use super::{errors::ParseError, types::TextPos};
 
+#[cfg(feature="plugins")]
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Debug)]
 pub struct ParserState<'a> {
 	pub(crate) tokens: &'a [Token],
@@ -94,6 +97,7 @@ impl<'a> ParserState<'a> {
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Default)]
+#[cfg_attr(feature="plugins", derive(Deserialize, Serialize))]
 pub struct TokenPos {
 	idx: usize,
 	line: usize,

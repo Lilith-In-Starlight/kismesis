@@ -290,17 +290,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "combinators"
-version = "0.1.0"
-dependencies = [
- "colored",
- "directories",
- "extism",
- "serde",
- "termsize",
-]
-
-[[package]]
 name = "core-foundation-sys"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1008,6 +997,18 @@ checksum = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 dependencies = [
  "winapi 0.2.8",
  "winapi-build",
+]
+
+[[package]]
+name = "kismesis"
+version = "0.1.0"
+dependencies = [
+ "colored",
+ "directories",
+ "extism",
+ "serde",
+ "serde_json",
+ "termsize",
 ]
 
 [[package]]

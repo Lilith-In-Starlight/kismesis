@@ -8,10 +8,11 @@ use crate::kismesis::{
 	KisID,
 };
 
-use super::{state::ParserState, types::TextPos};
+use super::{state::{ParserState, TokenPos}, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+	PluginsDisabled,
 	TriedToParseInvalidID(KisID),
 	WronglyNestedSection,
 	ExpectedLambdaStart,
@@ -141,11 +142,19 @@ impl ParseError {
 			hints: vec![],
 		})
 	}
+	pub(crate) fn error_at_pos(self, text_position: TextPos) -> Err {
+		Err::Error(ErrorState {
+			error: self,
+			text_position,
+			hints: vec![],
+		})
+	}
 }
 
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
+			Self::PluginsDisabled => "This version of kismesis was not made with the `plugins` feature".to_string(),
 			Self::TriedToParseInvalidID(id) => {
 				format!("Tried to parse a file with invalid ID: {:?}", id)
 			}

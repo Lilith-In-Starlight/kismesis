@@ -517,11 +517,16 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 
 	let (((name, arguments), body), state) = parser.parse(state)?;
 
-	let body = state.engine.call_plugin(
+	let body = match state.engine.call_plugin(
 		&name.value,
-	);
+		arguments,
+		body,
+	) {
+		Err(_) => return Err(ParseError::PluginsDisabled.error_at_pos(name.range).cut()),
+		Ok(x) => x,
+	};
 
-	Ok((Box::new(PlugCall { name, body: vec![] }), state))
+	Ok((Box::new(PlugCall { name, body }), state))
 }
 
 fn macro_call(state: ParserState<'_>) -> ParserResult<'_, Macro> {
