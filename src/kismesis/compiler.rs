@@ -28,26 +28,32 @@ pub enum Error {
 	TriedToGetNonExistentTemplate(KisID),
 }
 
+#[cfg(feature = "plugins")]
+fn check_for_plugins(program_path: &directories::ProjectDirs, engine: &mut Kismesis) {
+	let plugin_dir = program_path.data_dir().join("plugins");
+	let plugin_paths = fs::read_dir(plugin_dir).unwrap();
+	for entry in plugin_paths {
+		let entry = entry.unwrap();
+		let path = entry.path();
+		let data = path.join("plugin.ron");
+		let data = ron::from_str::<super::plugins::PluginData>(&fs::read_to_string(data).unwrap()).unwrap();
+		let plugin_path = path.join("plugin.wasm");
+		engine.register_plugin(data.name, &plugin_path);
+	}
+}
+
+#[cfg(not(feature = "plugins"))]
+fn check_for_plugins(program_path: &directories::ProjectDirs, engine: &mut Kismesis) {
+	println!("Plugins are not being registered because this version of Kismesis was compiled without plugins")
+}
+
 /// Compile a kismesis project
 pub fn compile_project() {
 	let mut errors = Vec::new();
 	let mut engine = Kismesis::new();
 	let program_path =
 		directories::ProjectDirs::from("net.ampersandia", "ampersandia", "kismesis").unwrap();
-	if cfg!(feature =  "plugins") {
-		let plugin_dir = program_path.data_dir().join("plugins");
-		let plugin_paths = fs::read_dir(plugin_dir).unwrap();
-		for entry in plugin_paths {
-			let entry = entry.unwrap();
-			let path = entry.path();
-			let data = path.join("plugin.ron");
-			let data = ron::from_str::<super::plugins::PluginData>(&fs::read_to_string(data).unwrap()).unwrap();
-			let plugin_path = path.join("plugin.wasm");
-			engine.register_plugin(data.name, &plugin_path);
-		}
-	} else {
-		println!("Plugins are not being registered because this version of Kismesis was compiled without plugins")
-	}
+	check_for_plugins(&program_path, &mut engine);
 
 	let project_path = std::env::current_dir().unwrap();
 

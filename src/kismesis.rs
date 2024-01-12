@@ -140,7 +140,7 @@ impl Kismesis {
 
 	#[cfg(not(feature="plugins"))]
 	/// Send tokens and body to a plugin with a given `name`
-	pub fn call_plugin(&self, _name: &str, _tokens: Vec<Token>) -> Result<Vec<HtmlNodes>, ()> {
+	pub fn call_plugin(&self, _name: &str, _tokens: Ranged<Vec<Token>>, _body: Option<Ranged<Vec<Token>>>) -> Result<Vec<HtmlNodes>, ()> {
 		Err(())
 	}
 
