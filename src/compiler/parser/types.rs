@@ -11,27 +11,27 @@ use super::state::TokenPos;
 pub type Scoped<'a, T> = (T, KisID);
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub enum StringParts {
 	String(String),
 	Expression(Ranged<Expression>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Attribute {
 	pub(crate) name: Ranged<String>,
 	pub(crate) value: Ranged<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Argument {
 	pub(crate) name: Ranged<String>,
 	pub(crate) value: Option<Ranged<Expression>>,
 }
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct HtmlTag {
 	pub(crate) name: Ranged<String>,
 	pub(crate) attributes: Vec<Attribute>,
@@ -40,7 +40,7 @@ pub struct HtmlTag {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Macro {
 	pub(crate) name: Ranged<String>,
 	pub(crate) arguments: Vec<Argument>,
@@ -48,7 +48,7 @@ pub struct Macro {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Section {
 	pub(crate) depth: usize,
 	pub(crate) name: Vec<StringParts>,
@@ -142,14 +142,14 @@ pub fn paragraph_str_to_p(vec: Vec<HtmlNodes>) -> HtmlTag {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct PlugCall {
 	pub(crate) name: Ranged<String>,
 	pub(crate) body: Vec<HtmlNodes>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub enum HtmlNodes {
 	HtmlTag(HtmlTag),
 	MacroCall(Macro),
@@ -410,20 +410,20 @@ impl From<BodyTags> for HtmlNodes {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub enum BinFunc {
 	And,
 	Or,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub enum UniFunc {
 	Not,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub enum Expression {
 	None,
 	Variable(String),
@@ -615,14 +615,14 @@ impl HtmlTag {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct IfTag {
 	pub condition: Ranged<Expression>,
 	pub body: Vec<HtmlNodes>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[cfg_attr(feature="serde", derive(Deserialize))]
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct ForTag {
 	pub variable: Ranged<String>,
 	pub iterator: Ranged<Expression>,
