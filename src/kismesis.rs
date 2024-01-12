@@ -6,7 +6,7 @@
 //! every templating operation. It also works as an arena that holds
 //! templates and token strings.
 
-pub(crate) mod compiler;
+pub mod compiler;
 mod plugins;
 
 #[cfg(feature="plugins")]
