@@ -1,7 +1,10 @@
 [package]
 name = "kismesis"
+description = "A static site generator with plugins and a custom markup language."
+license-file = "LICENSE.md"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/lilith-in-starlight/kismesis"
 
 [dependencies]
 colored = "2.1.0"
