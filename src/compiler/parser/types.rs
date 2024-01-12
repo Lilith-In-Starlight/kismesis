@@ -4,7 +4,7 @@ use std::{collections::HashMap, path::Path};
 use serde::{Deserialize, Serialize};
 
 
-use crate::kismesis::{KisID, KisTemplateID, Kismesis};
+use crate::{KisID, KisTemplateID, Kismesis};
 
 use super::state::TokenPos;
 

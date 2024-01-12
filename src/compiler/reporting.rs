@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::kismesis::{FileRef, KisID, Kismesis};
+use crate::{FileRef, KisID, Kismesis};
 
 use super::{
 	errors::{ErrorKind, ErrorState, StatelessError},

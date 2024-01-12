@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::kismesis::{
+use crate::{
 	compiler::{errors::ErrorState, lexer::Token},
 	Kismesis,
 };

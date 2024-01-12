@@ -1,4 +1,4 @@
-use crate::kismesis::KisID;
+use crate::KisID;
 
 use super::{
 	html::ScopedError,

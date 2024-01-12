@@ -4,12 +4,11 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use crate::kismesis::{KisID, Kismesis, KismesisError};
+use crate::{KisID, Kismesis, KismesisError};
 
 use self::{
 	options::Settings,
 	parser::errors::Err,
-	reporting::{draw_error, DrawingInfo},
 };
 
 mod errors;
@@ -17,7 +16,11 @@ pub(crate) mod html;
 pub(crate) mod lexer;
 pub(crate) mod options;
 pub(crate) mod parser;
+
+#[cfg(feature = "reporting")]
 mod reporting;
+#[cfg(feature="reporting")]
+use reporting::{draw_error, DrawingInfo};
 
 pub enum Error {
 	IOError(io::Error, PathBuf),
@@ -29,6 +32,7 @@ pub enum Error {
 }
 
 #[cfg(feature = "plugins")]
+#[cfg(feature = "projects")]
 fn check_for_plugins(program_path: &directories::ProjectDirs, engine: &mut Kismesis) {
 	let plugin_dir = program_path.data_dir().join("plugins");
 	let plugin_paths = fs::read_dir(plugin_dir).unwrap();
@@ -43,16 +47,19 @@ fn check_for_plugins(program_path: &directories::ProjectDirs, engine: &mut Kisme
 }
 
 #[cfg(not(feature = "plugins"))]
+#[cfg(feature = "projects")]
 fn check_for_plugins(program_path: &directories::ProjectDirs, engine: &mut Kismesis) {
 	println!("Plugins are not being registered because this version of Kismesis was compiled without plugins")
 }
 
 /// Compile a kismesis project
+#[cfg(feature="projects")]
 pub fn compile_project() {
 	let mut errors = Vec::new();
 	let mut engine = Kismesis::new();
 	let program_path =
 		directories::ProjectDirs::from("net.ampersandia", "ampersandia", "kismesis").unwrap();
+
 	check_for_plugins(&program_path, &mut engine);
 
 	let project_path = std::env::current_dir().unwrap();
@@ -197,6 +204,7 @@ impl From<KismesisError> for Error {
 }
 
 /// Reports any errors from the project compilation
+#[cfg(feature="reporting")]
 pub fn report_errors(errors: Vec<Error>, engine: &Kismesis) {
 	for error in errors {
 		match error {
@@ -208,4 +216,10 @@ pub fn report_errors(errors: Vec<Error>, engine: &Kismesis) {
 			Error::TriedToGetNonExistentTemplate(id) => eprintln!("Tried to get a non-existent kismesis template {:?}", id)
         }
 	}
+}
+
+/// Reports any errors from the project compilation
+#[cfg(not(feature="reporting"))]
+pub fn report_errors(errors: Vec<Error>, engine: &Kismesis) {
+	panic!("Feature reporting is disabled!")
 }

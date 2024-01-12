@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::kismesis::{
+use crate::{
 	compiler::parser::types::ParsedFile,
 	{KisID, Kismesis},
 };
