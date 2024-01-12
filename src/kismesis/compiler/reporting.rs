@@ -10,6 +10,7 @@ use super::{
 };
 use colored::*;
 
+/// Information related to how the error reporter will report an error
 pub struct DrawingInfo<'a> {
 	pub(crate) line_number_length: usize,
 	pub(crate) scope: &'a FileRef,
@@ -18,6 +19,7 @@ pub struct DrawingInfo<'a> {
 	pub(crate) hint: bool,
 }
 
+/// Errors that may occurr during error reporting
 #[derive(Debug)]
 enum ReportingError {
 	InvalidKismesisID,
@@ -57,6 +59,7 @@ impl<'a> DrawingInfo<'a> {
 	}
 }
 
+/// Returns a report with tokens in a file
 pub fn draw_error<T: ErrorKind + Debug>(
 	err: &ErrorState<T>,
 	info: &Result<DrawingInfo, ()>,
@@ -79,7 +82,7 @@ pub fn draw_error<T: ErrorKind + Debug>(
 	};
 	let maximum_line = {
 		let x = err.text_position.get_end_line();
-		if x > info.lines.len() - info.line_offset.1 {
+		if x + info.line_offset.1 > info.lines.len() {
 			info.lines.len()
 		} else {
 			x + info.line_offset.1
@@ -151,6 +154,7 @@ pub fn draw_error<T: ErrorKind + Debug>(
 	output
 }
 
+/// Returns a report where errors are not related to a file
 pub fn draw_stateless_error<T: ErrorKind + Debug>(
 	err: &StatelessError<T>,
 	hint: bool,
@@ -180,6 +184,7 @@ pub fn draw_stateless_error<T: ErrorKind + Debug>(
 	output
 }
 
+/// Returns a line. It will contain pointers to the provided error if the provided error is in the rendered line
 fn draw_line<T: ErrorKind>(
 	line_number: usize,
 	err: &ErrorState<T>,
@@ -241,6 +246,8 @@ fn draw_line<T: ErrorKind>(
 	}
 }
 
+/// Turns a string of characters into a repeated sequence of a given character.
+/// Tabs are turned into four instances of the character
 fn turn_to_chars(string: String, chr: char) -> String {
 	string
 		.chars()
@@ -251,6 +258,8 @@ fn turn_to_chars(string: String, chr: char) -> String {
 		.collect()
 }
 
+/// Draws the line enumerator of the given line number, using the given drawinginfo to figure out
+/// the desired width.
 fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
 	let mut output = (line + 1).to_string();
 	while output.len() < info.line_number_length + 1 {
@@ -260,6 +269,7 @@ fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
 	output
 }
 
+/// Takes a ScopedError and renders an error report
 pub fn draw_scoped_error<T: ErrorKind + Debug>(err: &ScopedError<T>, engine: &Kismesis) -> String {
 	draw_error(
 		&err.error,

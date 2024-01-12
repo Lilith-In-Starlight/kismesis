@@ -1,8 +1,12 @@
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq)]
+#[cfg(feature="plugins")]
+use serde::Serialize;
+
 
 /// The different tokens that can be in an input string
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature="plugins", derive(Serialize))]
 pub enum Token {
 	Word(String),
 	Space(char),
