@@ -20,40 +20,40 @@ pub enum StringParts {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Attribute {
-	pub(crate) name: Ranged<String>,
-	pub(crate) value: Ranged<Expression>,
+	pub name: Ranged<String>,
+	pub value: Ranged<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Argument {
-	pub(crate) name: Ranged<String>,
-	pub(crate) value: Option<Ranged<Expression>>,
+	pub name: Ranged<String>,
+	pub value: Option<Ranged<Expression>>,
 }
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct HtmlTag {
-	pub(crate) name: Ranged<String>,
-	pub(crate) attributes: Vec<Attribute>,
-	pub(crate) body: Vec<HtmlNodes>,
-	pub(crate) subtags: Vec<HtmlTag>,
+	pub name: Ranged<String>,
+	pub attributes: Vec<Attribute>,
+	pub body: Vec<HtmlNodes>,
+	pub subtags: Vec<HtmlTag>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Macro {
-	pub(crate) name: Ranged<String>,
-	pub(crate) arguments: Vec<Argument>,
-	pub(crate) body: Vec<HtmlNodes>,
+	pub name: Ranged<String>,
+	pub arguments: Vec<Argument>,
+	pub body: Vec<HtmlNodes>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Section {
-	pub(crate) depth: usize,
-	pub(crate) name: Vec<StringParts>,
-	pub(crate) subtitle: Option<Vec<StringParts>>,
-	pub(crate) content: Vec<Vec<HtmlNodes>>,
+	pub depth: usize,
+	pub name: Vec<StringParts>,
+	pub subtitle: Option<Vec<StringParts>>,
+	pub content: Vec<Vec<HtmlNodes>>,
 }
 
 impl Section {
@@ -144,8 +144,8 @@ pub fn paragraph_str_to_p(vec: Vec<HtmlNodes>) -> HtmlTag {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct PlugCall {
-	pub(crate) name: Ranged<String>,
-	pub(crate) body: Vec<HtmlNodes>,
+	pub name: Ranged<String>,
+	pub body: Vec<HtmlNodes>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -448,8 +448,8 @@ pub struct Lambda {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature="serde", derive(Deserialize, Serialize))]
 pub struct Ranged<T> {
-	pub(crate) value: T,
-	pub(crate) range: TextPos,
+	pub value: T,
+	pub range: TextPos,
 }
 
 impl Ranged<&str> {
