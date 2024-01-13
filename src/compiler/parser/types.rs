@@ -20,40 +20,40 @@ pub enum StringParts {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Attribute {
-	name: Ranged<String>,
-	value: Ranged<Expression>,
+	pub(crate) name: Ranged<String>,
+	pub(crate) value: Ranged<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Argument {
-	name: Ranged<String>,
-	value: Option<Ranged<Expression>>,
+	pub(crate) name: Ranged<String>,
+	pub(crate) value: Option<Ranged<Expression>>,
 }
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct HtmlTag {
-	name: Ranged<String>,
-	attributes: Vec<Attribute>,
-	body: Vec<HtmlNodes>,
-	subtags: Vec<HtmlTag>,
+	pub(crate) name: Ranged<String>,
+	pub(crate) attributes: Vec<Attribute>,
+	pub(crate) body: Vec<HtmlNodes>,
+	pub(crate) subtags: Vec<HtmlTag>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Macro {
-	name: Ranged<String>,
-	arguments: Vec<Argument>,
-	body: Vec<HtmlNodes>,
+	pub(crate) name: Ranged<String>,
+	pub(crate) arguments: Vec<Argument>,
+	pub(crate) body: Vec<HtmlNodes>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
 pub struct Section {
-	depth: usize,
-	name: Vec<StringParts>,
-	subtitle: Option<Vec<StringParts>>,
-	content: Vec<Vec<HtmlNodes>>,
+	pub(crate) depth: usize,
+	pub(crate) name: Vec<StringParts>,
+	pub(crate) subtitle: Option<Vec<StringParts>>,
+	pub(crate) content: Vec<Vec<HtmlNodes>>,
 }
 
 impl Section {
@@ -448,8 +448,8 @@ pub struct Lambda {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature="serde", derive(Deserialize, Serialize))]
 pub struct Ranged<T> {
-	value: T,
-	range: TextPos,
+	pub(crate) value: T,
+	pub(crate) range: TextPos,
 }
 
 impl Ranged<&str> {
