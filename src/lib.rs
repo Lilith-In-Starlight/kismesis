@@ -130,8 +130,8 @@ impl Kismesis {
 	pub fn call_plugin(&self, name: &str, tokens: Ranged<Vec<Token>>, body: Option<Ranged<Vec<Token>>>) -> Result<Vec<HtmlNodes>, ()> {
 		let manifest = self.plugins.get(name).unwrap().clone();
 		let mut plugin = Plugin::new(&manifest, [], false).unwrap();
-		let input = Json(&[param_field_json, body_json]).unwrap();
-		let Json(text) = plugin.call::<_, Json<Vec<HtmlNodes>>>("parser", input_json).unwrap();
+		let input = Json((tokens, body));
+		let Json(text) = plugin.call::<_, Json<Vec<HtmlNodes>>>("parser", input).unwrap();
 		Ok(text)
 	}
 
