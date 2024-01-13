@@ -3,6 +3,7 @@ name = "rust"
 auto-format = false
 indent = {unit="\t", tab-width=4}
 
-[language-server.rust-analyzer.config]
-check.command = "clippy"
-cargo.features = "projects, plugins"
+[language-server.rust-analyzer.config.check]
+command = "clippy"
+[language-server.rust-analyzer.config.cargo]
+features = ["projects", "plugins"]

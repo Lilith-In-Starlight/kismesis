@@ -2,7 +2,7 @@
 name = "kismesis"
 description = "A static site generator with plugins and a custom markup language."
 license-file = "LICENSE.md"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 repository = "https://github.com/lilith-in-starlight/kismesis"
 

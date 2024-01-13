@@ -123,18 +123,14 @@ impl Kismesis {
 		&mut self,
 		_name: String,
 		_path: &Path
-	) {
-		()
-	}
+	) {}
 
 	/// Send tokens and body to a plugin with a given `name`
 	#[cfg(feature="plugins")]
 	pub fn call_plugin(&self, name: &str, tokens: Ranged<Vec<Token>>, body: Option<Ranged<Vec<Token>>>) -> Result<Vec<HtmlNodes>, ()> {
 		let manifest = self.plugins.get(name).unwrap().clone();
 		let mut plugin = Plugin::new(&manifest, [], false).unwrap();
-		let param_field_json = serde_json::to_string(&tokens).unwrap();
-		let body_json = serde_json::to_string(&body).unwrap();
-		let input_json = serde_json::to_string(&[param_field_json, body_json]).unwrap();
+		let input = Json(&[param_field_json, body_json]).unwrap();
 		let Json(text) = plugin.call::<_, Json<Vec<HtmlNodes>>>("parser", input_json).unwrap();
 		Ok(text)
 	}
@@ -149,7 +145,7 @@ impl Kismesis {
 	pub fn register_tokens(&mut self, tokens: Vec<Token>, path: Option<PathBuf>) -> KisID {
 		let new_kis_id = KisID(self.id);
 		self.id += 1;
-		self.tokens.insert(new_kis_id.clone(), FileRef { tokens, path });
+		self.tokens.insert(new_kis_id, FileRef { tokens, path });
 		new_kis_id
 	}
 
@@ -246,4 +242,7 @@ pub mod pdk {
 	pub use super::compiler::parser::types::Attribute;
 	pub use super::compiler::parser::types::Argument;
 	pub use super::compiler::parser::types::TextPos;
+
+	pub type RangedTokens = Ranged<Vec<Token>>;
+	pub type AST = Vec<HtmlNodes>;
 }
