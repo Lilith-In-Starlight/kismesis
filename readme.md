@@ -1,13 +1,57 @@
-# KISMESIS
+# The Kismesis Engine
 
-Kismesis is a static site generator with macros, plugins and spite. Made in rust.
+The engine for the Kismesis static site generator, encouraging everyone to make static sites that are semantic and accessible.
 
-## Features
-- **Only one language to type in:** No need to use HTML for one thing, Markdown for another, and maybe something else. The Kiss markup language is designed to complement the static site generator while being concise and easier to type.
-- **Compile-time errors:** Aren't you tired of mistyping your pages and realizing later that they've been rendered all wrong? Kismesis will give you a visual report of your erros signaling where they happened, similar to what the Rust compiler does.
-- **Macros:** Custom HTML tags you can define in order to use them anywhere. You can supply custom arguments to them.
-- **(TO DO!) Plugins:** The current draft of plugins would allow them to do anything they want with the input, making them the most powerful part of Kismesis by far. They will probably be written in Rhine.
-- **(TO DO!) A Standard Library:** Ever miss the <marquee> tag? In Kismesis, you're not allowed to use deprecated tags, however it will come with a <marquee?> plugin, which will aim to replicate the behavior using only widely supported featues.
+## How To Make Plugins
 
-# How To Use
-todo!()
+1. Begin by making a new Rust library. 
+2. Add `extism-pdk` to that library.
+3. Add `kismesis` to that library with the `pdk` feature.
+4. In `lib.rs`, add `use extism_pdk::*` and `kismesis::pdk::*`.
+5. Create a function `fn parser(Json(input): (Json<RangedTokens>, Json<Option<RangedTokens>>) -> FnResult<Json<AST>>`
+
+Check the documentation for `extism-pdk` for help with Extism's features and the Kismesis documentation for help with managing Kismesis tokens and AST nodes
+
+## Why isn't this embedded in the SSG
+
+The Kismesis engine is made as a separate crate from the Kismesis static site generator because this way it's possible to simply export the necessary types as public in order to allow for plugins. The necessary interfaces to make this process more ergonomic are still to come, but it is perfectly possible to make plugins as things are.
+
+## Roadmap
+- Move compiler::compile_project() function out of this crate and into a proper crate for the Kismesis static site generator
+- Run plugins in a separate thread to give them a fresh stack (or figure out a way to optimize this crate's stack usage)
+- Improve the PDK in order to make things easier
+- Allow for recursive templating
+- Output errors for irrefutable infinite recursion (this can only be caused by macros and expressions that unconditionally reference each other, and futurely, by template self-reference)
+- Somehow realize when two values have been bouncing around through references a lot???? And report an error for that. Somehow.
+- Compiler errors for trying to use the `<div>` tag, and make use of `<container>` instead.
+- Allow plugins to have a second pass once the AST is compiled, so they can have access to almost-fully-compiled AST.
+- Make the plugins much less panicky than they are right now.
+
+This is not a checklist. Elements will be deleted from the list as they are completed.
+
+## Warning for site generator developers
+The Kismesis engine is meant only for the Kismesis SSG, however, if you wish to use Kismesis on your own project, heed this warning:
+
+After registering a file in the engine, it sticks around until manually deleted. Knowing where to delete it is critical. Your users will see an error specifying what happened if you fail to manage this.
+
+In most cases, template files can be kept around until the end of the runtime. Input files can often be removed immediately after their templating was either successful or a failure.
+
+## Related Projects
+
+- The Kismesis Engine
+- The Kismesis Static Site Generator
+- The Kismesis Markup Language
+
+You might accurately infer that I think ambiguity is the funniest thing ever. Since all these projects are related I think this is basically harmless unless you're in a server that is both MSPA-related and related to any topic adjacent to this project (like Rust, Static Sites, Extism, the Indie Web, etc). DM me if you find an active community that meets this criterion. This section was meant to be a joke, but now that I write this, I am genuinely curious.
+
+## FAQ
+FAQ stands for both Forwardly Anticipated Questions and Frequently-ish Asked Questions.
+
+### Why is this name ambiguous?
+I find it funny, and I thinks that since all projects named Kismesis are related, this is safe and okay.
+
+### Why do you plan to error when using <div>
+- The reason for this is that we often utilize divisions as a catch-all, instead of utilizing more semantic alternatives like `header`, `footer`, `main`, `section`, and even `button`. `<container>` will get compiled as `<div>` in case you really know there is no better alternative. Think of it the same way you think of Rust's `unsafe`.
+  - No, `<button>` is not that much harder to style than a div.
+
+For questions about the Kismesis SSG, check [its respective readme](https://github.com/lilith-in-starlight/kismesis-ssg).
