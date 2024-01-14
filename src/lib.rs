@@ -7,18 +7,18 @@
 //! templates and token strings.
 
 pub mod compiler;
-#[cfg(feature="plugins")]
+#[cfg(feature = "plugins")]
 mod plugins;
 
-#[cfg(feature="plugins")]
-use extism::{Wasm, Plugin, Manifest, convert::Json};
+#[cfg(feature = "plugins")]
+use extism::{convert::Json, Manifest, Plugin, Wasm};
 use pdk::TextPos;
 
-#[cfg(feature="serde")]
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use self::compiler::parser::types::Ranged;
 use self::compiler::parser::errors::ParseError;
+use self::compiler::parser::types::Ranged;
 
 use std::{
 	collections::HashMap,
@@ -28,7 +28,11 @@ use std::{
 
 use compiler::{
 	lexer::{self, Token},
-	parser::{self, errors::Err, types::{ParsedFile, HtmlNodes}},
+	parser::{
+		self,
+		errors::Err,
+		types::{HtmlNodes, ParsedFile},
+	},
 };
 
 pub type KisResult<T> = Result<T, KismesisError>;
@@ -39,7 +43,7 @@ pub enum KismesisError {
 }
 
 /// Error struct used in plugin parsing
-#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PluginParseError {
 	/// The message displayed as an error
 	message: String,
@@ -53,7 +57,7 @@ impl PluginParseError {
 	pub fn new(message: String, state: Option<TextPos>) -> Self {
 		PluginParseError {
 			message,
-			hint: vec![],
+			hints: vec![],
 			state,
 		}
 	}
@@ -74,7 +78,7 @@ pub struct FileRef {
 /// # Kismesis Engine
 /// A struct which contains Kismesis data that might be self-referential, such as templates (which might be recursuve)
 #[derive(Default, Debug)]
-#[cfg(feature="plugins")]
+#[cfg(feature = "plugins")]
 pub struct Kismesis {
 	/// The tokens of all the files.
 	tokens: HashMap<KisID, FileRef>,
@@ -87,7 +91,7 @@ pub struct Kismesis {
 }
 
 #[derive(Default, Debug)]
-#[cfg(not(feature="plugins"))]
+#[cfg(not(feature = "plugins"))]
 /// # Kismesis Engine
 /// A struct which contains Kismesis data that might be self-referential, such as templates (which might be recursuve)
 pub struct Kismesis {
@@ -113,7 +117,7 @@ pub enum KisTemplateID {
 }
 
 impl Kismesis {
-	#[cfg(feature="plugins")]
+	#[cfg(feature = "plugins")]
 	pub fn new() -> Self {
 		Self {
 			tokens: HashMap::new(),
@@ -122,7 +126,7 @@ impl Kismesis {
 			id: 0,
 		}
 	}
-	#[cfg(not(feature="plugins"))]
+	#[cfg(not(feature = "plugins"))]
 	pub fn new() -> Self {
 		Self {
 			tokens: HashMap::new(),
@@ -137,53 +141,71 @@ impl Kismesis {
 	}
 
 	/// Register a plugin from a path
-	#[cfg(feature="plugins")]
-	pub fn register_plugin(
-		&mut self,
-		name: String,
-		path: &Path
-	) {
+	#[cfg(feature = "plugins")]
+	pub fn register_plugin(&mut self, name: String, path: &Path) {
 		let plugin = Wasm::file(path);
 		let manifest = Manifest::new([plugin]);
 		let manifest = manifest.with_allowed_hosts(["*".to_string()].into_iter());
-		let manifest = manifest.with_allowed_paths([
-			(PathBuf::from("input"), PathBuf::from("input")), 
-			(PathBuf::from("output"), PathBuf::from("output"))].into_iter());
+		let manifest = manifest.with_allowed_paths(
+			[
+				(PathBuf::from("input"), PathBuf::from("input")),
+				(PathBuf::from("output"), PathBuf::from("output")),
+			]
+			.into_iter(),
+		);
 		self.plugins.insert(name, manifest);
 	}
 
 	/// Register a plugin from a path
-	#[cfg(not(feature="plugins"))]
-	pub fn register_plugin(
-		&mut self,
-		_name: String,
-		_path: &Path
-	) {}
+	#[cfg(not(feature = "plugins"))]
+	pub fn register_plugin(&mut self, _name: String, _path: &Path) {}
 
 	/// Send tokens and body to a plugin with a given `name`
-	#[cfg(feature="plugins")]
-	pub fn call_plugin(&self, name: &Ranged<String>, tokens: Ranged<Vec<Token>>, body: Option<Ranged<Vec<Token>>>) -> Result<Vec<HtmlNodes>, Err> {
+	#[cfg(feature = "plugins")]
+	pub fn call_plugin(
+		&self,
+		name: &Ranged<String>,
+		tokens: Ranged<Vec<Token>>,
+		body: Option<Ranged<Vec<Token>>>,
+	) -> Result<Vec<HtmlNodes>, Err> {
 		let manifest = match self.plugins.get(&name.value) {
 			Some(x) => x.clone(),
-			None => return Err(ParseError::PluginDoesntExist.error_at_pos(name.range.clone()).cut()),
+			None => {
+				return Err(ParseError::PluginDoesntExist
+					.error_at_pos(name.range.clone())
+					.cut())
+			}
 		};
 		let mut plugin = match Plugin::new(manifest, [], true) {
 			Ok(x) => x,
-			Err(x) => return Err(ParseError::ExtismError(format!("{}", x)).error_at_pos(name.range.clone()).cut()),
+			Err(x) => {
+				return Err(ParseError::ExtismError(format!("{}", x))
+					.error_at_pos(name.range.clone())
+					.cut())
+			}
 		};
 		let input = Json((tokens, body));
 		match plugin.call::<_, Json<Result<Vec<HtmlNodes>, PluginParseError>>>("parser", input) {
 			Ok(Json(x)) => match x {
 				Ok(x) => Ok(x),
-				Err(x) => Err(ParseError::PluginError(x.message).error_at_pos(x.state.unwrap_or(name.range.clone())).cut()),
+				Err(x) => Err(ParseError::PluginError(x.message)
+					.error_at_pos(x.state.unwrap_or(name.range.clone()))
+					.cut()),
 			},
-			Err(x) => Err(ParseError::ExtismError(format!("{}", x)).error_at_pos(name.range.clone()).cut())
+			Err(x) => Err(ParseError::ExtismError(format!("{}", x))
+				.error_at_pos(name.range.clone())
+				.cut()),
 		}
 	}
 
-	#[cfg(not(feature="plugins"))]
+	#[cfg(not(feature = "plugins"))]
 	/// Send tokens and body to a plugin with a given `name`
-	pub fn call_plugin(&self, name: &str, _tokens: Ranged<Vec<Token>>, _body: Option<Ranged<Vec<Token>>>) -> Result<Vec<HtmlNodes>, Err> {
+	pub fn call_plugin(
+		&self,
+		name: &str,
+		_tokens: Ranged<Vec<Token>>,
+		_body: Option<Ranged<Vec<Token>>>,
+	) -> Result<Vec<HtmlNodes>, Err> {
 		Err(ParseError::PluginsDisabled.error_at_pos(name.range).cut())
 	}
 
@@ -197,13 +219,17 @@ impl Kismesis {
 
 	/// Parse and register a file
 	// TODO: This is a misnomer
-	pub fn register_file(&mut self, path: PathBuf, project: Option<PathBuf>) -> KisResult<ParsedFile> {
+	pub fn register_file(
+		&mut self,
+		path: PathBuf,
+		project: Option<PathBuf>,
+	) -> KisResult<ParsedFile> {
 		let text =
 			fs::read_to_string(&path).map_err(|x| KismesisError::IOError(x, path.clone()))?;
 		let tokens = lexer::tokenize(&text);
 		let tokens = self.register_tokens(tokens, Some(path));
-		let file =
-			parser::file(tokens, self, None, project).map_err(|x| KismesisError::ParseError(x, tokens))?;
+		let file = parser::file(tokens, self, None, project)
+			.map_err(|x| KismesisError::ParseError(x, tokens))?;
 		Ok(file)
 	}
 
@@ -279,15 +305,15 @@ impl From<&KisTemplateID> for KisTemplateID {
 /// Exports important types as public for Plugin developers to use
 pub mod pdk {
 	pub use super::compiler::lexer::Token;
+	pub use super::compiler::parser::types::Argument;
+	pub use super::compiler::parser::types::Attribute;
+	pub use super::compiler::parser::types::ForTag;
 	pub use super::compiler::parser::types::HtmlNodes;
 	pub use super::compiler::parser::types::HtmlTag;
-	pub use super::compiler::parser::types::Macro;
-	pub use super::compiler::parser::types::Section;
 	pub use super::compiler::parser::types::IfTag;
-	pub use super::compiler::parser::types::ForTag;
+	pub use super::compiler::parser::types::Macro;
 	pub use super::compiler::parser::types::Ranged;
-	pub use super::compiler::parser::types::Attribute;
-	pub use super::compiler::parser::types::Argument;
+	pub use super::compiler::parser::types::Section;
 	pub use super::compiler::parser::types::TextPos;
 
 	pub use super::PluginParseError;

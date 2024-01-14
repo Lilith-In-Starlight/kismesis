@@ -1,12 +1,11 @@
 use std::fmt;
 
-#[cfg(feature="serde")]
-use serde::{Serialize, Deserialize};
-
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 /// The different tokens that can be in an input string
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Token {
 	Word(String),
 	Space(char),

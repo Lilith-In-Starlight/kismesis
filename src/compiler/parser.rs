@@ -517,11 +517,7 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 
 	let (((name, arguments), body), state) = parser.parse(state)?;
 
-	let body = state.engine.call_plugin(
-		&name,
-		arguments,
-		body,
-	)?;
+	let body = state.engine.call_plugin(&name, arguments, body)?;
 
 	Ok((Box::new(PlugCall { name, body }), state))
 }
@@ -969,7 +965,11 @@ pub(crate) fn file(
 	.followed_by(skipped_blanks())
 	.followed_by(eof.or(ignore(tag_closer)));
 
-	let state = ParserState::new(&engine.get_file(tokens_id).unwrap().tokens, project_path, engine);
+	let state = ParserState::new(
+		&engine.get_file(tokens_id).unwrap().tokens,
+		project_path,
+		engine,
+	);
 	let ast_nodes = match parser.parse(state) {
 		Ok((val, _)) => val,
 		Err(err) => {

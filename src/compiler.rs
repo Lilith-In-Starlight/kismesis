@@ -6,10 +6,7 @@ use std::{
 
 use crate::{KisID, Kismesis, KismesisError};
 
-use self::{
-	options::Settings,
-	parser::errors::Err,
-};
+use self::{options::Settings, parser::errors::Err};
 
 pub(crate) mod errors;
 pub(crate) mod html;
@@ -19,7 +16,7 @@ pub(crate) mod parser;
 
 #[cfg(feature = "reporting")]
 mod reporting;
-#[cfg(feature="reporting")]
+#[cfg(feature = "reporting")]
 use reporting::{draw_error, DrawingInfo};
 
 /// An Enum containing all the possible errors that the process of compiling a project might emit
@@ -42,7 +39,8 @@ fn check_for_plugins(program_path: &directories::ProjectDirs, engine: &mut Kisme
 		let entry = entry.unwrap();
 		let path = entry.path();
 		let data = path.join("plugin.ron");
-		let data = ron::from_str::<super::plugins::PluginData>(&fs::read_to_string(data).unwrap()).unwrap();
+		let data = ron::from_str::<super::plugins::PluginData>(&fs::read_to_string(data).unwrap())
+			.unwrap();
 		let plugin_path = path.join("plugin.wasm");
 		engine.register_plugin(data.name, &plugin_path);
 	}
@@ -56,7 +54,7 @@ fn check_for_plugins(program_path: &directories::ProjectDirs, engine: &mut Kisme
 }
 
 /// Compile a kismesis project
-#[cfg(feature="projects")]
+#[cfg(feature = "projects")]
 pub fn compile_project() {
 	let mut errors = Vec::new();
 	let mut engine = Kismesis::new();
@@ -100,8 +98,8 @@ pub fn compile_project() {
 			}
 			Err(x) => {
 				errors.push(x.into());
-				continue
-			},
+				continue;
+			}
 		};
 		match html::generate_html(&parsed_file, vec![], &settings, &engine) {
 			Ok(x) => {
@@ -145,7 +143,7 @@ pub fn compile_project() {
 						Ok(x) => {
 							engine.drop_id(&parsed_file.file_id);
 							x
-						},
+						}
 						Err(x) => {
 							errors.push(Error::IOError(x, output_path.clone()));
 							continue;
@@ -208,7 +206,7 @@ impl From<KismesisError> for Error {
 }
 
 /// Reports any errors from the project compilation
-#[cfg(feature="reporting")]
+#[cfg(feature = "reporting")]
 pub fn report_errors(errors: Vec<Error>, engine: &Kismesis) {
 	for error in errors {
 		match error {
@@ -223,7 +221,7 @@ pub fn report_errors(errors: Vec<Error>, engine: &Kismesis) {
 }
 
 /// Reports any errors from the project compilation
-#[cfg(not(feature="reporting"))]
+#[cfg(not(feature = "reporting"))]
 pub fn report_errors(errors: Vec<Error>, engine: &Kismesis) {
 	panic!("Feature reporting is disabled!")
 }

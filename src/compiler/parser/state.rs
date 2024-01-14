@@ -7,7 +7,7 @@ use crate::{
 
 use super::{errors::ParseError, types::TextPos};
 
-#[cfg(feature="serde")]
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
@@ -22,7 +22,11 @@ pub struct ParserState<'a> {
 }
 
 impl<'a> ParserState<'a> {
-	pub(crate) fn new(tokens: &'a [Token], project_path: Option<PathBuf>, engine: &'a Kismesis) -> Self {
+	pub(crate) fn new(
+		tokens: &'a [Token],
+		project_path: Option<PathBuf>,
+		engine: &'a Kismesis,
+	) -> Self {
 		Self {
 			tokens,
 			position: TokenPos::new(),
@@ -30,7 +34,7 @@ impl<'a> ParserState<'a> {
 			tag_openers: Vec::new(),
 			section_depth: 0,
 			engine,
-			project_path
+			project_path,
 		}
 	}
 	pub(crate) fn next_state(self) -> Self {
@@ -97,7 +101,7 @@ impl<'a> ParserState<'a> {
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Default)]
-#[cfg_attr(feature="serde", derive(Deserialize, Serialize))]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct TokenPos {
 	idx: usize,
 	line: usize,
