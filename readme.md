@@ -8,9 +8,14 @@ The engine for the Kismesis static site generator, encouraging everyone to make 
 2. Add `extism-pdk` to that library.
 3. Add `kismesis` to that library with the `pdk` feature.
 4. In `lib.rs`, add `use extism_pdk::*` and `kismesis::pdk::*`.
-5. Create a function `fn parser(Json(input): (Json<RangedTokens>, Json<Option<RangedTokens>>) -> FnResult<Json<AST>>`
+5. Create a function `fn parser(Json(input): (Json<RangedTokens>, Json<Option<RangedTokens>>) -> FnResult<Json<<Result<AST, PluginParseError>>>>`
+6. Make sure your program doesn't panic, as this results in an error report that offers very little help to both you and the user. FnResult uses anyhow::Error, so you can use the elvis operatora lot of the time.
+7. Use `PluginParseError::new()` to create a new error at the position of one of your tokens, or the ranges given in the input.
+8. Use `.add_hint()` to add a hint to an error.
 
 Check the documentation for `extism-pdk` for help with Extism's features and the Kismesis documentation for help with managing Kismesis tokens and AST nodes
+
+Kismesis Plugins are currently unstable and subject to any sort of breaking change. A more ergonomic API is in the making.
 
 ## Why isn't this embedded in the SSG
 
