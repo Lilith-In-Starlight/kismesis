@@ -303,6 +303,7 @@ impl From<&KisTemplateID> for KisTemplateID {
 }
 
 /// Exports important types as public for Plugin developers to use
+#[cfg(feature="pdk")]
 pub mod pdk {
 	pub use super::compiler::lexer::Token;
 	pub use super::compiler::parser::types::Argument;
@@ -316,8 +317,11 @@ pub mod pdk {
 	pub use super::compiler::parser::types::Section;
 	pub use super::compiler::parser::types::TextPos;
 
-	pub use super::PluginParseError;
+	pub use super::PluginParseError as PluginError;
 
 	pub type RangedTokens = Ranged<Vec<Token>>;
+	pub type InputTuple = (RangedTokens, Option<RangedTokens>);
 	pub type AST = Vec<HtmlNodes>;
+
+	pub type PlugResult = Result<AST, PluginError>;
 }

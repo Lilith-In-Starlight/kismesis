@@ -244,6 +244,9 @@ fn draw_line<T: ErrorKind>(
 	} else {
 		termsize
 	};
+
+	let initial_spaces = error_line.clone();
+	
 	if let Some(line) = info.lines.get(line_number) {
 		let mut char_idx: usize = 0;
 		for (token_idx, token) in line.1.iter().enumerate() {
@@ -260,12 +263,12 @@ fn draw_line<T: ErrorKind>(
 					output.push('\n');
 					output.push_str(error_line.yellow().to_string().trim_end());
 					output.push('\n');
-					output.push_str(&turn_to_chars(draw_line_number(line_number, info), ' '));
-					error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
+					output.push_str(&initial_spaces);
+					error_line = initial_spaces.clone();
 				} else {
 					output.push('\n');
-					output.push_str(&turn_to_chars(draw_line_number(line_number, info), ' '));
-					error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
+					output.push_str(&initial_spaces);
+					error_line = initial_spaces.clone();
 				}
 				char_idx = tkstr.len();
 			}
@@ -278,7 +281,8 @@ fn draw_line<T: ErrorKind>(
 			error_line.push_str(&turn_to_chars(tkstr, char));
 			if token_pos.is_at_an_end(&err.text_position) {
 				if err.text_position.is_one_line() {
-					error_line.push_str(&format!(" {}", err.error.get_text()));
+					let text = err.error.get_text().replace('\n', &format!("\n{}", &initial_spaces));
+					error_line.push_str(&format!(" {}", text));
 				} else {
 					error_line.push_str(" Error happened here");
 				}
