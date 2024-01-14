@@ -12,7 +12,7 @@ mod plugins;
 
 #[cfg(feature = "plugins")]
 use extism::{convert::Json, Manifest, Plugin, Wasm};
-use pdk::TextPos;
+use compiler::parser::types::TextPos;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
