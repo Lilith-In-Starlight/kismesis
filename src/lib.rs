@@ -202,11 +202,11 @@ impl Kismesis {
 	/// Send tokens and body to a plugin with a given `name`
 	pub fn call_plugin(
 		&self,
-		name: &str,
+		name: &Ranged<String>,
 		_tokens: Ranged<Vec<Token>>,
 		_body: Option<Ranged<Vec<Token>>>,
 	) -> Result<Vec<HtmlNodes>, Err> {
-		Err(ParseError::PluginsDisabled.error_at_pos(name.range).cut())
+		Err(ParseError::PluginsDisabled.error_at_pos(name.range.clone()).cut())
 	}
 
 	/// Register a file
