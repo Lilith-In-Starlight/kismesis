@@ -98,25 +98,39 @@ pub fn draw_error<T: ErrorKind + Debug>(
 
 	let mut output = String::new();
 
-	let style = match info.kind {
-		ReportKind::Error => | x: &str | x.black().on_red(),
-		ReportKind::Hint => | x: &str | x.black().on_yellow()
+	match info.kind {
+		ReportKind::Error => {
+			output.push_str(&" ERROR ".black().on_red().to_string());
+			output.push_str(&" in `".black().on_red().to_string());
+			match info.scope.path {
+				Some(ref path) => {
+					output.push_str(
+						&path.to_string_lossy().as_ref()
+							.black().on_red()
+							.to_string(),
+					);
+					output.push_str(&"` ".black().on_red().to_string());
+				}
+				None => output.push_str(&"input` ".black().on_red().to_string()),
+			}
+		},
+		ReportKind::Hint => {
+			output.push_str(&" HINT ".black().on_yellow().to_string());
+			output.push_str(&" in `".black().on_yellow().to_string());
+			match info.scope.path {
+				Some(ref path) => {
+					output.push_str(
+						&path.to_string_lossy().as_ref()
+							.black().on_yellow()
+							.to_string(),
+					);
+					output.push_str(&"` ".black().on_yellow().to_string());
+				}
+				None => output.push_str(&"input` ".black().on_yellow().to_string()),
+			}
+		},
 	};
 
-	output.push_str(&style(" ERROR ").to_string());
-	output.push_str(&style(" in `").to_string());
-	match info.scope.path {
-		Some(ref path) => {
-			output.push_str(
-				&style(path
-					.to_string_lossy()
-					.as_ref())
-					.to_string(),
-			);
-			output.push_str(&"` ".black().on_red().to_string());
-		}
-		None => output.push_str(&"input` ".black().on_red().to_string()),
-	}
 	output.push('\n');
 
 	for line_number in minimum_line..=maximum_line {
@@ -158,7 +172,7 @@ pub fn draw_stateless_error<T: ErrorKind + Debug>(
 	let mut output = String::new();
 
 	match kind {
-		ReportKind::Error => output.push_str(&" HINT ".black().on_red().to_string()),
+		ReportKind::Error => output.push_str(&" ERROR ".black().on_red().to_string()),
 		ReportKind::Hint => output.push_str(&" HINT ".black().on_yellow().to_string()),
 	}
 	output.push('\n');
