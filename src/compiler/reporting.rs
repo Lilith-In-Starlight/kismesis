@@ -14,6 +14,8 @@ use colored::*;
 pub(crate) enum ReportKind {
 	Error,
 	Hint,
+	Fatal,
+	Help,
 }
 
 /// Information related to how the error reporter will report an error
@@ -76,7 +78,7 @@ pub fn draw_error<T: ErrorKind + Debug>(
 		Ok(x) => x,
 		Err(_) => {
 			let err = ReportingError::InvalidKismesisID.stateless();
-			return draw_stateless_error(&err, ReportKind::Error, engine, depth + 1);
+			return draw_stateless_error(&err, ReportKind::Fatal, engine, depth + 1);
 		}
 	};
 	let minimum_line = {
@@ -129,6 +131,36 @@ pub fn draw_error<T: ErrorKind + Debug>(
 				None => output.push_str(&"input` ".black().on_yellow().to_string()),
 			}
 		},
+		ReportKind::Fatal => {
+			output.push_str(&" FATAL ERROR ".black().on_red().to_string());
+			output.push_str(&" in `".black().on_red().to_string());
+			match info.scope.path {
+				Some(ref path) => {
+					output.push_str(
+						&path.to_string_lossy().as_ref()
+							.black().on_red()
+							.to_string(),
+					);
+					output.push_str(&"` ".black().on_red().to_string());
+				}
+				None => output.push_str(&"input` ".black().on_red().to_string()),
+			}
+		},
+		ReportKind::Help => {
+			output.push_str(&" HELP ".black().on_green().to_string());
+			output.push_str(&" in `".black().on_green().to_string());
+			match info.scope.path {
+				Some(ref path) => {
+					output.push_str(
+						&path.to_string_lossy().as_ref()
+							.black().on_green()
+							.to_string(),
+					);
+					output.push_str(&"` ".black().on_green().to_string());
+				}
+				None => output.push_str(&"input` ".black().on_green().to_string()),
+			}
+		},
 	};
 
 	output.push('\n');
@@ -174,6 +206,8 @@ pub fn draw_stateless_error<T: ErrorKind + Debug>(
 	match kind {
 		ReportKind::Error => output.push_str(&" ERROR ".black().on_red().to_string()),
 		ReportKind::Hint => output.push_str(&" HINT ".black().on_yellow().to_string()),
+		ReportKind::Fatal => output.push_str(&" FATAL ERROR ".black().on_red().to_string()),
+		ReportKind::Help => output.push_str(&" HELP ".black().on_red().to_string()),
 	}
 	output.push('\n');
 
