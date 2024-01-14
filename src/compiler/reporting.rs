@@ -189,9 +189,10 @@ pub fn draw_error<T: ErrorKind + Debug>(
 	}
 
 	output.split('\n').fold(String::new(), |mut output, y| { 
-		let _ = write!(output, "{}{}", " ".repeat(depth * 2), y);
+		let _ = write!(output, "\n{}{}", " ".repeat(depth * 2), y);
 		output
-	})
+	}).trim_start_matches('\n').to_string()
+
 }
 
 /// Returns a report where errors are not related to a file
@@ -224,9 +225,9 @@ pub fn draw_stateless_error<T: ErrorKind + Debug>(
 	}
 
 	output.split('\n').fold(String::new(), |mut output, y| { 
-		let _ = write!(output, "{}{}", " ".repeat(depth * 2), y);
+		let _ = write!(output, "\n{}{}", " ".repeat(depth * 2), y);
 		output
-	})
+	}).trim_start_matches('\n').to_string()
 }
 
 /// Returns a line. It will contain pointers to the provided error if the provided error is in the rendered line
