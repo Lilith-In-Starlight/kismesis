@@ -38,7 +38,7 @@ impl<'a> ParserState<'a> {
 		}
 	}
 	pub(crate) fn next_state(self) -> Self {
-		let next_token = self.tokens.get(0);
+		let next_token = self.tokens.first();
 		let position = match next_token {
 			Some(Token::Newline(_)) => self.position.next_line(),
 			_ => self.position.next_character(),

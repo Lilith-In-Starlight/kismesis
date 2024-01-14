@@ -390,7 +390,7 @@ fn lambda_definition(state: ParserState) -> ParserResult<Lambda> {
 fn if_tag(state: ParserState) -> ParserResult<IfTag> {
 	let parser = specific_literal("if")
 		.preceding(after_spaces(get_range(expression)))
-		.and_also(maybe(tag_body).map(|x| x.unwrap_or(vec![])))
+		.and_also(maybe(tag_body).map(|x| x.unwrap_or_default()))
 		.map(|(condition, body)| IfTag { condition, body });
 
 	parser.parse(state)
@@ -401,7 +401,7 @@ fn for_tag(state: ParserState) -> ParserResult<ForTag> {
 		cut(after_spaces(get_range(literal)))
 			.followed_by(after_spaces(specific_literal("in")))
 			.and_also(after_spaces(get_range(expression)))
-			.and_also(maybe(tag_body).map(|x| x.unwrap_or(vec![])))
+			.and_also(maybe(tag_body).map(|x| x.unwrap_or_default()))
 			.map(|((variable, iterator), body)| ForTag {
 				variable: variable.to_own(),
 				iterator,
@@ -1039,8 +1039,4 @@ fn any(state: ParserState) -> ParserResult<&Token> {
 		(Some(token), next_state) => Ok((token, next_state)),
 		(None, _) => Err(ParseError::ReachedEOF.error_at(&state)),
 	}
-}
-
-pub(crate) fn multiple_attributes(state: ParserState) -> ParserResult<Vec<Attribute>> {
-	zero_or_more(after_spaces(attribute)).parse(state)
 }

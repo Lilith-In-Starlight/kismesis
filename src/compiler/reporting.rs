@@ -1,3 +1,4 @@
+use std::fmt::Write;
 use std::fmt::Debug;
 
 use crate::{FileRef, KisID, Kismesis};
@@ -10,13 +11,18 @@ use super::{
 };
 use colored::*;
 
+pub(crate) enum ReportKind {
+	Error,
+	Hint,
+}
+
 /// Information related to how the error reporter will report an error
 pub struct DrawingInfo<'a> {
 	pub(crate) line_number_length: usize,
 	pub(crate) scope: &'a FileRef,
 	pub(crate) lines: Vec<(usize, &'a [Token])>,
 	pub(crate) line_offset: (usize, usize),
-	pub(crate) hint: bool,
+	pub(crate) kind: ReportKind,
 }
 
 /// Errors that may occurr during error reporting
@@ -34,7 +40,7 @@ impl ErrorKind for ReportingError {
 }
 
 impl<'a> DrawingInfo<'a> {
-	pub fn from(scope: KisID, engine: &'a Kismesis, hint: bool) -> Result<Self, ()> {
+	pub fn from(scope: KisID, engine: &'a Kismesis, kind: ReportKind) -> Result<Self, ()> {
 		let scope = engine.get_file(scope).ok_or(())?;
 		let lines: Vec<&[Token]> = scope
 			.tokens
@@ -54,7 +60,7 @@ impl<'a> DrawingInfo<'a> {
 			scope,
 			lines,
 			line_offset: (2, 2),
-			hint,
+			kind,
 		})
 	}
 }
@@ -64,12 +70,13 @@ pub fn draw_error<T: ErrorKind + Debug>(
 	err: &ErrorState<T>,
 	info: &Result<DrawingInfo, ()>,
 	engine: &Kismesis,
+	depth: usize,
 ) -> String {
 	let info = match info.as_ref() {
 		Ok(x) => x,
 		Err(_) => {
 			let err = ReportingError::InvalidKismesisID.stateless();
-			return draw_stateless_error(&err, false, engine);
+			return draw_stateless_error(&err, ReportKind::Error, engine, depth + 1);
 		}
 	};
 	let minimum_line = {
@@ -91,40 +98,24 @@ pub fn draw_error<T: ErrorKind + Debug>(
 
 	let mut output = String::new();
 
-	if info.hint {
-		output.push_str(&" HINT ".black().on_yellow().to_string());
-		output.push_str(&" in `".black().on_yellow().to_string());
-		match info.scope.path {
-			Some(ref path) => {
-				output.push_str(
-					&path
-						.to_string_lossy()
-						.to_string()
-						.black()
-						.on_yellow()
-						.to_string(),
-				);
-				output.push_str(&"` ".black().on_yellow().to_string());
-			}
-			None => output.push_str(&"input` ".black().on_yellow().to_string()),
+	let style = match info.kind {
+		ReportKind::Error => | x: &str | x.black().on_red(),
+		ReportKind::Hint => | x: &str | x.black().on_yellow()
+	};
+
+	output.push_str(&style(" ERROR ").to_string());
+	output.push_str(&style(" in `").to_string());
+	match info.scope.path {
+		Some(ref path) => {
+			output.push_str(
+				&style(path
+					.to_string_lossy()
+					.as_ref())
+					.to_string(),
+			);
+			output.push_str(&"` ".black().on_red().to_string());
 		}
-	} else {
-		output.push_str(&" ERROR ".black().on_red().to_string());
-		output.push_str(&" in `".black().on_red().to_string());
-		match info.scope.path {
-			Some(ref path) => {
-				output.push_str(
-					&path
-						.to_string_lossy()
-						.to_string()
-						.black()
-						.on_red()
-						.to_string(),
-				);
-				output.push_str(&"` ".black().on_red().to_string());
-			}
-			None => output.push_str(&"input` ".black().on_red().to_string()),
-		}
+		None => output.push_str(&"input` ".black().on_red().to_string()),
 	}
 	output.push('\n');
 
@@ -140,9 +131,9 @@ pub fn draw_error<T: ErrorKind + Debug>(
 	for x in err.hints.iter() {
 		let hint = match x {
 			Hint::Stateful(x) => {
-				draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine)
+				draw_error(&x.error, &DrawingInfo::from(x.scope, engine, ReportKind::Hint), engine, depth + 1)
 			}
-			Hint::Stateless(x) => draw_stateless_error(x, true, engine),
+			Hint::Stateless(x) => draw_stateless_error(x, ReportKind::Hint, engine, depth + 1),
 		};
 		output.push_str(&hint);
 	}
@@ -151,21 +142,24 @@ pub fn draw_error<T: ErrorKind + Debug>(
 		output.push_str(&format!("\n{}", err.error.get_text()));
 	}
 
-	output
+	output.split('\n').fold(String::new(), |mut output, y| { 
+		let _ = write!(output, "{}{}", " ".repeat(depth * 2), y);
+		output
+	})
 }
 
 /// Returns a report where errors are not related to a file
 pub fn draw_stateless_error<T: ErrorKind + Debug>(
 	err: &StatelessError<T>,
-	hint: bool,
+	kind: ReportKind,
 	engine: &Kismesis,
+	depth: usize,
 ) -> String {
 	let mut output = String::new();
 
-	if hint {
-		output.push_str(&" HINT ".black().on_yellow().to_string());
-	} else {
-		output.push_str(&" ERROR ".black().on_red().to_string());
+	match kind {
+		ReportKind::Error => output.push_str(&" HINT ".black().on_red().to_string()),
+		ReportKind::Hint => output.push_str(&" HINT ".black().on_yellow().to_string()),
 	}
 	output.push('\n');
 
@@ -174,14 +168,17 @@ pub fn draw_stateless_error<T: ErrorKind + Debug>(
 	for x in err.hints.iter() {
 		let hint = match x {
 			Hint::Stateful(x) => {
-				draw_error(&x.error, &DrawingInfo::from(x.scope, engine, true), engine)
+				draw_error(&x.error, &DrawingInfo::from(x.scope, engine, ReportKind::Hint), engine, depth + 1)
 			}
-			Hint::Stateless(x) => draw_stateless_error(x, true, engine),
+			Hint::Stateless(x) => draw_stateless_error(x, ReportKind::Hint, engine, depth + 1),
 		};
 		output.push_str(&hint);
 	}
 
-	output
+	output.split('\n').fold(String::new(), |mut output, y| { 
+		let _ = write!(output, "{}{}", " ".repeat(depth * 2), y);
+		output
+	})
 }
 
 /// Returns a line. It will contain pointers to the provided error if the provided error is in the rendered line
@@ -277,7 +274,8 @@ fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
 pub fn draw_scoped_error<T: ErrorKind + Debug>(err: &ScopedError<T>, engine: &Kismesis) -> String {
 	draw_error(
 		&err.error,
-		&DrawingInfo::from(err.scope, engine, false),
+		&DrawingInfo::from(err.scope, engine, ReportKind::Error),
 		engine,
+		0,
 	)
 }

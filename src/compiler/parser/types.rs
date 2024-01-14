@@ -8,6 +8,7 @@ use crate::{KisID, KisTemplateID, Kismesis};
 use super::state::TokenPos;
 
 pub type Scoped<'a, T> = (T, KisID);
+pub type ScopedExpression<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, TextPos)>;
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -315,7 +316,7 @@ impl ParsedFile {
 		&'a self,
 		sub_scope: &[&'a ParsedFile],
 		engine: &'a Kismesis,
-	) -> HashMap<String, Scoped<(Option<&Ranged<Expression>>, TextPos)>> {
+	) -> HashMap<String, ScopedExpression> {
 		let mut out = HashMap::new();
 
 		if let Some(ref template) = self.template {
@@ -573,7 +574,7 @@ impl Macro {
 	pub fn get_argument_scope(
 		&self,
 		scope: KisID,
-	) -> HashMap<String, Scoped<(Option<&Ranged<Expression>>, TextPos)>> {
+	) -> HashMap<String, ScopedExpression> {
 		let mut output = HashMap::new();
 
 		output.extend(self.arguments.iter().map(|x| match x.value {

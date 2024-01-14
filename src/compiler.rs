@@ -160,8 +160,7 @@ pub fn compile_project() {
 	}
 
 	if !errors.is_empty() {
-		report_errors(errors, &engine);
-		return;
+		report_errors(errors, &engine)
 	}
 }
 
@@ -208,13 +207,15 @@ impl From<KismesisError> for Error {
 /// Reports any errors from the project compilation
 #[cfg(feature = "reporting")]
 pub fn report_errors(errors: Vec<Error>, engine: &Kismesis) {
+    use self::reporting::ReportKind;
+
 	for error in errors {
 		match error {
             Error::IOError(error, path) => eprintln!("Error reading `{}`: {}", path.to_string_lossy(), error),
             Error::NoMainTemplate => eprintln!("Coudln't compile project because it doesn't have a template in templates/main.ks"),
             Error::OutputNotInOutputFolder(path) => eprintln!("Tried to output {} to a location outside the project's output folder.\n\nThis is meant to be impossible, please contact the developer at https://ampersandia.net/", path.to_string_lossy()),
             Error::TemplateInOutputFolder(path) => eprintln!("{} is a template, but it is in the input folder", path.to_string_lossy()),
-            Error::ParseError(error, id) => eprintln!("{}", draw_error(&error.unpack(), &DrawingInfo::from(id, engine, false), engine)),
+            Error::ParseError(error, id) => eprintln!("{}", draw_error(&error.unpack(), &DrawingInfo::from(id, engine, ReportKind::Error), engine, 0)),
 			Error::TriedToGetNonExistentTemplate(id) => eprintln!("Tried to get a non-existent kismesis template {:?}", id)
         }
 	}
