@@ -11,7 +11,7 @@ use self::{
 	parser::errors::Err,
 };
 
-mod errors;
+pub(crate) mod errors;
 pub(crate) mod html;
 pub(crate) mod lexer;
 pub(crate) mod options;
@@ -22,6 +22,7 @@ mod reporting;
 #[cfg(feature="reporting")]
 use reporting::{draw_error, DrawingInfo};
 
+/// An Enum containing all the possible errors that the process of compiling a project might emit
 pub enum Error {
 	IOError(io::Error, PathBuf),
 	NoMainTemplate,
@@ -31,6 +32,7 @@ pub enum Error {
 	TriedToGetNonExistentTemplate(KisID),
 }
 
+/// Loads all the plugins in the plugins directory
 #[cfg(feature = "plugins")]
 #[cfg(feature = "projects")]
 fn check_for_plugins(program_path: &directories::ProjectDirs, engine: &mut Kismesis) {
@@ -46,6 +48,7 @@ fn check_for_plugins(program_path: &directories::ProjectDirs, engine: &mut Kisme
 	}
 }
 
+/// Loads all the plugins in the plugins directory
 #[cfg(not(feature = "plugins"))]
 #[cfg(feature = "projects")]
 fn check_for_plugins(program_path: &directories::ProjectDirs, engine: &mut Kismesis) {
@@ -164,6 +167,7 @@ pub fn compile_project() {
 	}
 }
 
+/// Recursively get all Kismesis files
 pub fn recursive_crawl(path: &Path) -> (Vec<PathBuf>, Vec<io::Error>) {
 	let mut errors = Vec::new();
 	let mut paths = Vec::new();

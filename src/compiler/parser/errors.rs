@@ -12,6 +12,9 @@ use super::{state::{ParserState, TokenPos}, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+	PluginError(String),
+	ExtismError(String),
+	PluginDoesntExist,
 	PluginsDisabled,
 	TriedToParseInvalidID(KisID),
 	WronglyNestedSection,
@@ -154,6 +157,9 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
+			Self::PluginError(x) => x.to_owned(),
+			Self::ExtismError(x) => format!("Plugin failed: {}", x),
+			Self::PluginDoesntExist => "This plugin does not exist".to_string(),
 			Self::PluginsDisabled => "This version of kismesis was not made with the `plugins` feature".to_string(),
 			Self::TriedToParseInvalidID(id) => {
 				format!("Tried to parse a file with invalid ID: {:?}", id)

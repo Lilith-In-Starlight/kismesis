@@ -21,3 +21,6 @@ plugins = ["dep:extism", "serde"]
 projects = ["reporting", "dep:ron", "dep:directories"]
 reporting = ["dep:colored", "dep:termsize"]
 pdk = ["serde"]
+
+[profile.dev]
+lto="off"

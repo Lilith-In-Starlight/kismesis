@@ -193,7 +193,11 @@ fn draw_line<T: ErrorKind>(
 	let mut output = draw_line_number(line_number, info).white().to_string();
 	let mut error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
 	let termsize = termsize::get().map(|size| size.cols).unwrap_or(40) as usize;
-	let termsize = std::cmp::min(termsize, termsize - err.error.get_text().len());
+	let termsize = if termsize >= err.error.get_text().len() {
+		std::cmp::min(termsize, termsize - err.error.get_text().len())
+	} else {
+		termsize
+	};
 	if let Some(line) = info.lines.get(line_number) {
 		let mut char_idx: usize = 0;
 		for (token_idx, token) in line.1.iter().enumerate() {

@@ -12,8 +12,14 @@ mod plugins;
 
 #[cfg(feature="plugins")]
 use extism::{Wasm, Plugin, Manifest, convert::Json};
+use pdk::TextPos;
+
+#[cfg(feature="serde")]
+use serde::{Deserialize, Serialize};
 
 use self::compiler::parser::types::Ranged;
+use self::compiler::parser::errors::ParseError;
+
 use std::{
 	collections::HashMap,
 	fs, io,
@@ -30,6 +36,31 @@ pub type KisResult<T> = Result<T, KismesisError>;
 pub enum KismesisError {
 	IOError(io::Error, PathBuf),
 	ParseError(Err, KisID),
+}
+
+/// Error struct used in plugin parsing
+#[cfg_attr(feature="serde", derive(Serialize, Deserialize))]
+pub struct PluginParseError {
+	/// The message displayed as an error
+	message: String,
+	/// Hints displayed giving more information to the error
+	hints: Vec<PluginParseError>,
+	/// Where the error is located in the text. The Some variant represents a position, whereas the None variant represents statlessness.
+	state: Option<TextPos>,
+}
+
+impl PluginParseError {
+	pub fn new(message: String, state: Option<TextPos>) -> Self {
+		PluginParseError {
+			message,
+			hint: vec![],
+			state,
+		}
+	}
+	/// Adds a hint to the error struct
+	pub fn add_hint(&mut self, message: String, state: Option<TextPos>) {
+		self.hints.push(Self::new(message, state))
+	}
 }
 
 /// # FileRef
@@ -114,6 +145,10 @@ impl Kismesis {
 	) {
 		let plugin = Wasm::file(path);
 		let manifest = Manifest::new([plugin]);
+		let manifest = manifest.with_allowed_hosts(["*".to_string()].into_iter());
+		let manifest = manifest.with_allowed_paths([
+			(PathBuf::from("input"), PathBuf::from("input")), 
+			(PathBuf::from("output"), PathBuf::from("output"))].into_iter());
 		self.plugins.insert(name, manifest);
 	}
 
@@ -127,18 +162,29 @@ impl Kismesis {
 
 	/// Send tokens and body to a plugin with a given `name`
 	#[cfg(feature="plugins")]
-	pub fn call_plugin(&self, name: &str, tokens: Ranged<Vec<Token>>, body: Option<Ranged<Vec<Token>>>) -> Result<Vec<HtmlNodes>, ()> {
-		let manifest = self.plugins.get(name).unwrap().clone();
-		let mut plugin = Plugin::new(&manifest, [], false).unwrap();
+	pub fn call_plugin(&self, name: &Ranged<String>, tokens: Ranged<Vec<Token>>, body: Option<Ranged<Vec<Token>>>) -> Result<Vec<HtmlNodes>, Err> {
+		let manifest = match self.plugins.get(&name.value) {
+			Some(x) => x.clone(),
+			None => return Err(ParseError::PluginDoesntExist.error_at_pos(name.range.clone()).cut()),
+		};
+		let mut plugin = match Plugin::new(manifest, [], true) {
+			Ok(x) => x,
+			Err(x) => return Err(ParseError::ExtismError(format!("{}", x)).error_at_pos(name.range.clone()).cut()),
+		};
 		let input = Json((tokens, body));
-		let Json(text) = plugin.call::<_, Json<Vec<HtmlNodes>>>("parser", input).unwrap();
-		Ok(text)
+		match plugin.call::<_, Json<Result<Vec<HtmlNodes>, PluginParseError>>>("parser", input) {
+			Ok(Json(x)) => match x {
+				Ok(x) => Ok(x),
+				Err(x) => Err(ParseError::PluginError(x.message).error_at_pos(x.state.unwrap_or(name.range.clone())).cut()),
+			},
+			Err(x) => Err(ParseError::ExtismError(format!("{}", x)).error_at_pos(name.range.clone()).cut())
+		}
 	}
 
 	#[cfg(not(feature="plugins"))]
 	/// Send tokens and body to a plugin with a given `name`
-	pub fn call_plugin(&self, _name: &str, _tokens: Ranged<Vec<Token>>, _body: Option<Ranged<Vec<Token>>>) -> Result<Vec<HtmlNodes>, ()> {
-		Err(())
+	pub fn call_plugin(&self, name: &str, _tokens: Ranged<Vec<Token>>, _body: Option<Ranged<Vec<Token>>>) -> Result<Vec<HtmlNodes>, Err> {
+		Err(ParseError::PluginsDisabled.error_at_pos(name.range).cut())
 	}
 
 	/// Register a file
@@ -230,6 +276,7 @@ impl From<&KisTemplateID> for KisTemplateID {
 	}
 }
 
+/// Exports important types as public for Plugin developers to use
 pub mod pdk {
 	pub use super::compiler::lexer::Token;
 	pub use super::compiler::parser::types::HtmlNodes;
@@ -242,6 +289,8 @@ pub mod pdk {
 	pub use super::compiler::parser::types::Attribute;
 	pub use super::compiler::parser::types::Argument;
 	pub use super::compiler::parser::types::TextPos;
+
+	pub use super::PluginParseError;
 
 	pub type RangedTokens = Ranged<Vec<Token>>;
 	pub type AST = Vec<HtmlNodes>;
