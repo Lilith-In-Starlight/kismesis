@@ -480,7 +480,7 @@ fn section_block(state: ParserState) -> ParserResult<Section> {
 	let state = state.below_scope();
 
 	let (content, state) = zero_or_more(
-		skipped_blanks().preceding(
+		after_blanks(
 			some_child_tag
 				.map(|x| vec![x.into()])
 				.or(not(peek(specific_symbol('#'))).preceding(paragraph_string)),
@@ -881,7 +881,7 @@ fn string_tagless_content<'a>() -> impl Parser<'a, StringParts> {
 }
 
 fn string_tagless(state: ParserState) -> ParserResult<Vec<StringParts>> {
-	let terminator = newline.or(tag_opener).or(tag_closer);
+	let terminator = ignore(newline).or(ignore(tag_opener)).or(ignore(tag_closer)).or(not(any));
 	let parser = maybe_until(string_tagless_content(), terminator);
 	parser.parse(state)
 }
@@ -899,9 +899,9 @@ fn paragraph_string(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
 		.map(HtmlNodes::String)
 		.or(some_child_tag.map(|x| x.into()));
 
-	let terminator = newline;
+	let terminator = ignore(newline).or(not(any)).or(ignore(tag_closer)).or(ignore(tag_opener));
 
-	inside.maybe_until(terminator).parse(state)
+	after_blanks(inside).maybe_until(terminator).parse(state)
 }
 
 fn subtag(state: ParserState) -> ParserResult<HtmlTag> {

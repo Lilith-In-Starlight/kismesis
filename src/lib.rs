@@ -7,13 +7,11 @@
 //! templates and token strings.
 
 pub mod compiler;
-#[cfg(feature = "plugins")]
 mod plugins;
 
 #[cfg(feature = "plugins")]
 use extism::{convert::Json, Manifest, Plugin, Wasm};
 
-#[cfg(feature = "plugins")]
 use plugins::PluginInput;
 
 use compiler::parser::types::TextPos;
