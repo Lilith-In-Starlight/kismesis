@@ -8,6 +8,7 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 
 use crate::compiler::lexer::Token;
+use crate::plugins::PluginInput;
 use crate::{KisID, KisTemplateID, Kismesis};
 
 use self::errors::{Err, ParseError};
@@ -515,9 +516,17 @@ fn doctype(state: ParserState<'_>) -> ParserResult<'_, String> {
 fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 	let parser = plugin_head.and_maybe(plugin_body);
 
-	let (((name, arguments), body), state) = parser.parse(state)?;
+	let (((name, parameters), body), state) = parser.parse(state)?;
 
-	let body = state.engine.call_plugin(&name, arguments, body)?;
+	// let body = state.engine.call_plugin(&name, parameters, body)?;
+
+	let input = PluginInput {
+		parameters,
+		body,
+		current_file: state.project_path.clone(),
+	};
+
+	let body = state.engine.call_plugin(&name, input)?;
 
 	Ok((Box::new(PlugCall { name, body }), state))
 }

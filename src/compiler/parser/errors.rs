@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-	state::{ParserState, TokenPos},
+	state::ParserState,
 	types::TextPos,
 };
 
@@ -89,6 +89,7 @@ impl Err {
 pub enum Hints {
 	ArgumentDefinedHere,
 	ReferenceToThis,
+	CustomMessage(String),
 }
 
 impl ErrorKind for Hints {
@@ -96,6 +97,7 @@ impl ErrorKind for Hints {
 		match self {
 			Self::ArgumentDefinedHere => "Argument defined here".into(),
 			Self::ReferenceToThis => "Value comes from here".into(),
+			Self::CustomMessage(string) => string.clone(),
 		}
 	}
 }

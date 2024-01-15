@@ -12,6 +12,10 @@ mod plugins;
 
 #[cfg(feature = "plugins")]
 use extism::{convert::Json, Manifest, Plugin, Wasm};
+
+#[cfg(feature = "plugins")]
+use plugins::PluginInput;
+
 use compiler::parser::types::TextPos;
 
 #[cfg(feature = "serde")]
@@ -165,9 +169,13 @@ impl Kismesis {
 	pub fn call_plugin(
 		&self,
 		name: &Ranged<String>,
-		tokens: Ranged<Vec<Token>>,
-		body: Option<Ranged<Vec<Token>>>,
+		input: PluginInput,
 	) -> Result<Vec<HtmlNodes>, Err> {
+    use compiler::errors::ErrorKind;
+
+    use crate::compiler::parser::errors::{Hintable, Hints};
+
+
 		let manifest = match self.plugins.get(&name.value) {
 			Some(x) => x.clone(),
 			None => {
@@ -184,13 +192,20 @@ impl Kismesis {
 					.cut())
 			}
 		};
-		let input = Json((tokens, body));
+		let input = Json(input);
 		match plugin.call::<_, Json<Result<Vec<HtmlNodes>, PluginParseError>>>("parser", input) {
 			Ok(Json(x)) => match x {
 				Ok(x) => Ok(x),
-				Err(x) => Err(ParseError::PluginError(x.message)
-					.error_at_pos(x.state.unwrap_or(name.range.clone()))
-					.cut()),
+				Err(x) => {
+					let error = ParseError::PluginError(x.message);
+					let mut error = ErrorKind::with_state_at(error, x.state.unwrap_or(name.range.clone()));
+					for hint in x.hints {
+						// TODO let plugin hints be stateful
+						let new_hint = Hints::CustomMessage(hint.message).stateless();
+						error.add_hint(new_hint);
+					}
+					Err(Err::Failure(error))
+				}
 			},
 			Err(x) => Err(ParseError::ExtismError(format!("{}", x))
 				.error_at_pos(name.range.clone())
@@ -203,8 +218,7 @@ impl Kismesis {
 	pub fn call_plugin(
 		&self,
 		name: &Ranged<String>,
-		_tokens: Ranged<Vec<Token>>,
-		_body: Option<Ranged<Vec<Token>>>,
+		input: PluginInput,
 	) -> Result<Vec<HtmlNodes>, Err> {
 		Err(ParseError::PluginsDisabled.error_at_pos(name.range.clone()).cut())
 	}
@@ -318,6 +332,7 @@ pub mod pdk {
 	pub use super::compiler::parser::types::TextPos;
 
 	pub use super::PluginParseError as PluginError;
+	pub use super::plugins::PluginInput;
 
 	pub type RangedTokens = Ranged<Vec<Token>>;
 	pub type InputTuple = (RangedTokens, Option<RangedTokens>);
