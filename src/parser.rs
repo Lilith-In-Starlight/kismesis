@@ -956,7 +956,7 @@ pub(crate) fn file(
 	engine: &Kismesis,
 	default_template: Option<KisTemplateID>,
 	project_path: Option<PathBuf>,
-) -> Result<ParsedFile, Err> {
+) -> Result<ParsedFile, Vec<Err>> {
 	let parser = zero_or_more(
 		skipped_blanks().preceding(
 			some_tag
@@ -979,15 +979,20 @@ pub(crate) fn file(
 		project_path,
 		engine,
 	);
-	let ast_nodes = match parser.parse(state) {
+
+	let mut ast_nodes = match parser.parse(state) {
 		Ok((val, _)) => val,
 		Err(err) => {
 			drop(parser);
-			return Err(err);
+			return Err(vec![err]);
 		}
 	};
 	drop(parser);
+	semantic_check(&mut ast_nodes)?;
+	let ast_nodes = ast_nodes;
+
 	let mut output = ParsedFile::new(tokens_id);
+
 	output.template = default_template;
 	for node in ast_nodes {
 		match node {
@@ -1019,6 +1024,23 @@ pub(crate) fn file(
 
 	Ok(output)
 }
+
+/// Verify that the semantics of the HTML tags at the top of the AST are done correctly
+fn semantic_check(nodes: &mut [BodyNodes]) -> Result<(), Vec<Err>> {
+	let mut errors = vec![];
+	for node in nodes.iter_mut() {
+		if let Err(ref mut x) = node.semantic_check() {
+			errors.append(x);
+		}
+	}
+
+	if errors.is_empty() {
+		Ok(())
+	} else {
+		Err(errors)
+	}
+}
+
 // Generators
 pub(super) fn specific_symbol<'a>(chr: char) -> impl Parser<'a, &'a char> {
 	move |state: ParserState<'a>| match some_symbol.parse(state.clone()) {

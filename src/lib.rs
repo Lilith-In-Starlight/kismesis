@@ -46,7 +46,7 @@ pub type KisResult<T> = Result<T, KismesisError>;
 
 pub enum KismesisError {
 	IOError(io::Error, PathBuf),
-	ParseError(Err, KisID),
+	ParseError(Vec<Err>, KisID),
 }
 
 /// Error struct used in plugin parsing
