@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-	compiler::parser::types::ParsedFile,
+	parser::types::ParsedFile,
 	{KisID, Kismesis},
 };
 
@@ -25,7 +25,7 @@ enum OutputTypes {
 	Html(String),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct HtmlOutput {
 	val: Vec<OutputTypes>,
 }

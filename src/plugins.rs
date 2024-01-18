@@ -3,13 +3,13 @@ use std::path::PathBuf;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::compiler::{parser::types::Ranged, lexer::Token};
+use crate::{parser::types::Ranged, lexer::Token};
 
 #[cfg_attr(feature = "serde", derive(Deserialize))]
-pub(crate) struct PluginData {
-	pub(crate) name: String,
-	pub(crate) authors: Vec<String>,
-	pub(crate) version: String,
+pub struct PluginData {
+	pub name: String,
+	pub authors: Vec<String>,
+	pub version: String,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

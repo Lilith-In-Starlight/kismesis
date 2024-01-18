@@ -1,10 +1,8 @@
 use std::ops::Bound;
 
 use crate::{
-	compiler::{
-		errors::{ErrorKind, ErrorState, StatelessError},
-		html::ScopedError,
-	},
+	errors::{ErrorKind, ErrorState, StatelessError},
+	html::ScopedError,
 	KisID,
 };
 

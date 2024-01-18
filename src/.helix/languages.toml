@@ -5,4 +5,4 @@ indent = {unit="\t", tab-width=4}
 
 [language-server.rust-analyzer.config]
 check.command = "clippy"
-cargo.features = ["projects", "plugins", "pdk"]
+cargo.features = ["plugins", "pdk"]

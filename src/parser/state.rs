@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use crate::{
-	compiler::{errors::ErrorState, lexer::Token},
+	errors::ErrorState,
+	lexer::Token,
 	Kismesis,
 };
 

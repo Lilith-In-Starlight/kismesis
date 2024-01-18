@@ -1,5 +1,5 @@
 mod combinators;
-pub(crate) mod errors;
+pub mod errors;
 pub(crate) mod state;
 pub(crate) mod types;
 
@@ -7,7 +7,7 @@ use combinators::*;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
-use crate::compiler::lexer::Token;
+use crate::lexer::Token;
 use crate::plugins::PluginInput;
 use crate::{KisID, KisTemplateID, Kismesis};
 

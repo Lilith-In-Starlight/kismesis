@@ -1,3 +1,4 @@
+#[derive(Default)]
 pub struct Settings {
 	inline: Vec<String>,
 	only_closer: Vec<String>,

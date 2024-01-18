@@ -6,21 +6,28 @@
 //! every templating operation. It also works as an arena that holds
 //! templates and token strings.
 
-pub mod compiler;
-mod plugins;
+pub mod plugins;
+pub mod errors;
+pub mod html;
+mod lexer;
+pub mod options;
+pub mod parser;
+
+#[cfg(feature = "reporting")]
+pub mod reporting;
 
 #[cfg(feature = "plugins")]
 use extism::{convert::Json, Manifest, Plugin, Wasm};
 
 use plugins::PluginInput;
 
-use compiler::parser::types::TextPos;
+use parser::types::TextPos;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use self::compiler::parser::errors::ParseError;
-use self::compiler::parser::types::Ranged;
+use self::parser::errors::ParseError;
+use self::parser::types::Ranged;
 
 use std::{
 	collections::HashMap,
@@ -28,14 +35,12 @@ use std::{
 	path::{Path, PathBuf},
 };
 
-use compiler::{
-	lexer::{self, Token},
-	parser::{
-		self,
-		errors::Err,
-		types::{HtmlNodes, ParsedFile},
-	},
+use lexer::Token;
+use parser::{
+	errors::Err,
+	types::{HtmlNodes, ParsedFile},
 };
+
 
 pub type KisResult<T> = Result<T, KismesisError>;
 
@@ -169,9 +174,9 @@ impl Kismesis {
 		name: &Ranged<String>,
 		input: PluginInput,
 	) -> Result<Vec<HtmlNodes>, Err> {
-    use compiler::errors::ErrorKind;
+    use errors::ErrorKind;
 
-    use crate::compiler::parser::errors::{Hintable, Hints};
+    use crate::parser::errors::{Hintable, Hints};
 
 
 		let manifest = match self.plugins.get(&name.value) {
@@ -317,17 +322,17 @@ impl From<&KisTemplateID> for KisTemplateID {
 /// Exports important types as public for Plugin developers to use
 #[cfg(feature="pdk")]
 pub mod pdk {
-	pub use super::compiler::lexer::Token;
-	pub use super::compiler::parser::types::Argument;
-	pub use super::compiler::parser::types::Attribute;
-	pub use super::compiler::parser::types::ForTag;
-	pub use super::compiler::parser::types::HtmlNodes;
-	pub use super::compiler::parser::types::HtmlTag;
-	pub use super::compiler::parser::types::IfTag;
-	pub use super::compiler::parser::types::Macro;
-	pub use super::compiler::parser::types::Ranged;
-	pub use super::compiler::parser::types::Section;
-	pub use super::compiler::parser::types::TextPos;
+	pub use super::lexer::Token;
+	pub use super::parser::types::Argument;
+	pub use super::parser::types::Attribute;
+	pub use super::parser::types::ForTag;
+	pub use super::parser::types::HtmlNodes;
+	pub use super::parser::types::HtmlTag;
+	pub use super::parser::types::IfTag;
+	pub use super::parser::types::Macro;
+	pub use super::parser::types::Ranged;
+	pub use super::parser::types::Section;
+	pub use super::parser::types::TextPos;
 
 	pub use super::PluginParseError as PluginError;
 	pub use super::plugins::PluginInput;

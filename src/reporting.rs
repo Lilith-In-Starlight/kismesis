@@ -11,7 +11,7 @@ use super::{
 };
 use colored::*;
 
-pub(crate) enum ReportKind {
+pub enum ReportKind {
 	Error,
 	Hint,
 	Fatal,
