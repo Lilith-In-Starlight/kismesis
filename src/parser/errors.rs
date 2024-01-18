@@ -109,8 +109,8 @@ pub enum Hints {
 impl ErrorKind for Hints {
 	fn get_text(&self) -> String {
 		match self {
-			Self::HeaderForLargeText => "If you're trying to create large text, consider using CSS instead".into(),
-			Self::SectionTagContents => "A `<section>` tag must contain a heading (e.g. `<h1>` `<h2>`, etc) as its first child.".into(),
+			Self::HeaderForLargeText => "If you're trying to create smaller text, consider using CSS instead".into(),
+			Self::SectionTagContents => "A `<section>` tag must contain a heading (e.g. `<h1>` `<h2>`, etc) or an `<hgroup>` as its first child.".into(),
 			Self::DontUseDiv => "Consider using a more semantic alternative like `section`, `header`, `main`, `footer`, or `button`. If you really need `<div>`, use `<container>`.".into(),
 			Self::ArgumentDefinedHere => "Argument defined here".into(),
 			Self::ReferenceToThis => "Value comes from here".into(),

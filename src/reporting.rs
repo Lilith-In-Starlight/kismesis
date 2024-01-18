@@ -212,7 +212,9 @@ pub fn draw_stateless_error<T: ErrorKind + Debug>(
 	}
 	output.push('\n');
 
-	output.push_str(&format!("\n{}", err.error.get_text()));
+	output.push_str(& err.error.get_text());
+
+	output.push('\n');
 
 	for x in err.hints.iter() {
 		let hint = match x {
