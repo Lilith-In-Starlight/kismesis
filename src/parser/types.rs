@@ -741,11 +741,30 @@ impl HtmlTag {
 					.with_hint(Hints::DontUseDiv.stateless()),
 			),
 			"container" => self.name.value = String::from("div"),
-			"section" => {
+			"hgroup" => {
 				if let Some(child) = self.body.first() {
 					if let HtmlNodes::HtmlTag(child) = child {
 						match child.name.value.as_str() {
 							"h1" | "h2" | "h3" | "h4" | "h5" | "h6" => (),
+							_ => errors.push(ParseError::IncorrectChild("hgroup".to_string())
+									.error_at_pos(child.name.range.clone())
+									.with_hint(Hints::HgroupContents.stateless()),
+							),
+						}
+					}
+				} else {
+					errors.push(
+						ParseError::ThisTagCannotBeEmpty(self.name.value.clone())
+							.error_at_pos(self.name.range.clone())
+							.with_hint(Hints::SectionTagContents.stateless()),
+					)
+				}
+			}
+			"section" => {
+				if let Some(child) = self.body.first() {
+					if let HtmlNodes::HtmlTag(child) = child {
+						match child.name.value.as_str() {
+							"h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "hgroup" => (),
 							_ => errors.push(
 								ParseError::IncorrectChild(self.name.value.clone())
 									.error_at_pos(child.name.range.clone())
@@ -753,7 +772,7 @@ impl HtmlTag {
 							),
 						}
 					}
-				} else if self.body.is_empty() {
+				} else {
 					errors.push(
 						ParseError::ThisTagCannotBeEmpty(self.name.value.clone())
 							.error_at_pos(self.name.range.clone())
