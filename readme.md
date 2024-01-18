@@ -3,12 +3,13 @@
 The engine for the Kismesis static site generator, encouraging everyone to make static sites that are semantic and accessible.
 
 ## How To Make Plugins
+This is a basic rundown of how to get started. It doesn't tell you much because proper documentation for this is on the way.
 
 1. Begin by making a new Rust library. 
 2. Add `extism-pdk` to that library.
 3. Add `kismesis` to that library with the `pdk` feature.
 4. In `lib.rs`, add `use extism_pdk::*` and `kismesis::pdk::*`.
-5. Create a function `fn parser(Json(input): (Json<RangedTokens>, Json<Option<RangedTokens>>) -> FnResult<Json<<Result<AST, PluginParseError>>>>`
+5. Create a function `fn parser(Json(input): (Json<PluginInput>)) -> FnResult<Json<PlugResult>>`
 6. Make sure your program doesn't panic, as this results in an error report that offers very little help to both you and the user. FnResult uses anyhow::Error, so you can use the elvis operatora lot of the time.
 7. Use `PluginParseError::new()` to create a new error at the position of one of your tokens, or the ranges given in the input.
 8. Use `.add_hint()` to add a hint to an error.
@@ -22,7 +23,6 @@ Kismesis Plugins are currently unstable and subject to any sort of breaking chan
 The Kismesis engine is made as a separate crate from the Kismesis static site generator because this way it's possible to simply export the necessary types as public in order to allow for plugins. The necessary interfaces to make this process more ergonomic are still to come, but it is perfectly possible to make plugins as things are.
 
 ## Roadmap
-- Move compiler::compile_project() function out of this crate and into a proper crate for the Kismesis static site generator
 - Run plugins in a separate thread to give them a fresh stack (or figure out a way to optimize this crate's stack usage)
 - Improve the PDK in order to make things easier
 - Allow for recursive templating
@@ -30,14 +30,13 @@ The Kismesis engine is made as a separate crate from the Kismesis static site ge
 - Somehow realize when two values have been bouncing around through references a lot???? And report an error for that. Somehow.
 - Compiler errors for trying to use the `<div>` tag, and make use of `<container>` instead.
 - Allow plugins to have a second pass once the AST is compiled, so they can have access to almost-fully-compiled AST.
-- Make the plugins much less panicky than they are right now.
 
 This is not a checklist. Elements will be deleted from the list as they are completed.
 
 ## Warning for site generator developers
 The Kismesis engine is meant only for the Kismesis SSG, however, if you wish to use Kismesis on your own project, heed this warning:
 
-After registering a file in the engine, it sticks around until manually deleted. Knowing where to delete it is critical. Your users will see an error specifying what happened if you fail to manage this.
+After registering a file in the engine, it sticks around until manually deleted. Knowing where to delete it is critical. Your users will see an error specifying what happened if you fail to manage this, and since files can be large, keeping them around forever can be wasteful.
 
 In most cases, template files can be kept around until the end of the runtime. Input files can often be removed immediately after their templating was either successful or a failure.
 
