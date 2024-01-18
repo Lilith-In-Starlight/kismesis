@@ -3,7 +3,7 @@ use std::path::PathBuf;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{parser::types::Ranged, lexer::Token};
+use crate::{lexer::Token, parser::types::Ranged};
 
 #[cfg_attr(feature = "serde", derive(Deserialize))]
 pub struct PluginData {

@@ -1,5 +1,5 @@
-use std::fmt::Write;
 use std::fmt::Debug;
+use std::fmt::Write;
 
 use crate::{FileRef, KisID, Kismesis};
 
@@ -106,61 +106,59 @@ pub fn draw_error<T: ErrorKind + Debug>(
 			output.push_str(&" in `".black().on_red().to_string());
 			match info.scope.path {
 				Some(ref path) => {
-					output.push_str(
-						&path.to_string_lossy().as_ref()
-							.black().on_red()
-							.to_string(),
-					);
+					output.push_str(&path.to_string_lossy().as_ref().black().on_red().to_string());
 					output.push_str(&"` ".black().on_red().to_string());
 				}
 				None => output.push_str(&"input` ".black().on_red().to_string()),
 			}
-		},
+		}
 		ReportKind::Hint => {
 			output.push_str(&" HINT ".black().on_yellow().to_string());
 			output.push_str(&" in `".black().on_yellow().to_string());
 			match info.scope.path {
 				Some(ref path) => {
 					output.push_str(
-						&path.to_string_lossy().as_ref()
-							.black().on_yellow()
+						&path
+							.to_string_lossy()
+							.as_ref()
+							.black()
+							.on_yellow()
 							.to_string(),
 					);
 					output.push_str(&"` ".black().on_yellow().to_string());
 				}
 				None => output.push_str(&"input` ".black().on_yellow().to_string()),
 			}
-		},
+		}
 		ReportKind::Fatal => {
 			output.push_str(&" FATAL ERROR ".black().on_red().to_string());
 			output.push_str(&" in `".black().on_red().to_string());
 			match info.scope.path {
 				Some(ref path) => {
-					output.push_str(
-						&path.to_string_lossy().as_ref()
-							.black().on_red()
-							.to_string(),
-					);
+					output.push_str(&path.to_string_lossy().as_ref().black().on_red().to_string());
 					output.push_str(&"` ".black().on_red().to_string());
 				}
 				None => output.push_str(&"input` ".black().on_red().to_string()),
 			}
-		},
+		}
 		ReportKind::Help => {
 			output.push_str(&" HELP ".black().on_green().to_string());
 			output.push_str(&" in `".black().on_green().to_string());
 			match info.scope.path {
 				Some(ref path) => {
 					output.push_str(
-						&path.to_string_lossy().as_ref()
-							.black().on_green()
+						&path
+							.to_string_lossy()
+							.as_ref()
+							.black()
+							.on_green()
 							.to_string(),
 					);
 					output.push_str(&"` ".black().on_green().to_string());
 				}
 				None => output.push_str(&"input` ".black().on_green().to_string()),
 			}
-		},
+		}
 	};
 
 	output.push('\n');
@@ -176,9 +174,12 @@ pub fn draw_error<T: ErrorKind + Debug>(
 
 	for x in err.hints.iter() {
 		let hint = match x {
-			Hint::Stateful(x) => {
-				draw_error(&x.error, &DrawingInfo::from(x.scope, engine, ReportKind::Hint), engine, depth + 1)
-			}
+			Hint::Stateful(x) => draw_error(
+				&x.error,
+				&DrawingInfo::from(x.scope, engine, ReportKind::Hint),
+				engine,
+				depth + 1,
+			),
 			Hint::Stateless(x) => draw_stateless_error(x, ReportKind::Hint, engine, depth + 1),
 		};
 		output.push_str(&hint);
@@ -188,11 +189,14 @@ pub fn draw_error<T: ErrorKind + Debug>(
 		output.push_str(&format!("\n{}", err.error.get_text()));
 	}
 
-	output.split('\n').fold(String::new(), |mut output, y| { 
-		let _ = write!(output, "\n{}{}", " ".repeat(depth * 2), y);
-		output
-	}).trim_start_matches('\n').to_string()
-
+	output
+		.split('\n')
+		.fold(String::new(), |mut output, y| {
+			let _ = write!(output, "\n{}{}", " ".repeat(depth * 2), y);
+			output
+		})
+		.trim_start_matches('\n')
+		.to_string()
 }
 
 /// Returns a report where errors are not related to a file
@@ -212,24 +216,31 @@ pub fn draw_stateless_error<T: ErrorKind + Debug>(
 	}
 	output.push('\n');
 
-	output.push_str(& err.error.get_text());
+	output.push_str(&err.error.get_text());
 
 	output.push('\n');
 
 	for x in err.hints.iter() {
 		let hint = match x {
-			Hint::Stateful(x) => {
-				draw_error(&x.error, &DrawingInfo::from(x.scope, engine, ReportKind::Hint), engine, depth + 1)
-			}
+			Hint::Stateful(x) => draw_error(
+				&x.error,
+				&DrawingInfo::from(x.scope, engine, ReportKind::Hint),
+				engine,
+				depth + 1,
+			),
 			Hint::Stateless(x) => draw_stateless_error(x, ReportKind::Hint, engine, depth + 1),
 		};
 		output.push_str(&hint);
 	}
 
-	output.split('\n').fold(String::new(), |mut output, y| { 
-		let _ = write!(output, "\n{}{}", " ".repeat(depth * 2), y);
-		output
-	}).trim_start_matches('\n').to_string()
+	output
+		.split('\n')
+		.fold(String::new(), |mut output, y| {
+			let _ = write!(output, "\n{}{}", " ".repeat(depth * 2), y);
+			output
+		})
+		.trim_start_matches('\n')
+		.to_string()
 }
 
 /// Returns a line. It will contain pointers to the provided error if the provided error is in the rendered line
@@ -248,7 +259,7 @@ fn draw_line<T: ErrorKind>(
 	};
 
 	let initial_spaces = error_line.clone();
-	
+
 	if let Some(line) = info.lines.get(line_number) {
 		let mut char_idx: usize = 0;
 		for (token_idx, token) in line.1.iter().enumerate() {
@@ -283,7 +294,10 @@ fn draw_line<T: ErrorKind>(
 			error_line.push_str(&turn_to_chars(tkstr, char));
 			if token_pos.is_at_an_end(&err.text_position) {
 				if err.text_position.is_one_line() {
-					let text = err.error.get_text().replace('\n', &format!("\n{}", &initial_spaces));
+					let text = err
+						.error
+						.get_text()
+						.replace('\n', &format!("\n{}", &initial_spaces));
 					error_line.push_str(&format!(" {}", text));
 				} else {
 					error_line.push_str(" Error happened here");

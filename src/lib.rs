@@ -6,12 +6,12 @@
 //! every templating operation. It also works as an arena that holds
 //! templates and token strings.
 
-pub mod plugins;
 pub mod errors;
 pub mod html;
 mod lexer;
 pub mod options;
 pub mod parser;
+pub mod plugins;
 
 #[cfg(feature = "reporting")]
 pub mod reporting;
@@ -40,7 +40,6 @@ use parser::{
 	errors::Err,
 	types::{HtmlNodes, ParsedFile},
 };
-
 
 pub type KisResult<T> = Result<T, KismesisError>;
 
@@ -174,10 +173,9 @@ impl Kismesis {
 		name: &Ranged<String>,
 		input: PluginInput,
 	) -> Result<Vec<HtmlNodes>, Err> {
-    use errors::ErrorKind;
+		use errors::ErrorKind;
 
-    use crate::parser::errors::{Hintable, Hints};
-
+		use crate::parser::errors::{Hintable, Hints};
 
 		let manifest = match self.plugins.get(&name.value) {
 			Some(x) => x.clone(),
@@ -201,7 +199,8 @@ impl Kismesis {
 				Ok(x) => Ok(x),
 				Err(x) => {
 					let error = ParseError::PluginError(x.message);
-					let mut error = ErrorKind::with_state_at(error, x.state.unwrap_or(name.range.clone()));
+					let mut error =
+						ErrorKind::with_state_at(error, x.state.unwrap_or(name.range.clone()));
 					for hint in x.hints {
 						// TODO let plugin hints be stateful
 						let new_hint = Hints::CustomMessage(hint.message).stateless();
@@ -223,7 +222,9 @@ impl Kismesis {
 		name: &Ranged<String>,
 		input: PluginInput,
 	) -> Result<Vec<HtmlNodes>, Err> {
-		Err(ParseError::PluginsDisabled.error_at_pos(name.range.clone()).cut())
+		Err(ParseError::PluginsDisabled
+			.error_at_pos(name.range.clone())
+			.cut())
 	}
 
 	/// Register a file
@@ -320,7 +321,7 @@ impl From<&KisTemplateID> for KisTemplateID {
 }
 
 /// Exports important types as public for Plugin developers to use
-#[cfg(feature="pdk")]
+#[cfg(feature = "pdk")]
 pub mod pdk {
 	pub use super::lexer::Token;
 	pub use super::parser::types::Argument;
@@ -334,8 +335,8 @@ pub mod pdk {
 	pub use super::parser::types::Section;
 	pub use super::parser::types::TextPos;
 
-	pub use super::PluginParseError as PluginError;
 	pub use super::plugins::PluginInput;
+	pub use super::PluginParseError as PluginError;
 
 	pub type RangedTokens = Ranged<Vec<Token>>;
 	pub type InputTuple = (RangedTokens, Option<RangedTokens>);

@@ -6,10 +6,7 @@ use crate::{
 	KisID,
 };
 
-use super::{
-	state::ParserState,
-	types::TextPos,
-};
+use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
@@ -73,11 +70,11 @@ pub enum Err {
 
 impl Hintable for Err {
 	fn add_hint(&mut self, hint: Hint) {
-        match self {
+		match self {
 			Self::Error(x) => x.add_hint(hint),
 			Self::Failure(x) => x.add_hint(hint),
 		}
-    }
+	}
 }
 
 impl Err {
@@ -180,7 +177,9 @@ impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
 			Self::IncorrectHeaderNumber => "Headers can only go from 1 up to 6".to_string(),
-			Self::IncorrectChild(parent) => format!("This tag is incorrect as a child of a `<{}>` tag", parent),
+			Self::IncorrectChild(parent) => {
+				format!("This tag is incorrect as a child of a `<{}>` tag", parent)
+			}
 			Self::ThisTagCannotBeEmpty(name) => format!("The `<{}>` tag cannot be empty", name),
 			Self::UsedDiv => "<div> tags are discouraged by Kismesis".to_string(),
 			Self::PluginError(message) => message.to_owned(),

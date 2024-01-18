@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{KisID, KisTemplateID, Kismesis};
 
-use super::{state::TokenPos, errors::{ParseError, Hintable, Hints, Err}};
+use super::{
+	errors::{Err, Hintable, Hints, ParseError},
+	state::TokenPos,
+};
 
 pub type Scoped<'a, T> = (T, KisID);
 pub type ScopedExpression<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, TextPos)>;
@@ -688,10 +691,7 @@ impl TextPos {
 }
 
 impl Macro {
-	pub fn get_argument_scope(
-		&self,
-		scope: KisID,
-	) -> HashMap<String, ScopedExpression> {
+	pub fn get_argument_scope(&self, scope: KisID) -> HashMap<String, ScopedExpression> {
 		let mut output = HashMap::new();
 
 		output.extend(self.arguments.iter().map(|x| match x.value {
@@ -735,8 +735,11 @@ impl HtmlTag {
 	pub fn semantic_check(&mut self) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
 		match self.name.value.as_str() {
-			"div" => errors.push(ParseError::UsedDiv.error_at_pos(self.name.range.clone())
-				.with_hint(Hints::DontUseDiv.stateless())),
+			"div" => errors.push(
+				ParseError::UsedDiv
+					.error_at_pos(self.name.range.clone())
+					.with_hint(Hints::DontUseDiv.stateless()),
+			),
 			"container" => self.name.value = String::from("div"),
 			"section" => {
 				if let Some(child) = self.body.first() {
@@ -744,25 +747,28 @@ impl HtmlTag {
 						match child.name.value.as_str() {
 							"h1" | "h2" | "h3" | "h4" | "h5" | "h6" => (),
 							_ => errors.push(
-								ParseError::IncorrectChild(self.name.value.clone()).error_at_pos(child.name.range.clone())
-								.with_hint(Hints::SectionTagContents.stateless())
+								ParseError::IncorrectChild(self.name.value.clone())
+									.error_at_pos(child.name.range.clone())
+									.with_hint(Hints::SectionTagContents.stateless()),
 							),
 						}
 					}
 				} else if self.body.is_empty() {
 					errors.push(
-						ParseError::ThisTagCannotBeEmpty(self.name.value.clone()).error_at_pos(self.name.range.clone())
-						.with_hint(Hints::SectionTagContents.stateless())
+						ParseError::ThisTagCannotBeEmpty(self.name.value.clone())
+							.error_at_pos(self.name.range.clone())
+							.with_hint(Hints::SectionTagContents.stateless()),
 					)
 				}
-			},
+			}
 			x => {
 				let mut chars = x.chars();
 				if x.len() >= 2 && chars.next().unwrap() == 'h' {
 					match chars.skip(1).collect::<String>().parse::<usize>() {
 						Ok(x) if x > 6 => errors.push(
-							ParseError::IncorrectHeaderNumber.error_at_pos(self.name.range.clone())
-							.with_hint(Hints::HeaderForLargeText.stateless())
+							ParseError::IncorrectHeaderNumber
+								.error_at_pos(self.name.range.clone())
+								.with_hint(Hints::HeaderForLargeText.stateless()),
 						),
 						_ => (),
 					}
