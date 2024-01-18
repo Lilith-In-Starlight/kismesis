@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{KisID, KisTemplateID, Kismesis};
 
-use super::state::TokenPos;
+use super::{state::TokenPos, errors::{ParseError, Hintable, Hints, Err}};
 
 pub type Scoped<'a, T> = (T, KisID);
 pub type ScopedExpression<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, TextPos)>;
@@ -611,6 +611,45 @@ impl HtmlTag {
 		self.subtags = Vec::new();
 
 		self
+	}
+
+	pub fn verify(mut self) -> Result<Self, Err> {
+		match self.name.value.as_str() {
+			"div" => return Err(ParseError::UsedDiv.error_at_pos(self.name.range.clone())
+				.with_hint(Hints::DontUseDiv.stateless())),
+			"container" => self.name.value = String::from("div"),
+			"section" => {
+				if let Some(child) = self.body.first() {
+					if let HtmlNodes::HtmlTag(child) = child {
+						match child.name.value.as_str() {
+							"h1" | "h2" | "h3" | "h4" | "h5" | "h6" => (),
+							_ => return Err(
+								ParseError::IncorrectChild(self.name.value.clone()).error_at_pos(child.name.range.clone())
+								.with_hint(Hints::SectionTagContents.stateless())
+							),
+						}
+					}
+				} else if self.body.is_empty() {
+					return Err(
+						ParseError::ThisTagCannotBeEmpty(self.name.value.clone()).error_at_pos(self.name.range.clone())
+						.with_hint(Hints::SectionTagContents.stateless()))
+				}
+			},
+			x => {
+				let mut chars = x.chars();
+				if x.len() >= 2 && chars.next().unwrap() == 'h' {
+					match chars.skip(1).collect::<String>().parse::<usize>() {
+						Ok(x) if x > 6 => return Err(
+							ParseError::IncorrectHeaderNumber.error_at_pos(self.name.range.clone())
+							.with_hint(Hints::HeaderForLargeText.stateless())
+						),
+						_ => (),
+					}
+				}
+			}
+		}
+
+		Ok(self)
 	}
 }
 

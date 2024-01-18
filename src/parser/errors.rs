@@ -13,6 +13,10 @@ use super::{
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+	IncorrectHeaderNumber,
+	IncorrectChild(String),
+	ThisTagCannotBeEmpty(String),
+	UsedDiv,
 	PluginError(String),
 	ExtismError(String),
 	PluginDoesntExist,
@@ -67,6 +71,15 @@ pub enum Err {
 	Failure(ErrorState<ParseError>),
 }
 
+impl Hintable for Err {
+	fn add_hint(&mut self, hint: Hint) {
+        match self {
+			Self::Error(x) => x.add_hint(hint),
+			Self::Failure(x) => x.add_hint(hint),
+		}
+    }
+}
+
 impl Err {
 	pub fn unpack(self) -> ErrorState<ParseError> {
 		match self {
@@ -88,11 +101,17 @@ pub enum Hints {
 	ArgumentDefinedHere,
 	ReferenceToThis,
 	CustomMessage(String),
+	DontUseDiv,
+	SectionTagContents,
+	HeaderForLargeText,
 }
 
 impl ErrorKind for Hints {
 	fn get_text(&self) -> String {
 		match self {
+			Self::HeaderForLargeText => "If you're trying to create large text, consider using CSS instead".into(),
+			Self::SectionTagContents => "A `<section>` tag must contain a heading (e.g. `<h1>` `<h2>`, etc) as its first child.".into(),
+			Self::DontUseDiv => "Consider using a more semantic alternative like `section`, `header`, `main`, `footer`, or `button`. If you really need `<div>`, use `<container>`.".into(),
 			Self::ArgumentDefinedHere => "Argument defined here".into(),
 			Self::ReferenceToThis => "Value comes from here".into(),
 			Self::CustomMessage(string) => string.clone(),
@@ -160,8 +179,12 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
-			Self::PluginError(x) => x.to_owned(),
-			Self::ExtismError(x) => format!("Plugin failed: {}", x),
+			Self::IncorrectHeaderNumber => "Headers can only go from 1 up to 6".to_string(),
+			Self::IncorrectChild(parent) => format!("This tag is incorrect as a child of a `<{}>` tag", parent),
+			Self::ThisTagCannotBeEmpty(name) => format!("The `<{}>` tag cannot be empty", name),
+			Self::UsedDiv => "<div> tags are discouraged by Kismesis".to_string(),
+			Self::PluginError(message) => message.to_owned(),
+			Self::ExtismError(message) => format!("Plugin failed: {}", message),
 			Self::PluginDoesntExist => "This plugin does not exist".to_string(),
 			Self::PluginsDisabled => {
 				"This version of kismesis was not made with the `plugins` feature".to_string()
