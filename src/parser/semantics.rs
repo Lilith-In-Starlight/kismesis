@@ -1,17 +1,32 @@
 use super::types::*;
 use super::errors::{Err, Hints, ParseError, Hintable};
 
+#[derive(Clone)]
+pub(crate) struct Semantics {
+    section_depth: usize,
+}
+
+impl Semantics {
+    pub(crate) fn new() -> Self {
+        Self {
+            section_depth: 0,
+        }
+    }
+}
+
+/// This trait is for things whose semantics, or whose children's semantics, must be validated in the
+/// semantics checking step.
 pub(crate) trait VerifySemantics {
-    fn check_semantics(&mut self) -> Result<(), Vec<Err>>;
+    fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>>;
 }
 
 
 impl VerifySemantics for Macro {
-	fn check_semantics(&mut self) -> Result<(), Vec<Err>> {
+	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
 
 		for tag in self.body.iter_mut() {
-			if let Err(ref mut x) = tag.check_semantics() {
+			if let Err(ref mut x) = tag.check_semantics(semantics) {
 				errors.append(x)
 			}
 		}
@@ -25,11 +40,11 @@ impl VerifySemantics for Macro {
 }
 
 impl VerifySemantics for PlugCall {
-	fn check_semantics(&mut self) -> Result<(), Vec<Err>> {
+	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
 
 		for tag in self.body.iter_mut() {
-			if let Err(ref mut x) = tag.check_semantics() {
+			if let Err(ref mut x) = tag.check_semantics(semantics) {
 				errors.append(x)
 			}
 		}
@@ -43,13 +58,13 @@ impl VerifySemantics for PlugCall {
 }
 
 impl VerifySemantics for HtmlNodes {
-	fn check_semantics(&mut self) -> Result<(), Vec<Err>> {
+	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		match self {
-			Self::HtmlTag(ref mut tag) => tag.check_semantics(),
-			Self::MacroCall(ref mut mac) => mac.check_semantics(),
-			Self::PlugCall(ref mut plug) => plug.check_semantics(),
-			Self::If(ref mut iftag) => iftag.check_semantics(),
-			Self::For(ref mut fortag) => fortag.check_semantics(),
+			Self::HtmlTag(ref mut tag) => tag.check_semantics(semantics),
+			Self::MacroCall(ref mut mac) => mac.check_semantics(semantics),
+			Self::PlugCall(ref mut plug) => plug.check_semantics(semantics),
+			Self::If(ref mut iftag) => iftag.check_semantics(semantics),
+			Self::For(ref mut fortag) => fortag.check_semantics(semantics),
 			_ => Ok(()),
 		}
 	}
@@ -57,13 +72,13 @@ impl VerifySemantics for HtmlNodes {
 
 
 impl VerifySemantics for TopNodes {
-	fn check_semantics(&mut self) -> Result<(), Vec<Err>> {
+	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		match self {
-			Self::HtmlTag(ref mut tag) => tag.check_semantics(),
-			Self::MacroCall(ref mut mac) => mac.check_semantics(),
-			Self::PlugCall(ref mut plug) => plug.check_semantics(),
-			Self::If(ref mut iftag) => iftag.check_semantics(),
-			Self::For(ref mut fortag) => fortag.check_semantics(),
+			Self::HtmlTag(ref mut tag) => tag.check_semantics(semantics),
+			Self::MacroCall(ref mut mac) => mac.check_semantics(semantics),
+			Self::PlugCall(ref mut plug) => plug.check_semantics(semantics),
+			Self::If(ref mut iftag) => iftag.check_semantics(semantics),
+			Self::For(ref mut fortag) => fortag.check_semantics(semantics),
 			_ => Ok(()),
 		}
 	}
@@ -71,21 +86,22 @@ impl VerifySemantics for TopNodes {
 
 
 impl VerifySemantics for BodyNodes {
-	fn check_semantics(&mut self) -> Result<(), Vec<Err>> {
+	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		match self {
-			Self::HtmlTag(ref mut tag) => tag.check_semantics(),
-			Self::MacroDef(ref mut mac) | Self::MacroCall(ref mut mac) => mac.check_semantics(),
-			Self::PlugCall(ref mut plug) => plug.check_semantics(),
-			Self::If(ref mut iftag) => iftag.check_semantics(),
-			Self::For(ref mut fortag) => fortag.check_semantics(),
+			Self::HtmlTag(ref mut tag) => tag.check_semantics(semantics),
+			Self::MacroDef(ref mut mac) | Self::MacroCall(ref mut mac) => mac.check_semantics(semantics),
+			Self::PlugCall(ref mut plug) => plug.check_semantics(semantics),
+			Self::If(ref mut iftag) => iftag.check_semantics(semantics),
+			Self::For(ref mut fortag) => fortag.check_semantics(semantics),
 			_ => Ok(()),
 		}
 	}
 }
 
 impl VerifySemantics for HtmlTag {
-	fn check_semantics(&mut self) -> Result<(), Vec<Err>> {
+	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
+        let mut semantics = semantics.clone();
 
 		// Check the tag's semantis by name
 		match self.name.value.as_str() {
@@ -115,6 +131,7 @@ impl VerifySemantics for HtmlTag {
 				}
 			}
 			"section" => {
+                semantics.section_depth += 1;
 				if let Some(child) = self.body.first() {
 					if let HtmlNodes::HtmlTag(child) = child {
 						match child.name.value.as_str() {
@@ -143,6 +160,11 @@ impl VerifySemantics for HtmlTag {
 								.error_at_pos(self.name.range.clone())
 								.with_hint(Hints::HeaderForLargeText.stateless()),
 						),
+                        Ok(x) => if semantics.section_depth != x {
+							ParseError::SkippedHeadingLevel(semantics.section_depth)
+								.error_at_pos(self.name.range.clone())
+								.with_hint(Hints::HeaderForSize.stateless());
+                        }
 						_ => (),
 					}
 				}
@@ -150,7 +172,7 @@ impl VerifySemantics for HtmlTag {
 		}
 
 		for tag in self.body.iter_mut() {
-			if let Err(ref mut x) = tag.check_semantics() {
+			if let Err(ref mut x) = tag.check_semantics(&semantics) {
 				errors.append(x)
 			}
 		}
@@ -164,11 +186,11 @@ impl VerifySemantics for HtmlTag {
 }
 
 impl VerifySemantics for IfTag {
-	fn check_semantics(&mut self) -> Result<(), Vec<Err>> {
+	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
 
 		for tag in self.body.iter_mut() {
-			if let Err(ref mut x) = tag.check_semantics() {
+			if let Err(ref mut x) = tag.check_semantics(semantics) {
 				errors.append(x)
 			}
 		}
@@ -182,11 +204,11 @@ impl VerifySemantics for IfTag {
 }
 
 impl VerifySemantics for ForTag {
-	fn check_semantics(&mut self) -> Result<(), Vec<Err>> {
+	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
 
 		for tag in self.body.iter_mut() {
-			if let Err(ref mut x) = tag.check_semantics() {
+			if let Err(ref mut x) = tag.check_semantics(semantics) {
 				errors.append(x)
 			}
 		}

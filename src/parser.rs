@@ -13,7 +13,7 @@ use crate::plugins::PluginInput;
 use crate::{KisID, KisTemplateID, Kismesis};
 
 use self::errors::{Err, ParseError};
-use self::semantics::VerifySemantics;
+use self::semantics::{VerifySemantics, Semantics};
 use self::state::ParserState;
 use self::types::{
 	paragraph_str_to_p, Argument, Attribute, BinFunc, BodyNodes, BodyTags, Expression, ForTag,
@@ -1041,8 +1041,11 @@ pub(crate) fn file(
 /// Verify that the semantics of the HTML tags at the top of the AST are done correctly
 fn semantic_check(nodes: &mut [BodyNodes]) -> Result<(), Vec<Err>> {
 	let mut errors = vec![];
+
+	let initial_semantics = Semantics::new();
+
 	for node in nodes.iter_mut() {
-		if let Err(ref mut x) = node.check_semantics() {
+		if let Err(ref mut x) = node.check_semantics(&initial_semantics) {
 			errors.append(x);
 		}
 	}

@@ -10,6 +10,7 @@ use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+	SkippedHeadingLevel(usize),
 	IncorrectHeaderNumber,
 	IncorrectChild(String),
 	ThisTagCannotBeEmpty(String),
@@ -95,6 +96,7 @@ impl Err {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Hints {
+	HeaderForSize,
 	ArgumentDefinedHere,
 	ReferenceToThis,
 	CustomMessage(String),
@@ -107,8 +109,9 @@ pub enum Hints {
 impl ErrorKind for Hints {
 	fn get_text(&self) -> String {
 		match self {
+			Self::HeaderForSize => "If you're trying to control the size of text for aesthetic purposes, use CSS instead".into(),
 			Self::HgroupContents => "An `<hgroup>` must have a heading (e.g. `<h1>` `<h2>`, etc) as its first child".into(),
-			Self::HeaderForLargeText => "If you're trying to create smaller text, consider using CSS instead".into(),
+			Self::HeaderForLargeText => "If you're trying to create smaller text, use CSS instead".into(),
 			Self::SectionTagContents => "A `<section>` tag must contain a heading (e.g. `<h1>` `<h2>`, etc) or an `<hgroup>` as its first child.".into(),
 			Self::DontUseDiv => "Consider using a more semantic alternative like `section`, `header`, `main`, `footer`, or `button`. If you really need `<div>`, use `<container>`.".into(),
 			Self::ArgumentDefinedHere => "Argument defined here".into(),
@@ -178,6 +181,7 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
+			Self::SkippedHeadingLevel(expected) => format!("Skipped heading level - expected {}", expected),
 			Self::IncorrectHeaderNumber => "Headers can only go from 1 up to 6".to_string(),
 			Self::IncorrectChild(parent) => {
 				format!("This tag is incorrect as a child of a `<{}>` tag", parent)
