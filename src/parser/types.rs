@@ -62,23 +62,23 @@ pub struct Macro {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// A part of the document denotated by a heading and some content
 pub struct Section {
-	pub depth: usize,
-	pub name: Vec<StringParts>,
-	pub subtitle: Option<Vec<StringParts>>,
+	pub depth: Ranged<usize>,
+	pub name: Ranged<Vec<StringParts>>,
+	pub subtitle: Option<Ranged<Vec<StringParts>>>,
 	pub content: Vec<Vec<HtmlNodes>>,
 }
 
 impl Section {
 	pub fn to_tag(self) -> HtmlTag {
 		let mut tags = Vec::new();
-		let hstr = format!("h{}", self.depth);
+		let hstr = format!("h{}", self.depth.value);
 		let title = HtmlTag {
 			name: Ranged {
 				value: hstr,
-				range: TextPos::Single(TokenPos::new()),
+				range: self.name.range,
 			},
 			attributes: vec![],
-			body: vec![HtmlNodes::String(self.name)],
+			body: vec![HtmlNodes::String(self.name.value)],
 			subtags: vec![],
 		};
 		let header = match self.subtitle {
@@ -86,10 +86,10 @@ impl Section {
 				let subtitle = HtmlTag {
 					name: Ranged {
 						value: String::from("p"),
-						range: TextPos::Single(TokenPos::new()),
+						range: subtitle.range,
 					},
 					attributes: vec![],
-					body: vec![HtmlNodes::String(subtitle)],
+					body: vec![HtmlNodes::String(subtitle.value)],
 					subtags: vec![],
 				};
 				HtmlTag {
