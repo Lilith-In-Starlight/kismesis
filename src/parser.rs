@@ -415,7 +415,7 @@ fn for_tag(state: ParserState) -> ParserResult<ForTag> {
 
 fn some_tag(state: ParserState) -> ParserResult<Tag> {
 	let parser = tag_opener.preceding(cut(after_spaces(
-		tag.map(Tag::HtmlTag)
+		tag.map(Tag::Html)
 			.or(macro_call.map(Tag::MacroCall))
 			.or(macro_def.map(Tag::MacroDef))
 			.or(plug_call.map(Tag::PlugCall))
@@ -1003,7 +1003,6 @@ pub(crate) fn file(
 			BodyNodes::HtmlTag(tag) => output.body.push(TopNodes::HtmlTag(tag)),
 			BodyNodes::MacroDef(mac) => output.defined_macros.push(mac),
 			BodyNodes::MacroCall(mac) => output.body.push(TopNodes::MacroCall(mac)),
-			BodyNodes::String(_string) => todo!("Markup syntax"),
 			BodyNodes::LambdaDef(lambda) => output.defined_lambdas.push(lambda),
 			BodyNodes::VarDef(var) => output.defined_variables.push(var),
 			BodyNodes::PlugCall(plug) => output.body.push(TopNodes::PlugCall(plug)),

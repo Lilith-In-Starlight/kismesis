@@ -286,11 +286,10 @@ pub enum BodyTags {
 #[derive(Debug, Clone, PartialEq)]
 /// All Kismesis tags
 pub enum Tag {
-	HtmlTag(HtmlTag),
+	Html(HtmlTag),
 	MacroDef(Macro),
 	MacroCall(Macro),
 	PlugCall(Box<PlugCall>),
-	Section(Section),
 	Content,
 	Doctype(String),
 	If(IfTag),
@@ -304,7 +303,6 @@ pub enum BodyNodes {
 	MacroDef(Macro),
 	MacroCall(Macro),
 	PlugCall(Box<PlugCall>),
-	String(Vec<StringParts>),
 	LambdaDef(Lambda),
 	VarDef(Variable),
 	Content,
@@ -488,11 +486,10 @@ impl ParsedFile {
 impl From<Tag> for BodyNodes {
 	fn from(value: Tag) -> Self {
 		match value {
-			Tag::HtmlTag(x) => Self::HtmlTag(x),
+			Tag::Html(x) => Self::HtmlTag(x),
 			Tag::MacroCall(x) => Self::MacroCall(x),
 			Tag::MacroDef(x) => Self::MacroDef(x),
 			Tag::PlugCall(x) => Self::PlugCall(x),
-			Tag::Section(x) => Self::Section(x),
 			Tag::Content => Self::Content,
 			Tag::Doctype(x) => Self::Doctype(x),
 			Tag::If(x) => Self::If(x),

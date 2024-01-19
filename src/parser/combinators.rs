@@ -164,6 +164,7 @@ where
 	}
 }
 
+#[allow(dead_code)]
 pub(super) fn dbg<'a, P, T: Debug>(parser: P) -> impl Parser<'a, T>
 where
 	P: Parser<'a, T>,

@@ -18,10 +18,11 @@ pub mod reporting;
 
 #[cfg(feature = "plugins")]
 use extism::{convert::Json, Manifest, Plugin, Wasm};
+#[cfg(any(feature="plugins", feature="pdk"))]
+use parser::types::TextPos;
 
 use plugins::PluginInput;
 
-use parser::types::TextPos;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -50,6 +51,7 @@ pub enum KismesisError {
 
 /// Error struct used in plugin parsing
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg(any(feature="plugins", feature="pdk"))]
 pub struct PluginParseError {
 	/// The message displayed as an error
 	message: String,
@@ -59,6 +61,7 @@ pub struct PluginParseError {
 	state: Option<TextPos>,
 }
 
+#[cfg(any(feature="plugins", feature="pdk"))]
 impl PluginParseError {
 	pub fn new(message: String, state: Option<TextPos>) -> Self {
 		PluginParseError {
@@ -220,7 +223,7 @@ impl Kismesis {
 	pub fn call_plugin(
 		&self,
 		name: &Ranged<String>,
-		input: PluginInput,
+		_input: PluginInput,
 	) -> Result<Vec<HtmlNodes>, Err> {
 		Err(ParseError::PluginsDisabled
 			.error_at_pos(name.range.clone())
