@@ -160,11 +160,10 @@ impl VerifySemantics for HtmlTag {
 								.error_at_pos(self.name.range.clone())
 								.with_hint(Hints::HeaderForLargeText.stateless()),
 						),
-                        Ok(x) => if semantics.section_depth != x {
-							ParseError::SkippedHeadingLevel(semantics.section_depth)
+                        Ok(x) if semantics.section_depth != x =>	errors.push(ParseError::SkippedHeadingLevel(semantics.section_depth)
 								.error_at_pos(self.name.range.clone())
-								.with_hint(Hints::HeaderForSize.stateless());
-                        }
+								.with_hint(Hints::HeaderForSize.stateless())
+                        ),
 						_ => (),
 					}
 				}
