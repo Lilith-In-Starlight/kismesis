@@ -1,4 +1,5 @@
 mod combinators;
+mod semantics;
 pub mod errors;
 pub(crate) mod state;
 pub(crate) mod types;
@@ -12,6 +13,7 @@ use crate::plugins::PluginInput;
 use crate::{KisID, KisTemplateID, Kismesis};
 
 use self::errors::{Err, ParseError};
+use self::semantics::VerifySemantics;
 use self::state::ParserState;
 use self::types::{
 	paragraph_str_to_p, Argument, Attribute, BinFunc, BodyNodes, BodyTags, Expression, ForTag,
@@ -1016,7 +1018,6 @@ pub(crate) fn file(
 			BodyNodes::VarDef(var) => output.defined_variables.push(var),
 			BodyNodes::PlugCall(plug) => output.body.push(TopNodes::PlugCall(plug)),
 			BodyNodes::Content => output.body.push(TopNodes::Content),
-			BodyNodes::Section(_) => todo!("Add sections"),
 			BodyNodes::Doctype(x) => output.body.push(TopNodes::Doctype(x)),
 			BodyNodes::If(x) => output.body.push(TopNodes::If(x)),
 			BodyNodes::For(x) => output.body.push(TopNodes::For(x)),
@@ -1041,7 +1042,7 @@ pub(crate) fn file(
 fn semantic_check(nodes: &mut [BodyNodes]) -> Result<(), Vec<Err>> {
 	let mut errors = vec![];
 	for node in nodes.iter_mut() {
-		if let Err(ref mut x) = node.semantic_check() {
+		if let Err(ref mut x) = node.check_semantics() {
 			errors.append(x);
 		}
 	}

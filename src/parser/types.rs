@@ -58,24 +58,6 @@ pub struct Macro {
 	pub body: Vec<HtmlNodes>,
 }
 
-impl Macro {
-	fn semantic_check(&mut self) -> Result<(), Vec<Err>> {
-		let mut errors = vec![];
-
-		for tag in self.body.iter_mut() {
-			if let Err(ref mut x) = tag.semantic_check() {
-				errors.append(x)
-			}
-		}
-
-		if errors.is_empty() {
-			Ok(())
-		} else {
-			Err(errors)
-		}
-	}
-}
-
 #[derive(Debug, PartialEq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// A part of the document denotated by a heading and some content
@@ -87,24 +69,6 @@ pub struct Section {
 }
 
 impl Section {
-	fn semantic_check(&mut self) -> Result<(), Vec<Err>> {
-		let mut errors = vec![];
-
-		for paragraph in self.content.iter_mut() {
-			for tag in paragraph.iter_mut() {
-				if let Err(ref mut x) = tag.semantic_check() {
-					errors.append(x)
-				}
-			}
-		}
-
-		if errors.is_empty() {
-			Ok(())
-		} else {
-			Err(errors)
-		}
-	}
-
 	pub fn to_tag(self) -> HtmlTag {
 		let mut tags = Vec::new();
 		let hstr = format!("h{}", self.depth);
@@ -197,25 +161,6 @@ pub struct PlugCall {
 	pub name: Ranged<String>,
 	pub body: Vec<HtmlNodes>,
 }
-
-impl PlugCall {
-	fn semantic_check(&mut self) -> Result<(), Vec<Err>> {
-		let mut errors = vec![];
-
-		for tag in self.body.iter_mut() {
-			if let Err(ref mut x) = tag.semantic_check() {
-				errors.append(x)
-			}
-		}
-
-		if errors.is_empty() {
-			Ok(())
-		} else {
-			Err(errors)
-		}
-	}
-}
-
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// All AST nodes that end up in the final HTML in one way or another
@@ -229,19 +174,6 @@ pub enum HtmlNodes {
 	Content,
 }
 
-impl HtmlNodes {
-	fn semantic_check(&mut self) -> Result<(), Vec<Err>> {
-		match self {
-			Self::HtmlTag(ref mut tag) => tag.semantic_check(),
-			Self::MacroCall(ref mut mac) => mac.semantic_check(),
-			Self::PlugCall(ref mut plug) => plug.semantic_check(),
-			Self::If(ref mut iftag) => iftag.semantic_check(),
-			Self::For(ref mut fortag) => fortag.semantic_check(),
-			_ => Ok(()),
-		}
-	}
-}
-
 #[derive(Debug, Clone, PartialEq)]
 /// All AST nodes that can be at the topmost level of a file
 pub enum TopNodes {
@@ -252,19 +184,6 @@ pub enum TopNodes {
 	Doctype(String),
 	If(IfTag),
 	For(ForTag),
-}
-
-impl TopNodes {
-	pub fn semantic_check(&mut self) -> Result<(), Vec<Err>> {
-		match self {
-			Self::HtmlTag(ref mut tag) => tag.semantic_check(),
-			Self::MacroCall(ref mut mac) => mac.semantic_check(),
-			Self::PlugCall(ref mut plug) => plug.semantic_check(),
-			Self::If(ref mut iftag) => iftag.semantic_check(),
-			Self::For(ref mut fortag) => fortag.semantic_check(),
-			_ => Ok(()),
-		}
-	}
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -302,24 +221,9 @@ pub enum BodyNodes {
 	VarDef(Variable),
 	Content,
 	SetStmt(String, String),
-	Section(Section),
 	Doctype(String),
 	If(IfTag),
 	For(ForTag),
-}
-
-impl BodyNodes {
-	pub(crate) fn semantic_check(&mut self) -> Result<(), Vec<Err>> {
-		match self {
-			Self::HtmlTag(ref mut tag) => tag.semantic_check(),
-			Self::MacroDef(ref mut mac) | Self::MacroCall(ref mut mac) => mac.semantic_check(),
-			Self::PlugCall(ref mut plug) => plug.semantic_check(),
-			Self::Section(ref mut section) => section.semantic_check(),
-			Self::If(ref mut iftag) => iftag.semantic_check(),
-			Self::For(ref mut fortag) => fortag.semantic_check(),
-			_ => Ok(()),
-		}
-	}
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -720,85 +624,6 @@ impl HtmlTag {
 
 		self
 	}
-
-	/// Verify that this tag is semantically correct
-	pub fn semantic_check(&mut self) -> Result<(), Vec<Err>> {
-		let mut errors = vec![];
-
-		// Check the tag's semantis by name
-		match self.name.value.as_str() {
-			"div" => errors.push(
-				ParseError::UsedDiv
-					.error_at_pos(self.name.range.clone())
-					.with_hint(Hints::DontUseDiv.stateless()),
-			),
-			"container" => self.name.value = String::from("div"),
-			"hgroup" => {
-				if let Some(child) = self.body.first() {
-					if let HtmlNodes::HtmlTag(child) = child {
-						match child.name.value.as_str() {
-							"h1" | "h2" | "h3" | "h4" | "h5" | "h6" => (),
-							_ => errors.push(ParseError::IncorrectChild("hgroup".to_string())
-									.error_at_pos(child.name.range.clone())
-									.with_hint(Hints::HgroupContents.stateless()),
-							),
-						}
-					}
-				} else {
-					errors.push(
-						ParseError::ThisTagCannotBeEmpty(self.name.value.clone())
-							.error_at_pos(self.name.range.clone())
-							.with_hint(Hints::SectionTagContents.stateless()),
-					)
-				}
-			}
-			"section" => {
-				if let Some(child) = self.body.first() {
-					if let HtmlNodes::HtmlTag(child) = child {
-						match child.name.value.as_str() {
-							"h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "hgroup" => (),
-							_ => errors.push(
-								ParseError::IncorrectChild(self.name.value.clone())
-									.error_at_pos(child.name.range.clone())
-									.with_hint(Hints::SectionTagContents.stateless()),
-							),
-						}
-					}
-				} else {
-					errors.push(
-						ParseError::ThisTagCannotBeEmpty(self.name.value.clone())
-							.error_at_pos(self.name.range.clone())
-							.with_hint(Hints::SectionTagContents.stateless()),
-					)
-				}
-			}
-			x => {
-				let mut chars = x.chars();
-				if x.len() >= 2 && chars.next().unwrap() == 'h' {
-					match chars.skip(1).collect::<String>().parse::<usize>() {
-						Ok(x) if x > 6 => errors.push(
-							ParseError::IncorrectHeaderNumber
-								.error_at_pos(self.name.range.clone())
-								.with_hint(Hints::HeaderForLargeText.stateless()),
-						),
-						_ => (),
-					}
-				}
-			}
-		}
-
-		for tag in self.body.iter_mut() {
-			if let Err(ref mut x) = tag.semantic_check() {
-				errors.append(x)
-			}
-		}
-
-		if errors.is_empty() {
-			Ok(())
-		} else {
-			Err(errors)
-		}
-	}
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -808,46 +633,10 @@ pub struct IfTag {
 	pub body: Vec<HtmlNodes>,
 }
 
-impl IfTag {
-	fn semantic_check(&mut self) -> Result<(), Vec<Err>> {
-		let mut errors = vec![];
-
-		for tag in self.body.iter_mut() {
-			if let Err(ref mut x) = tag.semantic_check() {
-				errors.append(x)
-			}
-		}
-
-		if errors.is_empty() {
-			Ok(())
-		} else {
-			Err(errors)
-		}
-	}
-}
-
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ForTag {
 	pub variable: Ranged<String>,
 	pub iterator: Ranged<Expression>,
 	pub body: Vec<HtmlNodes>,
-}
-
-impl ForTag {
-	fn semantic_check(&mut self) -> Result<(), Vec<Err>> {
-		let mut errors = vec![];
-
-		for tag in self.body.iter_mut() {
-			if let Err(ref mut x) = tag.semantic_check() {
-				errors.append(x)
-			}
-		}
-
-		if errors.is_empty() {
-			Ok(())
-		} else {
-			Err(errors)
-		}
-	}
 }
