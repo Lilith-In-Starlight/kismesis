@@ -192,7 +192,7 @@ pub fn draw_error<T: ErrorKind + Debug>(
 	output
 		.split('\n')
 		.fold(String::new(), |mut output, y| {
-			let _ = write!(output, "\n{}{}", " ".repeat(depth * 2), y);
+			let _ = write!(output, "{}\n{}", " ".repeat(depth * 2), y);
 			output
 		})
 		.trim_start_matches('\n')
