@@ -439,7 +439,7 @@ fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
 				.or(for_tag.map(BodyTags::For))
 				.followed_by(tag_closer),
 		)))
-		.or(section_block.map(BodyTags::Section));
+		.or(section_block.map(|x| BodyTags::HtmlTag(x.to_tag())));
 
 	parser.parse(state)
 }

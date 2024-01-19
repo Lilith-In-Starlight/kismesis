@@ -188,7 +188,6 @@ fn parse_node<'a>(
 		TopNodes::MacroCall(t) => mac_call(t, state),
 		TopNodes::PlugCall(t) => plug_call(t, state),
 		TopNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
-		TopNodes::Section(_) => Ok(HtmlOutput { val: vec![] }),
 		TopNodes::If(x) => if_tag(x, state),
 		TopNodes::For(x) => for_tag(x, state),
 		TopNodes::Doctype(string) => {
@@ -289,7 +288,6 @@ fn parse_html_child<'a>(
 			}
 			Err(x) => Err(x),
 		},
-		HtmlNodes::Section(_) => Ok(HtmlOutput { val: vec![] }),
 	}
 }
 
