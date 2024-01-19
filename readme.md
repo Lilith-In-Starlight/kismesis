@@ -54,7 +54,7 @@ FAQ stands for both Forwardly Anticipated Questions and Frequently-ish Asked Que
 ### Why is this name ambiguous?
 I find it funny, and I thinks that since all projects named Kismesis are related, this is safe and okay.
 
-### Why do you plan to error when using <div>
+### Why do you plan to error when using `<div>`
 - The reason for this is that we often utilize divisions as a catch-all, instead of utilizing more semantic alternatives like `header`, `footer`, `main`, `section`, and even `button`. `<container>` will get compiled as `<div>` in case you really know there is no better alternative. Think of it the same way you think of Rust's `unsafe`.
   - No, `<button>` is not that much harder to style than a div.
 
