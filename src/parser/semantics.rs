@@ -154,13 +154,14 @@ impl VerifySemantics for HtmlTag {
 			x => {
 				let mut chars = x.chars();
 				if x.len() >= 2 && chars.next().unwrap() == 'h' {
-					match chars.skip(1).collect::<String>().parse::<usize>() {
-						Ok(x) if x > 6 => errors.push(
+					match chars.collect::<String>().parse::<usize>() {
+						Ok(x) if x > 6 || x == 0 => errors.push(
 							ParseError::IncorrectHeaderNumber
 								.error_at_pos(self.name.range.clone())
 								.with_hint(Hints::HeaderForLargeText.stateless()),
 						),
-                        Ok(x) if semantics.section_depth != x =>	errors.push(ParseError::SkippedHeadingLevel(semantics.section_depth)
+                        Ok(x) if semantics.section_depth != x =>	errors.push(
+                            ParseError::SkippedHeadingLevel(semantics.section_depth)
 								.error_at_pos(self.name.range.clone())
 								.with_hint(Hints::HeaderForSize.stateless())
                         ),
