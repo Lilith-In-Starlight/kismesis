@@ -10,6 +10,7 @@ use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+	HeaderNotAllowedHere,
 	SkippedHeadingLevel(usize),
 	IncorrectHeaderNumber,
 	IncorrectChild(String),
@@ -96,6 +97,7 @@ impl Err {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Hints {
+	HeaderSectionDynamics,
 	HeaderForSize,
 	ArgumentDefinedHere,
 	ReferenceToThis,
@@ -109,6 +111,7 @@ pub enum Hints {
 impl ErrorKind for Hints {
 	fn get_text(&self) -> String {
 		match self {
+			Self::HeaderSectionDynamics => "Headers must always be the first child of a `<section>`, and their number must correspond to the amount of nested sections".into(),
 			Self::HeaderForSize => "If you're trying to control the size of text for aesthetic purposes, use CSS instead".into(),
 			Self::HgroupContents => "An `<hgroup>` must have a heading (e.g. `<h1>` `<h2>`, etc) as its first child".into(),
 			Self::HeaderForLargeText => "If you're trying to create smaller text, use CSS instead".into(),
@@ -181,6 +184,7 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
+			Self::HeaderNotAllowedHere => format!("Headers are not allowed outside sections").into(),
 			Self::SkippedHeadingLevel(expected) => format!("Skipped heading level - expected {}", expected),
 			Self::IncorrectHeaderNumber => "Headers can only go from 1 up to 6".to_string(),
 			Self::IncorrectChild(parent) => {

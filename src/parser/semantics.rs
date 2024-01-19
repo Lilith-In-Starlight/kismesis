@@ -158,13 +158,26 @@ impl VerifySemantics for HtmlTag {
 						Ok(x) if x > 6 || x == 0 => errors.push(
 							ParseError::IncorrectHeaderNumber
 								.error_at_pos(self.name.range.clone())
-								.with_hint(Hints::HeaderForLargeText.stateless()),
+								.with_hint(Hints::HeaderSectionDynamics.stateless())
+                                .with_hint(Hints::HeaderForLargeText.stateless())
 						),
-                        Ok(x) if semantics.section_depth != x =>	errors.push(
-                            ParseError::SkippedHeadingLevel(semantics.section_depth)
-								.error_at_pos(self.name.range.clone())
-								.with_hint(Hints::HeaderForSize.stateless())
-                        ),
+                        Ok(x) if semantics.section_depth != x =>	{
+                            if semantics.section_depth > 0 {
+                                errors.push(
+                                    ParseError::SkippedHeadingLevel(semantics.section_depth)
+                                        .error_at_pos(self.name.range.clone())
+                                        .with_hint(Hints::HeaderSectionDynamics.stateless())
+                                        .with_hint(Hints::HeaderForSize.stateless())
+                                );
+                            } else {
+                                errors.push(
+                                    ParseError::HeaderNotAllowedHere
+                                        .error_at_pos(self.name.range.clone())
+                                        .with_hint(Hints::HeaderSectionDynamics.stateless())
+                                        .with_hint(Hints::HeaderForSize.stateless())
+                                );
+                            }
+                        },
 						_ => (),
 					}
 				}
