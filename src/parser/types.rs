@@ -75,7 +75,7 @@ impl Section {
 		let title = HtmlTag {
 			name: Ranged {
 				value: hstr,
-				range: self.name.range,
+				range: self.depth.range,
 			},
 			attributes: vec![],
 			body: vec![HtmlNodes::String(self.name.value)],

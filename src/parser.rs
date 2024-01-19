@@ -463,7 +463,7 @@ fn tag(state: ParserState<'_>) -> ParserResult<'_, HtmlTag> {
 }
 
 fn section_block(state: ParserState) -> ParserResult<Section> {
-	let ((depth, title), state) = get_range(repeated(specific_symbol('#'), 1..=state.section_depth + 1))
+	let ((depth, title), state) = get_range(repeated(specific_symbol('#'), 1..))
 		.map(|x| Ranged { range: x.range, value: x.value.len() })
 		.and_also(cut(after_spaces(get_range(string))))
 		.parse(state)?;
