@@ -734,6 +734,8 @@ impl HtmlTag {
 	/// Verify that this tag is semantically correct
 	pub fn semantic_check(&mut self) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
+
+		// Check the tag's semantis by name
 		match self.name.value.as_str() {
 			"div" => errors.push(
 				ParseError::UsedDiv
