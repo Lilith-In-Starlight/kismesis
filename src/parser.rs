@@ -985,7 +985,13 @@ pub(crate) fn file(
 	);
 
 	let mut ast_nodes = match parser.parse(state) {
-		Ok((val, _)) => val,
+		Ok((val, final_state)) => {
+			if final_state.errors.is_empty() {
+				val
+			} else {
+				return Err(final_state.errors);
+			}
+		},
 		Err(err) => {
 			drop(parser);
 			return Err(vec![err]);

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::{errors::ErrorState, lexer::Token, Kismesis};
 
-use super::{errors::ParseError, types::TextPos};
+use super::{errors::{ParseError, Err}, types::TextPos};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 pub struct ParserState<'a> {
 	pub(crate) tokens: &'a [Token],
 	pub(crate) position: TokenPos,
-	pub(crate) errors: Vec<ErrorState<ParseError>>,
+	pub(crate) errors: Vec<Err>,
 	pub(crate) tag_openers: Vec<TokenPos>,
 	pub(crate) section_depth: usize,
 	pub(crate) file_path: Option<PathBuf>,
