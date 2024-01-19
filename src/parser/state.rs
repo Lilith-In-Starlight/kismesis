@@ -47,6 +47,15 @@ impl<'a> ParserState<'a> {
 		}
 	}
 
+	pub(crate) fn with_error(self, error: Err) -> Self {
+		let mut errors = self.errors;
+		errors.push(error);
+		Self {
+			errors,
+			..self
+		}
+	}
+
 	pub(crate) fn first_token(&self) -> Option<&Token> {
 		self.tokens.first()
 	}

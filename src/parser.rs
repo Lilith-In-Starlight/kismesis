@@ -524,7 +524,10 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 		current_file: state.file_path.clone(),
 	};
 
-	let body = state.engine.call_plugin(&name, input)?;
+	let (body, state) = match state.engine.call_plugin(&name, input) {
+		Ok(x) => (x, state),
+		Err(x) => (vec![], state.with_error(x)),
+	};
 
 	Ok((Box::new(PlugCall { name, body }), state))
 }
