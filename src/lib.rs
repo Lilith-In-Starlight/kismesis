@@ -240,13 +240,12 @@ impl Kismesis {
 	pub fn register_file(
 		&mut self,
 		path: PathBuf,
-		project: Option<PathBuf>,
 	) -> KisResult<ParsedFile> {
 		let text =
 			fs::read_to_string(&path).map_err(|x| KismesisError::IOError(x, path.clone()))?;
 		let tokens = lexer::tokenize(&text);
-		let tokens = self.register_tokens(tokens, Some(path));
-		let file = parser::file(tokens, self, None, project)
+		let tokens = self.register_tokens(tokens, Some(path.clone()));
+		let file = parser::file(tokens, self, None, Some(path))
 			.map_err(|x| KismesisError::ParseError(x, tokens))?;
 		Ok(file)
 	}

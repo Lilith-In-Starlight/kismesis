@@ -521,7 +521,7 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 	let input = PluginInput {
 		parameters,
 		body,
-		current_file: state.project_path.clone(),
+		current_file: state.file_path.clone(),
 	};
 
 	let body = state.engine.call_plugin(&name, input)?;
@@ -959,7 +959,7 @@ pub(crate) fn file(
 	tokens_id: KisID,
 	engine: &Kismesis,
 	default_template: Option<KisTemplateID>,
-	project_path: Option<PathBuf>,
+	file_path: Option<PathBuf>,
 ) -> Result<ParsedFile, Vec<Err>> {
 	let parser = zero_or_more(
 		skipped_blanks().preceding(
@@ -980,7 +980,7 @@ pub(crate) fn file(
 
 	let state = ParserState::new(
 		&engine.get_file(tokens_id).unwrap().tokens,
-		project_path,
+		file_path,
 		engine,
 	);
 
