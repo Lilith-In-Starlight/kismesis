@@ -907,8 +907,7 @@ fn paragraph_string(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
 
 	let terminator = ignore(newline)
 		.or(not(any))
-		.or(ignore(tag_closer))
-		.or(ignore(tag_opener));
+		.or(ignore(tag_closer));
 
 	after_blanks(inside).maybe_until(terminator).parse(state)
 }
