@@ -909,7 +909,7 @@ fn paragraph_string(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
 		.or(not(any))
 		.or(ignore(tag_closer));
 
-	after_blanks(inside).maybe_until(terminator).parse(state)
+	after_blanks(inside.maybe_until(terminator)).parse(state)
 }
 
 fn subtag(state: ParserState) -> ParserResult<HtmlTag> {
