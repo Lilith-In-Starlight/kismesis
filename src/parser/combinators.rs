@@ -42,9 +42,8 @@ where
 				Ok((_, next_state)) => {
 					if found.is_empty() {
 						return Err(ParseError::EmptyString.error_at(&next_state));
-					} else {
-						return Ok((found, state));
 					}
+					return Ok((found, state));
 				}
 				Err(_) => match p1.parse(state.clone()) {
 					Ok((val, next_state)) => {
@@ -171,7 +170,7 @@ where
 {
 	move |state: ParserState<'a>| {
 		let r = parser.parse(state);
-		println!("{:#?}", r);
+		println!("{r:#?}");
 		r
 	}
 }

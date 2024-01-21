@@ -37,5 +37,5 @@ impl Settings {
 }
 
 fn string_vec(s: &[&str]) -> Vec<String> {
-	s.iter().map(|x| x.to_string()).collect()
+	s.iter().map(|x| (*x).to_string()).collect()
 }

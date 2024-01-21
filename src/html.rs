@@ -54,17 +54,17 @@ impl HtmlOutput {
 		};
 		match top {
 			OutputTypes::Html(ref mut old_string) => old_string.push_str(&new),
-			_ => self.val.push(OutputTypes::Html(new)),
+			OutputTypes::ContentMark(_) => self.val.push(OutputTypes::Html(new)),
 		}
 	}
 
 	fn push_output(&mut self, new: &mut HtmlOutput) {
-		self.val.append(&mut new.val)
+		self.val.append(&mut new.val);
 	}
 
 	pub fn to_string_forced(&self) -> String {
 		let mut output = String::new();
-		for x in self.val.iter() {
+		for x in &self.val {
 			match x {
 				OutputTypes::ContentMark(_) => output.push_str("<content!>"),
 				OutputTypes::Html(string) => output.push_str(string),
@@ -73,9 +73,12 @@ impl HtmlOutput {
 		output
 	}
 
+	/// Convert the HTML output to a string
+	/// # Errors
+	/// If the `HtmlOutput` contains a `OutputTypes::ContentMark`.
 	pub fn to_string(&self) -> Result<String, CompilerError> {
 		let mut output = String::new();
-		for x in self.val.iter() {
+		for x in &self.val {
 			match x {
 				OutputTypes::ContentMark(_) => return Err(CompilerError::ContentTagInOutput),
 				OutputTypes::Html(string) => output.push_str(string),
@@ -117,6 +120,10 @@ impl<'a> GenerationState<'a> {
 	}
 }
 
+/// Takes a `ParsedFile` and generates HTML in an `HtmlOutput`.
+/// # Errors
+/// When accessing undefined macros, when accessing undefined variables, when calling macros without setting values for their
+/// arguments that have no defaults, and when trying to write any expression that doesn't evaluate to a pure string.
 pub fn generate_html<'a>(
 	file: &'a ParsedFile,
 	sub_scopes: Vec<&'a ParsedFile>,
@@ -126,7 +133,7 @@ pub fn generate_html<'a>(
 	let state = GenerationState::from(file, &sub_scopes, options, engine);
 	let mut errors = Vec::new();
 	let mut output = HtmlOutput::new();
-	for node in file.body.iter() {
+	for node in &file.body {
 		if !output.is_empty() {
 			output.push_string('\n');
 		}
@@ -155,10 +162,10 @@ pub fn generate_html<'a>(
 				OutputTypes::ContentMark(indents) => {
 					let mut out = Vec::new();
 					let mut is_first_text = true;
-					for x in output.val.iter() {
+					for x in &output.val {
 						match x.clone() {
 							OutputTypes::ContentMark(x) => {
-								out.push(OutputTypes::ContentMark(x + 1))
+								out.push(OutputTypes::ContentMark(x + 1));
 							}
 							OutputTypes::Html(mut output_string) => {
 								if is_first_text {
@@ -174,7 +181,7 @@ pub fn generate_html<'a>(
 					}
 					out
 				}
-				x => vec![x],
+				x @ OutputTypes::Html(_) => vec![x],
 			})
 			.collect();
 	}
@@ -195,7 +202,7 @@ fn parse_node<'a>(
 		TopNodes::For(x) => for_tag(x, state),
 		TopNodes::Doctype(string) => {
 			let mut htmlo = HtmlOutput::new();
-			htmlo.push_string(format!("<!DOCTYPE {}>", string));
+			htmlo.push_string(format!("<!DOCTYPE {string}>"));
 			Ok(htmlo)
 		}
 		TopNodes::Paragraph(paragraph) => top_paragraph(paragraph,state),
@@ -212,7 +219,7 @@ fn top_paragraph<'a>(paragraph: &'a Paragraph, state: &GenerationState<'a>) -> C
 		force_inline: true,
 		..state.clone()
 	};
-	for child in paragraph.0.iter() {
+	for child in &paragraph.0 {
 		match parse_html_child(child, state) {
 			Ok(mut string) => output.push_output(&mut string),
 			Err(mut error) => errors.append(&mut error),
@@ -235,7 +242,7 @@ fn child_paragraph<'a>(paragraph: &'a Paragraph, state: &GenerationState<'a>) ->
 		force_inline: true,
 		..state.clone()
 	};
-	for child in paragraph.0.iter() {
+	for child in &paragraph.0 {
 		match parse_html_child(child, state) {
 			Ok(mut string) => output.push_output(&mut string),
 			Err(mut error) => errors.append(&mut error),
@@ -253,7 +260,7 @@ fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<'a, 
 	let mut output = HtmlOutput::new();
 	let mut errors = Vec::new();
 	if value.is_truthy(state)? {
-		for child in tag.body.iter() {
+		for child in &tag.body {
 			output.push_string('\n');
 			match parse_html_child(child, state) {
 				Ok(mut string) => output.push_output(&mut string),
@@ -290,7 +297,7 @@ fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<'a
 	let mut errors = Vec::new();
 	let condition = to_iterator(&tag.iterator, state)?;
 
-	for expr in condition.iter() {
+	for expr in &condition {
 		let mut variable_scopes = state.variable_scopes.clone();
 		variable_scopes.insert(
 			tag.variable.value.clone(),
@@ -301,7 +308,7 @@ fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<'a
 			..state.clone()
 		};
 
-		for child in tag.body.iter() {
+		for child in &tag.body {
 			output.push_string('\n');
 			match parse_html_child(child, &state) {
 				Ok(mut string) => output.push_output(&mut string),
@@ -310,10 +317,10 @@ fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<'a
 		}
 	}
 
-	if !errors.is_empty() {
-		Err(errors)
-	} else {
+	if errors.is_empty() {
 		Ok(output)
+	} else {
+		Err(errors)
 	}
 }
 
@@ -358,7 +365,7 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 
 		base.extend(mac.get_argument_scope(state.scope));
 		let mut output = VariableScope::new();
-		for arg in base.iter() {
+		for arg in &base {
 			match arg.1 .0 .0 {
 				None => {
 					errors.push(
@@ -386,7 +393,7 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 	}
 
 	let mut output = HtmlOutput::new();
-	for child in template.0.body.iter() {
+	for child in &template.0.body {
 		if !output.is_empty() {
 			output.push_string('\n');
 			for _ in 0..state.indent {
@@ -408,7 +415,7 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 fn plug_call<'a>(plugin: &'a PlugCall, state: &GenerationState) -> CompileResult<'a, HtmlOutput> {
 	let mut output = HtmlOutput::new();
 	let mut errors = Vec::new();
-	for child in plugin.body.iter() {
+	for child in &plugin.body {
 		output.push_string('\n');
 		match parse_html_child(child, state) {
 			Ok(mut string) => output.push_output(&mut string),
@@ -446,7 +453,7 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, H
 	if state.options.has_body(&tag.name.value) {
 		let mut inline = state.options.is_inline(&tag.name.value) || tag.body.is_empty() || state.force_inline;
 		if inline && !state.force_inline {
-			for child in tag.body.iter() {
+			for child in &tag.body {
 				match child {
 					HtmlNodes::HtmlTag(x) => {
 						if !state.options.is_inline(&x.name.value) {
@@ -464,13 +471,13 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, H
 		}
 		let mut new_state = state.clone();
 
-		if !inline {
-			new_state.indent += 1;
-		} else {
+		if inline {
 			new_state.indent = 0;
+		} else {
+			new_state.indent += 1;
 		}
 
-		for child in tag.body.iter() {
+		for child in &tag.body {
 			if !inline {
 				output.push_string('\n');
 			}
@@ -486,7 +493,7 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, H
 				output.push_string('\t');
 			}
 		}
-		output.push_string(&format!("</{}>", tag.name.value))
+		output.push_string(&format!("</{}>", tag.name.value));
 	}
 
 	if errors.is_empty() {
@@ -507,9 +514,9 @@ fn attribute_string<'a>(
 		match calculate_expression(&attr.value, state) {
 			Ok(value_string) => {
 				let string =
-					value_string.to_string(attr.value.range.clone(), state.scope, state)?;
+					value_string.to_string(&attr.value.range, state.scope, state)?;
 				let string = escape_all_quotes(string).to_string();
-				output.push_str(&format!("{}='{}'", attr.name.value, string))
+				output.push_str(&format!("{}='{}'", attr.name.value, string));
 			}
 			Err(mut error) => errors.append(&mut error),
 		}
@@ -533,7 +540,7 @@ fn parse_kis_string<'a>(
 			StringParts::String(x) => output.push_str(x),
 			StringParts::Expression(expr) => match calculate_expression(expr, state) {
 				Ok(calculated_expression) => {
-					match calculated_expression.to_string(expr.range.clone(), state.scope, state) {
+					match calculated_expression.to_string(&expr.range, state.scope, state) {
 						Ok(string) => output.push_str(&string),
 						Err(mut x) => errors.append(&mut x),
 					}
@@ -582,7 +589,7 @@ impl ExpressionValues {
 
 	fn to_string<'a>(
 		&'a self,
-		range: TextPos,
+		range: &TextPos,
 		scope: KisID,
 		state: &GenerationState<'a>,
 	) -> CompileResult<'a, String> {
@@ -601,7 +608,7 @@ impl ExpressionValues {
 				CompilerError::CantWriteArray.with_scope_at(scope, range.clone())
 			]),
 			ExpressionValues::Reference(x, id, pos) => {
-				match calculate_expression(x, state)?.to_string(range.clone(), scope, state) {
+				match calculate_expression(x, state)?.to_string(range, scope, state) {
 					Ok(x) => Ok(x),
 					Err(mut x) => {
 						x[0].add_hint(Hints::ReferenceToThis.with_state_at(pos.clone(), *id));
@@ -709,8 +716,7 @@ impl ErrorKind for CompilerError {
 				"This computes to a Anything value, which cannot be written into content".into()
 			}
 			Self::UnsetArgNoDefault(arg) => format!(
-				"The `{}` argument is unset but the macro definition has no default for it",
-				arg
+				"The `{arg}` argument is unset but the macro definition has no default for it",
 			),
 			Self::UndefinedMacroCall => "This macro isn't defined".to_string(),
 		}

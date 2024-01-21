@@ -63,6 +63,7 @@ pub struct PluginParseError {
 
 #[cfg(any(feature="plugins", feature="pdk"))]
 impl PluginParseError {
+	#[must_use]
 	pub fn new(message: String, state: Option<TextPos>) -> Self {
 		PluginParseError {
 			message,
@@ -72,11 +73,10 @@ impl PluginParseError {
 	}
 	/// Adds a hint to the error struct
 	pub fn add_hint(&mut self, message: String, state: Option<TextPos>) {
-		self.hints.push(Self::new(message, state))
+		self.hints.push(Self::new(message, state));
 	}
 }
 
-/// # FileRef
 /// The tokens and path (if any) of a file.
 #[derive(Debug)]
 pub struct FileRef {
@@ -127,6 +127,7 @@ pub enum KisTemplateID {
 
 impl Kismesis {
 	#[cfg(feature = "plugins")]
+	#[must_use]
 	pub fn new() -> Self {
 		Self {
 			tokens: HashMap::new(),
@@ -170,6 +171,8 @@ impl Kismesis {
 	pub fn register_plugin(&mut self, _name: String, _path: &Path) {}
 
 	/// Send tokens and body to a plugin with a given `name`
+	/// # Errors
+	/// When calling a plugin that can't be found in the filesyste, or if the plugin itself fails
 	#[cfg(feature = "plugins")]
 	pub fn call_plugin(
 		&self,
@@ -191,7 +194,7 @@ impl Kismesis {
 		let mut plugin = match Plugin::new(manifest, [], true) {
 			Ok(x) => x,
 			Err(x) => {
-				return Err(ParseError::ExtismError(format!("{}", x))
+				return Err(ParseError::ExtismError(format!("{x}"))
 					.error_at_pos(name.range.clone())
 					.cut())
 			}
@@ -212,7 +215,7 @@ impl Kismesis {
 					Err(Err::Failure(error))
 				}
 			},
-			Err(x) => Err(ParseError::ExtismError(format!("{}", x))
+			Err(x) => Err(ParseError::ExtismError(format!("{x}"))
 				.error_at_pos(name.range.clone())
 				.cut()),
 		}
@@ -220,6 +223,8 @@ impl Kismesis {
 
 	#[cfg(not(feature = "plugins"))]
 	/// Send tokens and body to a plugin with a given `name`
+	/// # Errors
+	/// Always.
 	pub fn call_plugin(
 		&self,
 		name: &Ranged<String>,
@@ -239,6 +244,8 @@ impl Kismesis {
 	}
 
 	/// Parse and register a file
+	/// # Errors
+	/// If the path cannot be read or if the file cannot be parsed.
 	// TODO: This is a misnomer
 	pub fn register_file(
 		&mut self,
