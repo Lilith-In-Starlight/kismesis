@@ -1,3 +1,4 @@
+use htmlize::escape_all_quotes;
 use std::collections::HashMap;
 
 use crate::{
@@ -328,11 +329,13 @@ fn parse_html_child<'a>(
 		HtmlNodes::If(t) => if_tag(t, state),
 		HtmlNodes::For(t) => for_tag(t, state),
 		HtmlNodes::String(t) => match parse_kis_string(t, state) {
-			Ok(mut x) => {
+			Ok(x) => {
 				let mut a = HtmlOutput {
 					val: vec![OutputTypes::Html(make_indents(state.indent))],
 				};
-				a.push_output(&mut x);
+				let x = escape_all_quotes(x).to_string();
+				a.push_string(x);
+				
 				Ok(a)
 			}
 			Err(x) => Err(x),
@@ -521,16 +524,16 @@ fn attribute_string<'a>(
 fn parse_kis_string<'a>(
 	string: &'a [StringParts],
 	state: &GenerationState<'a>,
-) -> CompileResult<'a, HtmlOutput> {
-	let mut output = HtmlOutput::new();
+) -> CompileResult<'a, String> {
+	let mut output = String::new();
 	let mut errors = Vec::new(); // TODO actually use this vector, remove elvis operators below
 	for parse in string {
 		match parse {
-			StringParts::String(x) => output.push_string(x),
+			StringParts::String(x) => output.push_str(x),
 			StringParts::Expression(expr) => match calculate_expression(expr, state) {
 				Ok(calculated_expression) => {
 					match calculated_expression.to_string(expr.range.clone(), state.scope, state) {
-						Ok(string) => output.push_string(string),
+						Ok(string) => output.push_str(&string),
 						Err(mut x) => errors.append(&mut x),
 					}
 				}
@@ -584,7 +587,7 @@ impl ExpressionValues {
 	) -> CompileResult<'a, String> {
 		match self {
 			ExpressionValues::String(x) => match parse_kis_string(x, state) {
-				Ok(parsed_kis_string) => Ok(parsed_kis_string.to_string_forced()),
+				Ok(parsed_kis_string) => Ok(parsed_kis_string),
 				Err(kis_string_errors) => Err(kis_string_errors),
 			},
 			ExpressionValues::None => Err(vec![

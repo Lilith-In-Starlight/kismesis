@@ -9,6 +9,7 @@ repository = "https://github.com/lilith-in-starlight/kismesis"
 [dependencies]
 colored = { version = "2.1.0", optional = true }
 extism = { version = "1.0.0", optional = true } 
+htmlize = "1.0.3"
 serde = { version = "1.0.195", features=["derive"], optional = true }
 serde_json = { version = "1.0.111", features = ["unbounded_depth"] , optional = true }
 termsize = { version = "0.1.6", optional = true }
