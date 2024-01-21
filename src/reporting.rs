@@ -42,8 +42,8 @@ impl ErrorKind for ReportingError {
 }
 
 impl<'a> DrawingInfo<'a> {
-	pub fn from(scope: KisID, engine: &'a Kismesis, kind: ReportKind) -> Option<Self> {
-		let scope = engine.get_file(scope)?;
+	pub fn from(scope: KisID, engine: &'a Kismesis, kind: ReportKind) -> Result<Self, ()> {
+		let scope = engine.get_file(scope).ok_or(())?;
 		let lines: Vec<&[Token]> = scope
 			.tokens
 			.split_inclusive(|x| matches!(x, Token::Newline(_)))
@@ -57,7 +57,7 @@ impl<'a> DrawingInfo<'a> {
 			}
 			out
 		};
-		Some(Self {
+		Ok(Self {
 			line_number_length: 3,
 			scope,
 			lines,
@@ -70,13 +70,13 @@ impl<'a> DrawingInfo<'a> {
 /// Returns a report with tokens in a file
 pub fn draw_error<T: ErrorKind + Debug>(
 	err: &ErrorState<T>,
-	info: &Option<DrawingInfo>,
+	info: &Result<DrawingInfo, ()>,
 	engine: &Kismesis,
 	depth: usize,
 ) -> String {
 	let info = match info.as_ref() {
-		Some(x) => x,
-		None => {
+		Ok(x) => x,
+		Err(_) => {
 			let err = ReportingError::InvalidKismesisID.stateless();
 			return draw_stateless_error(&err, ReportKind::Fatal, engine, depth + 1);
 		}
