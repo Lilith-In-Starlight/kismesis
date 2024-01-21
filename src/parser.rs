@@ -417,14 +417,14 @@ fn for_tag(state: ParserState) -> ParserResult<ForTag> {
 
 fn some_tag(state: ParserState) -> ParserResult<Tag> {
 	let parser = tag_opener.preceding(cut(after_spaces(
-		tag.map(Tag::Html)
-			.or(macro_call.map(Tag::MacroCall))
+			macro_call.map(Tag::MacroCall)
 			.or(macro_def.map(Tag::MacroDef))
 			.or(plug_call.map(Tag::PlugCall))
 			.or(content_macro.map(|_| Tag::Content))
 			.or(doctype.map(Tag::Doctype))
 			.or(if_tag.map(Tag::If))
 			.or(for_tag.map(Tag::For))
+			.or(tag.map(Tag::Html))
 			.followed_by(tag_closer),
 	)));
 
@@ -434,12 +434,12 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
 fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
 	let parser = tag_opener
 		.preceding(cut(after_spaces(
-			tag.map(|x| BodyTags::HtmlTag(x.merge_subtags()))
-				.or(macro_call.map(BodyTags::MacroCall))
+				macro_call.map(BodyTags::MacroCall)
 				.or(content_macro.map(|_| BodyTags::Content))
 				.or(if_tag.map(BodyTags::If))
 				.or(for_tag.map(BodyTags::For))
-				.followed_by(tag_closer),
+				.or(tag.map(|x| BodyTags::HtmlTag(x.merge_subtags())))
+				.followed_by(tag_closer)
 		)))
 		.or(section_block.map(|x| BodyTags::HtmlTag(x.into_tag())));
 
