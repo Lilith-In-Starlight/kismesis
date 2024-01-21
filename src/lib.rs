@@ -24,7 +24,7 @@ use parser::types::TextPos;
 use plugins::PluginInput;
 
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "plugins")]
 use serde::{Deserialize, Serialize};
 
 use self::parser::errors::ParseError;

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{errors::ErrorState, lexer::Token, Kismesis};
+use crate::{lexer::Token, Kismesis};
 
 use super::{errors::{ParseError, Err}, types::TextPos};
 

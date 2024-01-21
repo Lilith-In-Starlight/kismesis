@@ -5,10 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{KisID, KisTemplateID, Kismesis};
 
-use super::{
-	errors::{Err, Hintable, Hints, ParseError},
-	state::TokenPos,
-};
+use super::state::TokenPos;
 
 pub type Scoped<'a, T> = (T, KisID);
 pub type ScopedExpression<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, TextPos)>;
@@ -69,7 +66,7 @@ pub struct Section {
 }
 
 impl Section {
-	pub fn to_tag(self) -> HtmlTag {
+	pub fn into_tag(self) -> HtmlTag {
 		let mut tags = Vec::new();
 		let hstr = format!("h{}", self.depth.value);
 		let title = HtmlTag {
@@ -138,19 +135,6 @@ impl Section {
 			body: tags,
 			subtags: vec![],
 		}
-	}
-}
-
-/// Convert a free string of HTML nodes and text into a <p> tag
-pub fn paragraph_str_to_p(vec: Vec<HtmlNodes>) -> HtmlTag {
-	HtmlTag {
-		name: Ranged {
-			value: String::from("p"),
-			range: TextPos::Single(TokenPos::new()),
-		},
-		attributes: vec![],
-		body: vec,
-		subtags: vec![],
 	}
 }
 

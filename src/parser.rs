@@ -16,7 +16,7 @@ use self::errors::{Err, ParseError};
 use self::semantics::{VerifySemantics, Semantics};
 use self::state::ParserState;
 use self::types::{
-	paragraph_str_to_p, Argument, Attribute, BinFunc, BodyNodes, BodyTags, Expression, ForTag,
+	Argument, Attribute, BinFunc, BodyNodes, BodyTags, Expression, ForTag,
 	HtmlNodes, HtmlTag, IfTag, Lambda, Macro, ParsedFile, PlugCall, Ranged, Section, StringParts,
 	Tag, TopNodes, UniFunc, Variable, Paragraph,
 };
@@ -441,7 +441,7 @@ fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
 				.or(for_tag.map(BodyTags::For))
 				.followed_by(tag_closer),
 		)))
-		.or(section_block.map(|x| BodyTags::HtmlTag(x.to_tag())));
+		.or(section_block.map(|x| BodyTags::HtmlTag(x.into_tag())));
 
 	parser.parse(state)
 }
@@ -759,7 +759,7 @@ fn tag_body(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
 	let parser = skip_spaces().preceding(body_opener).preceding(
 		cut(skipped_blanks()).preceding(zero_or_more(
 			skip_newline_blanks()
-				.preceding(section_block.map(|x| HtmlNodes::HtmlTag(Section::to_tag(x))))
+				.preceding(section_block.map(|x| HtmlNodes::HtmlTag(Section::into_tag(x))))
 				.or(paragraph_string.map(|x| {
 					match (x.0.first().to_owned(), x.0.len()) {
 						(Some(HtmlNodes::String(_)),_) => HtmlNodes::Paragraph(x),
@@ -810,76 +810,6 @@ fn plugin_body(state: ParserState) -> ParserResult<Ranged<Vec<Token>>> {
 	let (_, state) = check_tag_mismatch.parse(state)?;
 
 	Err(ParseError::EndlessString.error_at(&state).cut())
-}
-fn string(mut state: ParserState) -> ParserResult<Vec<StringParts>> {
-	let mut output = Vec::<StringParts>::new();
-	let mut escape = false;
-	while let Some(token) = state.first_token() {
-		match token {
-			Token::Symbol(sym) if *sym == '@' && !escape => {
-				state = state.next_state();
-				let (val, next_state) = get_range(expression).parse(state)?;
-				output.push(StringParts::Expression(val));
-				state = next_state;
-			}
-			Token::Symbol(sym) if *sym == '<' && !escape => {
-				if !output.is_empty() {
-					return Ok((output, state));
-				} else {
-					return Err(ParseError::EmptyString.error_at(&state));
-				}
-			}
-			Token::Symbol(sym) if *sym == '>' && !escape => {
-				if !output.is_empty() {
-					return Ok((output, state));
-				} else {
-					return Err(ParseError::EmptyString.error_at(&state));
-				}
-			}
-			Token::Symbol(sym) if *sym == '\\' && !escape => {
-				escape = true;
-				state = state.next_state();
-			}
-			Token::Newline(_) => {
-				if !output.is_empty()
-					&& output.iter().all(|x| match x {
-						StringParts::Expression(_) => true,
-						StringParts::String(x) => x.chars().any(|x| !x.is_whitespace()),
-					}) {
-					return Ok((output, state));
-				} else {
-					return Err(ParseError::EmptyString.error_at(&state));
-				}
-			}
-			tok => match output.pop() {
-				Some(StringParts::String(mut string)) => {
-					tok.push_to_string(&mut string);
-					output.push(StringParts::String(string));
-					state = state.next_state();
-				}
-				Some(StringParts::Expression(var)) => {
-					output.push(StringParts::Expression(var));
-					output.push(StringParts::String(tok.get_as_string()));
-					state = state.next_state();
-				}
-				None => {
-					output.push(StringParts::String(tok.get_as_string()));
-					state = state.next_state();
-				}
-			},
-		}
-	}
-
-	let (_, state) = check_tag_mismatch.parse(state)?;
-	if !output.is_empty()
-		&& output.iter().all(|x| match x {
-			StringParts::Expression(_) => true,
-			StringParts::String(x) => x.chars().any(|x| !x.is_whitespace()),
-		}) {
-		Ok((output, state))
-	} else {
-		Err(ParseError::EmptyString.error_at(&state))
-	}
 }
 
 fn string_tagless_content<'a>() -> impl Parser<'a, StringParts> {
@@ -979,7 +909,7 @@ pub(crate) fn file(
 				.or(lambda_definition.map(BodyNodes::LambdaDef))
 				.or(variable_definition.map(BodyNodes::VarDef))
 				.or(set_stmt.map(|(x, y)| BodyNodes::SetStmt(x, y)))
-				.or(section_block.map(|x| BodyNodes::HtmlTag(Section::to_tag(x))))
+				.or(section_block.map(|x| BodyNodes::HtmlTag(Section::into_tag(x))))
 				.or(paragraph_string
 					.map(BodyNodes::Paragraph)),
 		),
