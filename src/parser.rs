@@ -4,10 +4,7 @@ pub mod errors;
 pub(crate) mod state;
 pub(crate) mod types;
 
-use combinators::{
-	and_also, and_maybe, change_err, cut, dbg, followed_by, get_range, ignore, is, map, maybe, maybe_until,
-	not, or, peek, preceding, repeated, zero_or_more
-};
+use combinators::*;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
@@ -248,7 +245,7 @@ fn set_stmt(state: ParserState) -> ParserResult<(String, String)> {
 		Ok(((name, value), next_state)) => {
 			let value = {
 				let mut output = Vec::new();
-				for part in &value {
+				for part in value.iter() {
 					match part {
 						StringParts::String(x) => output.push(x.clone()),
 						StringParts::Expression(_) => {
@@ -295,7 +292,7 @@ fn expr_array(state: ParserState) -> ParserResult<Expression> {
 	.and_maybe(get_range(expression))
 	.map(|(mut vec, maybe)| {
 		if let Some(last) = maybe {
-			vec.push(last);
+			vec.push(last)
 		}
 		vec
 	})
@@ -396,7 +393,7 @@ fn lambda_definition(state: ParserState) -> ParserResult<Lambda> {
 fn if_tag(state: ParserState) -> ParserResult<IfTag> {
 	let parser = specific_literal("if")
 		.preceding(after_spaces(get_range(expression)))
-		.and_also(maybe(tag_body).map(Option::unwrap_or_default))
+		.and_also(maybe(tag_body).map(|x| x.unwrap_or_default()))
 		.map(|(condition, body)| IfTag { condition, body });
 
 	parser.parse(state)
@@ -407,7 +404,7 @@ fn for_tag(state: ParserState) -> ParserResult<ForTag> {
 		cut(after_spaces(get_range(literal)))
 			.followed_by(after_spaces(specific_literal("in")))
 			.and_also(after_spaces(get_range(expression)))
-			.and_also(maybe(tag_body).map(Option::unwrap_or_default))
+			.and_also(maybe(tag_body).map(|x| x.unwrap_or_default()))
 			.map(|((variable, iterator), body)| ForTag {
 				variable: variable.to_own(),
 				iterator,
@@ -423,7 +420,7 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
 			macro_call.map(Tag::MacroCall)
 			.or(macro_def.map(Tag::MacroDef))
 			.or(plug_call.map(Tag::PlugCall))
-			.or(content_macro.map(|()| Tag::Content))
+			.or(content_macro.map(|_| Tag::Content))
 			.or(doctype.map(Tag::Doctype))
 			.or(if_tag.map(Tag::If))
 			.or(for_tag.map(Tag::For))
@@ -438,7 +435,7 @@ fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
 	let parser = tag_opener
 		.preceding(cut(after_spaces(
 				macro_call.map(BodyTags::MacroCall)
-				.or(content_macro.map(|()| BodyTags::Content))
+				.or(content_macro.map(|_| BodyTags::Content))
 				.or(if_tag.map(BodyTags::If))
 				.or(for_tag.map(BodyTags::For))
 				.or(tag.map(|x| BodyTags::HtmlTag(x.merge_subtags())))
@@ -512,7 +509,7 @@ fn content_macro(state: ParserState<'_>) -> ParserResult<'_, ()> {
 fn doctype(state: ParserState<'_>) -> ParserResult<'_, String> {
 	specific_symbol('!')
 		.preceding(cut(after_spaces(specific_literal("doctype"))
-			.preceding(after_spaces(literal.map(ToString::to_string)))))
+			.preceding(after_spaces(literal.map(|x| x.to_string())))))
 		.parse(state)
 }
 
@@ -701,7 +698,7 @@ fn plugin_head(state: ParserState) -> ParserResult<(Ranged<String>, Ranged<Vec<T
 		}
 	}
 
-	let ((), state) = check_tag_mismatch.parse(state)?;
+	let (_, state) = check_tag_mismatch.parse(state)?;
 
 	Err(ParseError::EndlessString.error_at(&state).cut())
 }
@@ -764,13 +761,13 @@ fn tag_body(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
 			skip_newline_blanks()
 				.preceding(section_block.map(|x| HtmlNodes::HtmlTag(Section::into_tag(x))))
 				.or(paragraph_string.map(|x| {
-					match (x.0.first(), x.0.len()) {
+					match (x.0.first().to_owned(), x.0.len()) {
 						(Some(HtmlNodes::String(_)),_) => HtmlNodes::Paragraph(x),
 						(Some(x), 1) => x.clone(),
 						_ => HtmlNodes::Paragraph(x),
 					}
 				}))
-				.or(skipped_blanks().preceding(some_child_tag.map(Into::into))),
+				.or(skipped_blanks().preceding(some_child_tag.map(|x| x.into()))),
 		)),
 	);
 
@@ -810,7 +807,7 @@ fn plugin_body(state: ParserState) -> ParserResult<Ranged<Vec<Token>>> {
 		}
 	}
 
-	let ((), state) = check_tag_mismatch.parse(state)?;
+	let (_, state) = check_tag_mismatch.parse(state)?;
 
 	Err(ParseError::EndlessString.error_at(&state).cut())
 }
@@ -842,7 +839,7 @@ fn attr_string(state: ParserState) -> ParserResult<Vec<StringParts>> {
 fn paragraph_string(state: ParserState) -> ParserResult<Paragraph> {
 	let inside = string_tagless
 		.map(HtmlNodes::String)
-		.or(some_child_tag.map(Into::into));
+		.or(some_child_tag.map(|x| x.into()));
 
 	let terminator = ignore(newline)
 		.or(not(any))
@@ -908,7 +905,7 @@ pub(crate) fn file(
 	let parser = zero_or_more(
 		skipped_blanks().preceding(
 			some_tag
-				.map(Into::into)
+				.map(|x| x.into())
 				.or(lambda_definition.map(BodyNodes::LambdaDef))
 				.or(variable_definition.map(BodyNodes::VarDef))
 				.or(set_stmt.map(|(x, y)| BodyNodes::SetStmt(x, y)))

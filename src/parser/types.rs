@@ -105,7 +105,7 @@ impl Section {
 		let mut content = Vec::new();
 
 		for x in self.content {
-			match (x.0.first(), x.0.len()) {
+			match (x.0.first().to_owned(), x.0.len()) {
 				(_, 2..) | (Some(HtmlNodes::String(_)), _) => {
 					let x = HtmlTag {
 						name: Ranged {
@@ -258,12 +258,13 @@ impl ParsedFile {
 		self.defined_macros.iter().rfind(&predicate).or(self
 			.template
 			.as_ref()
-			.and_then(|x| {
+			.map(|x| {
 				engine
 					.get_template(x.clone())
 					.unwrap()
 					.get_macro_template(engine, &predicate)
-			}))
+			})
+			.unwrap_or(None))
 	}
 
 	pub fn get_path_slice<'a>(&'a self, engine: &'a Kismesis) -> Option<&Path> {
@@ -275,13 +276,13 @@ impl ParsedFile {
 		engine: &'a Kismesis,
 		predicate: &str,
 	) -> VariableOption<&Ranged<Expression>> {
-		for var in &self.defined_variables {
+		for var in self.defined_variables.iter() {
 			if var.name.value == predicate {
 				return VariableOption::Some(&var.value);
 			}
 		}
 
-		for var in &self.defined_lambdas {
+		for var in self.defined_lambdas.iter() {
 			if var.name.value == predicate {
 				match var.value {
 					Some(ref value) => return VariableOption::Some(value),
@@ -307,7 +308,7 @@ impl ParsedFile {
 					.get_template(template.clone())
 					.unwrap()
 					.get_macro_scope(engine),
-			);
+			)
 		}
 
 		output.extend(
@@ -332,17 +333,12 @@ impl ParsedFile {
 					.get_template(template.clone())
 					.unwrap()
 					.get_variable_scope(&[], engine),
-			);
+			)
 		}
 
 		out.extend(self.defined_lambdas.iter().map(|x| {
-			if sub_scope.is_empty() {
-				(
-					x.name.value.clone(),
-					((x.value.as_ref(), x.name.range.clone()), self.file_id),
-				)
-			} else {
-				for scope in sub_scope {
+			if !sub_scope.is_empty() {
+				for scope in sub_scope.iter() {
 					let find = scope
 						.defined_variables
 						.iter()
@@ -354,6 +350,11 @@ impl ParsedFile {
 						);
 					}
 				}
+				(
+					x.name.value.clone(),
+					((x.value.as_ref(), x.name.range.clone()), self.file_id),
+				)
+			} else {
 				(
 					x.name.value.clone(),
 					((x.value.as_ref(), x.name.range.clone()), self.file_id),
@@ -591,7 +592,6 @@ impl Macro {
 }
 
 impl HtmlTag {
-	#[must_use]
 	/// Turn all subtags into regular HTML tags
 	pub fn merge_subtags(mut self) -> Self {
 		let mut subtag_stack = self.subtags;
