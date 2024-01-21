@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-	parser::types::ParsedFile,
+	parser::types::{ParsedFile, Paragraph},
 	{KisID, Kismesis},
 };
 
@@ -91,6 +91,7 @@ struct GenerationState<'a> {
 	macro_templates: HashMap<String, Scoped<'a, &'a Macro>>,
 	indent: usize,
 	scope: KisID,
+	force_inline: bool,
 }
 
 type ValueRef<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, TextPos)>;
@@ -110,6 +111,7 @@ impl<'a> GenerationState<'a> {
 			macro_templates: file.get_macro_scope(engine),
 			indent: 0,
 			scope: file.file_id,
+			force_inline: false,
 		}
 	}
 }
@@ -195,6 +197,53 @@ fn parse_node<'a>(
 			htmlo.push_string(format!("<!DOCTYPE {}>", string));
 			Ok(htmlo)
 		}
+		TopNodes::Paragraph(paragraph) => top_paragraph(paragraph,state),
+	}
+}
+
+fn top_paragraph<'a>(paragraph: &'a Paragraph, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
+	let mut output = HtmlOutput::new();
+	let mut errors = vec![];
+	output.push_string(make_indents(state.indent));
+	output.push_string("<p>");
+	let state = &GenerationState {
+		indent: state.indent,
+		force_inline: true,
+		..state.clone()
+	};
+	for child in paragraph.0.iter() {
+		match parse_html_child(child, state) {
+			Ok(mut string) => output.push_output(&mut string),
+			Err(mut error) => errors.append(&mut error),
+		}
+	}
+	output.push_string("</p>");
+	if errors.is_empty() {
+		Ok(output)
+	} else {
+		Err(errors)
+	}
+}
+
+fn child_paragraph<'a>(paragraph: &'a Paragraph, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
+	let mut output = HtmlOutput::new();
+	let mut errors = vec![];
+	output.push_string(make_indents(state.indent));
+	let state = &GenerationState {
+		indent: state.indent,
+		force_inline: true,
+		..state.clone()
+	};
+	for child in paragraph.0.iter() {
+		match parse_html_child(child, state) {
+			Ok(mut string) => output.push_output(&mut string),
+			Err(mut error) => errors.append(&mut error),
+		}
+	}
+	if errors.is_empty() {
+		Ok(output)
+	} else {
+		Err(errors)
 	}
 }
 
@@ -288,6 +337,7 @@ fn parse_html_child<'a>(
 			}
 			Err(x) => Err(x),
 		},
+		HtmlNodes::Paragraph(paragraph) => child_paragraph(paragraph, state),
 	}
 }
 
@@ -389,7 +439,7 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, H
 	}
 
 	if state.options.has_body(&tag.name.value) {
-		let mut inline = state.options.is_inline(&tag.name.value) || tag.body.is_empty();
+		let mut inline = state.options.is_inline(&tag.name.value) || tag.body.is_empty() || state.force_inline;
 		for child in tag.body.iter() {
 			match child {
 				HtmlNodes::HtmlTag(x) => {

@@ -63,9 +63,9 @@ pub struct Macro {
 /// A part of the document denotated by a heading and some content
 pub struct Section {
 	pub depth: Ranged<usize>,
-	pub name: Ranged<Vec<StringParts>>,
-	pub subtitle: Option<Ranged<Vec<StringParts>>>,
-	pub content: Vec<Vec<HtmlNodes>>,
+	pub name: Ranged<Paragraph>,
+	pub subtitle: Option<Ranged<Paragraph>>,
+	pub content: Vec<Paragraph>,
 }
 
 impl Section {
@@ -78,7 +78,7 @@ impl Section {
 				range: self.depth.range,
 			},
 			attributes: vec![],
-			body: vec![HtmlNodes::String(self.name.value)],
+			body: vec![HtmlNodes::Paragraph(self.name.value)],
 			subtags: vec![],
 		};
 		let header = match self.subtitle {
@@ -89,7 +89,7 @@ impl Section {
 						range: subtitle.range,
 					},
 					attributes: vec![],
-					body: vec![HtmlNodes::String(subtitle.value)],
+					body: vec![HtmlNodes::Paragraph(subtitle.value)],
 					subtags: vec![],
 				};
 				HtmlTag {
@@ -108,7 +108,7 @@ impl Section {
 		let mut content = Vec::new();
 
 		for x in self.content {
-			match (x.first().to_owned(), x.len()) {
+			match (x.0.first().to_owned(), x.0.len()) {
 				(Some(HtmlNodes::String(_)), 1) | (Some(_), 2..) => {
 					let r = HtmlTag {
 						name: Ranged {
@@ -116,7 +116,7 @@ impl Section {
 							range: TextPos::Single(TokenPos::new()),
 						},
 						attributes: vec![],
-						body: x,
+						body: x.0,
 						subtags: vec![],
 					};
 					content.push(HtmlNodes::HtmlTag(r));
@@ -171,8 +171,13 @@ pub enum HtmlNodes {
 	PlugCall(Box<PlugCall>),
 	If(IfTag),
 	For(ForTag),
+	Paragraph(Paragraph),
 	Content,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Paragraph(pub Vec<HtmlNodes>);
 
 #[derive(Debug, Clone, PartialEq)]
 /// All AST nodes that can be at the topmost level of a file
@@ -184,6 +189,7 @@ pub enum TopNodes {
 	Doctype(String),
 	If(IfTag),
 	For(ForTag),
+	Paragraph(Paragraph),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -224,6 +230,7 @@ pub enum BodyNodes {
 	Doctype(String),
 	If(IfTag),
 	For(ForTag),
+	Paragraph(Paragraph),
 }
 
 #[derive(Debug, Clone, PartialEq)]

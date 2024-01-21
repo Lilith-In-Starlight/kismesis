@@ -18,7 +18,7 @@ use self::state::ParserState;
 use self::types::{
 	paragraph_str_to_p, Argument, Attribute, BinFunc, BodyNodes, BodyTags, Expression, ForTag,
 	HtmlNodes, HtmlTag, IfTag, Lambda, Macro, ParsedFile, PlugCall, Ranged, Section, StringParts,
-	Tag, TopNodes, UniFunc, Variable,
+	Tag, TopNodes, UniFunc, Variable, Paragraph,
 };
 
 use super::errors::ErrorState;
@@ -465,7 +465,7 @@ fn tag(state: ParserState<'_>) -> ParserResult<'_, HtmlTag> {
 fn section_block(state: ParserState) -> ParserResult<Section> {
 	let ((depth, title), state) = get_range(repeated(specific_symbol('#'), 1..))
 		.map(|x| Ranged { range: x.range, value: x.value.len() })
-		.and_also(cut(after_spaces(get_range(string))))
+		.and_also(cut(after_spaces(get_range(paragraph_string))))
 		.parse(state)?;
 	if depth.value < state.section_depth + 1 {
 		return Err(ParseError::WronglyNestedSection.error_at(&state));
@@ -474,7 +474,7 @@ fn section_block(state: ParserState) -> ParserResult<Section> {
 		skipped_blanks().preceding(
 			specific_symbol('#')
 				.preceding(specific_symbol(':'))
-				.preceding(cut(after_spaces(get_range(string)))),
+				.preceding(cut(after_spaces(get_range(paragraph_string)))),
 		),
 	)
 	.parse(state)?;
@@ -483,7 +483,7 @@ fn section_block(state: ParserState) -> ParserResult<Section> {
 
 	let (content, state) = zero_or_more(after_blanks(
 		some_child_tag
-			.map(|x| vec![x.into()])
+			.map(|x| Paragraph(vec![x.into()]))
 			.or(not(peek(specific_symbol('#'))).preceding(paragraph_string)),
 	))
 	.parse(state)?;
@@ -900,7 +900,7 @@ fn attr_string(state: ParserState) -> ParserResult<Vec<StringParts>> {
 	parser.parse(state)
 }
 
-fn paragraph_string(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
+fn paragraph_string(state: ParserState) -> ParserResult<Paragraph> {
 	let inside = string_tagless
 		.map(HtmlNodes::String)
 		.or(some_child_tag.map(|x| x.into()));
@@ -909,7 +909,8 @@ fn paragraph_string(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
 		.or(not(any))
 		.or(ignore(tag_closer));
 
-	after_blanks(inside.maybe_until(terminator)).parse(state)
+	after_blanks(inside.maybe_until(terminator))
+		.map(|x| Paragraph(x)).parse(state)
 }
 
 fn subtag(state: ParserState) -> ParserResult<HtmlTag> {
@@ -974,8 +975,7 @@ pub(crate) fn file(
 				.or(set_stmt.map(|(x, y)| BodyNodes::SetStmt(x, y)))
 				.or(section_block.map(|x| BodyNodes::HtmlTag(Section::to_tag(x))))
 				.or(paragraph_string
-					.map(paragraph_str_to_p)
-					.map(BodyNodes::HtmlTag)),
+					.map(BodyNodes::Paragraph)),
 		),
 	)
 	.followed_by(check_tag_mismatch)
@@ -1020,6 +1020,7 @@ pub(crate) fn file(
 			BodyNodes::Doctype(x) => output.body.push(TopNodes::Doctype(x)),
 			BodyNodes::If(x) => output.body.push(TopNodes::If(x)),
 			BodyNodes::For(x) => output.body.push(TopNodes::For(x)),
+			BodyNodes::Paragraph(x) => output.body.push(TopNodes::Paragraph(x)),
 			BodyNodes::SetStmt(config, value) => match config.as_str() {
 				"template" => {
 					let mut value = PathBuf::from(value);

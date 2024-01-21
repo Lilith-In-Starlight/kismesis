@@ -184,7 +184,7 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
-			Self::HeaderNotAllowedHere => format!("Headers are not allowed outside sections").into(),
+			Self::HeaderNotAllowedHere => "Headers are not allowed outside sections".into(),
 			Self::SkippedHeadingLevel(expected) => format!("Skipped heading level - expected {}", expected),
 			Self::IncorrectHeaderNumber => "Headers can only go from 1 up to 6".to_string(),
 			Self::IncorrectChild(parent) => {
