@@ -508,6 +508,7 @@ fn attribute_string<'a>(
 			Ok(value_string) => {
 				let string =
 					value_string.to_string(attr.value.range.clone(), state.scope, state)?;
+				let string = escape_all_quotes(string).to_string();
 				output.push_str(&format!("{}='{}'", attr.name.value, string))
 			}
 			Err(mut error) => errors.append(&mut error),
