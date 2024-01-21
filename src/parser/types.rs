@@ -109,20 +109,20 @@ impl Section {
 
 		for x in self.content {
 			match (x.0.first().to_owned(), x.0.len()) {
-				(Some(HtmlNodes::String(_)), 1) | (Some(_), 2..) => {
-					let r = HtmlTag {
+				(_, 2..) | (Some(HtmlNodes::String(_)), _) => {
+					let x = HtmlTag {
 						name: Ranged {
-							value: String::from("p"),
-							range: TextPos::Single(TokenPos::new()),
+							value: "p".to_string(),
+							range: TextPos::Single(TokenPos::default()),
 						},
 						attributes: vec![],
-						body: x.0,
 						subtags: vec![],
+						body: vec![HtmlNodes::Paragraph(Paragraph(x.0))],
 					};
-					content.push(HtmlNodes::HtmlTag(r));
+					content.push(HtmlNodes::HtmlTag(x));
 				}
 				(Some(x), 1) => content.push(x.clone()),
-				_ => continue,
+				_ => content.push(HtmlNodes::Paragraph(x)),
 			}
 		}
 

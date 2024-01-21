@@ -207,7 +207,7 @@ fn top_paragraph<'a>(paragraph: &'a Paragraph, state: &GenerationState<'a>) -> C
 	output.push_string(make_indents(state.indent));
 	output.push_string("<p>");
 	let state = &GenerationState {
-		indent: state.indent,
+		indent: 0,
 		force_inline: true,
 		..state.clone()
 	};
@@ -230,7 +230,7 @@ fn child_paragraph<'a>(paragraph: &'a Paragraph, state: &GenerationState<'a>) ->
 	let mut errors = vec![];
 	output.push_string(make_indents(state.indent));
 	let state = &GenerationState {
-		indent: state.indent,
+		indent: 0,
 		force_inline: true,
 		..state.clone()
 	};
@@ -423,8 +423,10 @@ fn plug_call<'a>(plugin: &'a PlugCall, state: &GenerationState) -> CompileResult
 fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
 	let mut errors = Vec::new();
 	let mut output = HtmlOutput::new();
-	for _ in 0..state.indent {
-		output.push_string('\t');
+	if !state.force_inline {
+		for _ in 0..state.indent {
+			output.push_string('\t');
+		}
 	}
 	output.push_string('<');
 	output.push_string(&tag.name.value);
@@ -440,22 +442,23 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, H
 
 	if state.options.has_body(&tag.name.value) {
 		let mut inline = state.options.is_inline(&tag.name.value) || tag.body.is_empty() || state.force_inline;
-		for child in tag.body.iter() {
-			match child {
-				HtmlNodes::HtmlTag(x) => {
-					if !state.options.is_inline(&x.name.value) {
+		if inline && !state.force_inline {
+			for child in tag.body.iter() {
+				match child {
+					HtmlNodes::HtmlTag(x) => {
+						if !state.options.is_inline(&x.name.value) {
+							inline = false;
+							break;
+						}
+					}
+					HtmlNodes::MacroCall(_) | HtmlNodes::PlugCall(_) => {
 						inline = false;
 						break;
 					}
+					_ => continue,
 				}
-				HtmlNodes::MacroCall(_) | HtmlNodes::PlugCall(_) => {
-					inline = false;
-					break;
-				}
-				_ => continue,
 			}
 		}
-
 		let mut new_state = state.clone();
 
 		if !inline {

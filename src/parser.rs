@@ -760,7 +760,13 @@ fn tag_body(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
 		cut(skipped_blanks()).preceding(zero_or_more(
 			skip_newline_blanks()
 				.preceding(section_block.map(|x| HtmlNodes::HtmlTag(Section::to_tag(x))))
-				.or(string_tagless.map(HtmlNodes::String))
+				.or(paragraph_string.map(|x| {
+					match (x.0.first().to_owned(), x.0.len()) {
+						(Some(HtmlNodes::String(_)),_) => HtmlNodes::Paragraph(x),
+						(Some(x), 1) => x.clone(),
+						_ => HtmlNodes::Paragraph(x),
+					}
+				}))
 				.or(skipped_blanks().preceding(some_child_tag.map(|x| x.into()))),
 		)),
 	);
@@ -910,7 +916,7 @@ fn paragraph_string(state: ParserState) -> ParserResult<Paragraph> {
 		.or(ignore(tag_closer));
 
 	after_blanks(inside.maybe_until(terminator))
-		.map(|x| Paragraph(x)).parse(state)
+		.map(Paragraph).parse(state)
 }
 
 fn subtag(state: ParserState) -> ParserResult<HtmlTag> {

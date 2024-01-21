@@ -336,6 +336,7 @@ pub mod pdk {
 	pub use super::parser::types::Ranged;
 	pub use super::parser::types::Section;
 	pub use super::parser::types::TextPos;
+	pub use super::parser::types::Paragraph;
 
 	pub use super::plugins::PluginInput;
 	pub use super::PluginParseError as PluginError;
