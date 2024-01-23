@@ -425,6 +425,7 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
 			.or(if_tag.map(Tag::If))
 			.or(for_tag.map(Tag::For))
 			.or(tag.map(Tag::Html))
+			.set_err(|| ParseError::ExpectedSpecifierOrTag).dbg()
 			.followed_by(tag_closer),
 	)));
 
@@ -439,6 +440,7 @@ fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
 				.or(if_tag.map(BodyTags::If))
 				.or(for_tag.map(BodyTags::For))
 				.or(tag.map(|x| BodyTags::HtmlTag(x.merge_subtags())))
+				.set_err(|| ParseError::ExpectedSpecifierOrTag)
 				.followed_by(tag_closer)
 		)))
 		.or(section_block.map(|x| BodyTags::HtmlTag(x.into_tag())));

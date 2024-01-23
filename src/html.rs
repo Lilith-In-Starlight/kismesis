@@ -21,53 +21,79 @@ use super::{
 type CompileResult<'a, T> = Result<T, Vec<ScopedError<CompilerError>>>;
 
 #[derive(Clone, Debug)]
-enum OutputTypes {
+pub enum MaybeHtml {
 	ContentMark(usize),
 	Html(String),
 }
 
+impl MaybeHtml {
+	fn merge(self, output: &HtmlOutput) -> Vec<MaybeHtml> {
+		match self {
+			MaybeHtml::ContentMark(indents) => {
+				let mut out = Vec::new();
+				let mut is_first_text = true;
+				for part in output.parts.iter() {
+					match part.clone() {
+						MaybeHtml::ContentMark(x) => {
+							out.push(MaybeHtml::ContentMark(x + 1))
+						}
+						MaybeHtml::Html(mut output_string) => {
+							if is_first_text {
+								output_string =
+									format!("{}{}", make_indents(indents), output_string);
+								is_first_text = false;
+							}
+							let output_string = output_string
+								.replace('\n', &format!("\n{}", make_indents(indents)));
+							out.push(MaybeHtml::Html(output_string));
+						}
+					}
+				}
+				out
+			}
+			x => vec![x],
+		}
+	}
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct HtmlOutput {
-	val: Vec<OutputTypes>,
+	parts: Vec<MaybeHtml>,
 }
 
 impl HtmlOutput {
 	pub fn new() -> Self {
-		Self { val: Vec::new() }
+		Self { parts: Vec::new() }
 	}
-	pub fn new_content(indents: usize) -> Self {
+	pub fn new_with_content(indents: usize) -> Self {
 		Self {
-			val: vec![OutputTypes::ContentMark(indents)],
+			parts: vec![MaybeHtml::ContentMark(indents)],
 		}
 	}
 	pub fn is_empty(&self) -> bool {
-		self.val.is_empty()
+		self.parts.is_empty()
 	}
 	fn push_string<T>(&mut self, new: T)
 	where
 		T: Into<String>,
 	{
-		let new = new.into();
-		let Some(top) = self.val.last_mut() else {
-			self.val.push(OutputTypes::Html(new));
-			return;
-		};
-		match top {
-			OutputTypes::Html(ref mut old_string) => old_string.push_str(&new),
-			_ => self.val.push(OutputTypes::Html(new)),
+		let appended_string = new.into();
+		match self.parts.last_mut() {
+			Some(MaybeHtml::Html(old_string)) => old_string.push_str(&appended_string),
+			_ => self.parts.push(MaybeHtml::Html(appended_string))
 		}
 	}
 
 	fn push_output(&mut self, new: &mut HtmlOutput) {
-		self.val.append(&mut new.val)
+		self.parts.append(&mut new.parts)
 	}
 
 	pub fn to_string_forced(&self) -> String {
 		let mut output = String::new();
-		for x in self.val.iter() {
-			match x {
-				OutputTypes::ContentMark(_) => output.push_str("<content!>"),
-				OutputTypes::Html(string) => output.push_str(string),
+		for part in &self.parts {
+			match part {
+				MaybeHtml::ContentMark(_) => output.push_str("<content!>"),
+				MaybeHtml::Html(string) => output.push_str(string),
 			}
 		}
 		output
@@ -75,14 +101,15 @@ impl HtmlOutput {
 
 	pub fn to_string(&self) -> Result<String, CompilerError> {
 		let mut output = String::new();
-		for x in self.val.iter() {
-			match x {
-				OutputTypes::ContentMark(_) => return Err(CompilerError::ContentTagInOutput),
-				OutputTypes::Html(string) => output.push_str(string),
+		for part in self.parts.iter() {
+			match part {
+				MaybeHtml::ContentMark(_) => return Err(CompilerError::ContentTagInOutput),
+				MaybeHtml::Html(string) => output.push_str(string),
 			}
 		}
 		Ok(output)
 	}
+
 }
 
 #[derive(Clone)]
@@ -148,34 +175,10 @@ pub fn generate_html<'a>(
 		let mut next_scopes = sub_scopes;
 		next_scopes.push(file);
 		let template_output = generate_html(template, next_scopes, options, engine)?;
-		output.val = template_output
-			.val
+		output.parts = template_output
+			.parts
 			.into_iter()
-			.flat_map(|x| match x {
-				OutputTypes::ContentMark(indents) => {
-					let mut out = Vec::new();
-					let mut is_first_text = true;
-					for x in output.val.iter() {
-						match x.clone() {
-							OutputTypes::ContentMark(x) => {
-								out.push(OutputTypes::ContentMark(x + 1))
-							}
-							OutputTypes::Html(mut output_string) => {
-								if is_first_text {
-									output_string =
-										format!("{}{}", make_indents(indents), output_string);
-									is_first_text = false;
-								}
-								let output_string = output_string
-									.replace('\n', &format!("\n{}", make_indents(indents)));
-								out.push(OutputTypes::Html(output_string));
-							}
-						}
-					}
-					out
-				}
-				x => vec![x],
-			})
+			.flat_map(|x| x.merge(&output))
 			.collect();
 	}
 
@@ -190,7 +193,7 @@ fn parse_node<'a>(
 		TopNodes::HtmlTag(t) => tag(t, state),
 		TopNodes::MacroCall(t) => mac_call(t, state),
 		TopNodes::PlugCall(t) => plug_call(t, state),
-		TopNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
+		TopNodes::Content => Ok(HtmlOutput::new_with_content(state.indent)),
 		TopNodes::If(x) => if_tag(x, state),
 		TopNodes::For(x) => for_tag(x, state),
 		TopNodes::Doctype(string) => {
@@ -325,13 +328,13 @@ fn parse_html_child<'a>(
 		HtmlNodes::HtmlTag(t) => tag(t, state),
 		HtmlNodes::MacroCall(t) => mac_call(t, state),
 		HtmlNodes::PlugCall(t) => plug_call(t, state),
-		HtmlNodes::Content => Ok(HtmlOutput::new_content(state.indent)),
+		HtmlNodes::Content => Ok(HtmlOutput::new_with_content(state.indent)),
 		HtmlNodes::If(t) => if_tag(t, state),
 		HtmlNodes::For(t) => for_tag(t, state),
 		HtmlNodes::String(t) => match parse_kis_string(t, state) {
 			Ok(x) => {
 				let mut a = HtmlOutput {
-					val: vec![OutputTypes::Html(make_indents(state.indent))],
+					parts: vec![MaybeHtml::Html(make_indents(state.indent))],
 				};
 				let x = escape_all_quotes(x).to_string();
 				a.push_string(x);

@@ -259,6 +259,7 @@ fn draw_line<T: ErrorKind>(
 	};
 
 	let initial_spaces = error_line.clone();
+	let mut error_spaces = String::new();
 
 	if let Some(line) = info.lines.get(line_number) {
 		let mut char_idx: usize = 0;
@@ -287,6 +288,9 @@ fn draw_line<T: ErrorKind>(
 			}
 			output.push_str(&tkstr);
 			let char = if token_pos.is_in(&err.text_position) {
+				if error_spaces.is_empty() {
+					error_spaces.push_str(&error_line)
+				}
 				'^'
 			} else {
 				' '
@@ -297,7 +301,7 @@ fn draw_line<T: ErrorKind>(
 					let text = err
 						.error
 						.get_text()
-						.replace('\n', &format!("\n{}", &initial_spaces));
+						.replace('\n', &format!("\n  {}", &error_spaces));
 					error_line.push_str(&format!(" {}", text));
 				} else {
 					error_line.push_str(" Error happened here");

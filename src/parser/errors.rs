@@ -10,6 +10,7 @@ use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+	ExpectedSpecifierOrTag,
 	HeaderNotAllowedHere,
 	SkippedHeadingLevel(usize),
 	IncorrectHeaderNumber,
@@ -184,6 +185,8 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
+			Self::ExpectedSpecifierOrTag => 
+				"Expected one of the following:\n - tag specifier (`?` `!`)\n - tag composition (`+`)\n - parameters\n - tag body starter (`|` `:`)".into(),
 			Self::HeaderNotAllowedHere => "Headers are not allowed outside sections".into(),
 			Self::SkippedHeadingLevel(expected) => format!("Skipped heading level - expected {}", expected),
 			Self::IncorrectHeaderNumber => "Headers can only go from 1 up to 6".to_string(),
