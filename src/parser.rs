@@ -683,6 +683,7 @@ fn plugin_head(state: ParserState) -> ParserResult<(Ranged<String>, Ranged<Vec<T
 			}
 			Token::Newline(_) => return Err(ParseError::ExpectedBodyOpener.error_at(&state)),
 			tok => {
+				escape = false;
 				tokens.push(tok.clone());
 				state = state.next_state();
 			}
@@ -790,6 +791,7 @@ fn plugin_body(state: ParserState) -> ParserResult<Ranged<Vec<Token>>> {
 				));
 			}
 			tok => {
+				escape = false;
 				tokens.push(tok.clone());
 				state = state.next_state();
 			}
