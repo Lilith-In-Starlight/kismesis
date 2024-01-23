@@ -667,7 +667,7 @@ fn plugin_head(state: ParserState) -> ParserResult<(Ranged<String>, Ranged<Vec<T
 				escape = true;
 				state = state.next_state();
 			}
-			Token::Symbol(x) if !escape && (x == &'>' || x == &'|') => {
+			Token::Symbol(x) if !escape && (x == &'>' || x == &'|' || x == &':') => {
 				let end = state.position;
 				return Ok((
 					(
@@ -680,19 +680,7 @@ fn plugin_head(state: ParserState) -> ParserResult<(Ranged<String>, Ranged<Vec<T
 					state,
 				));
 			}
-			Token::Newline(_) => {
-				let end = state.position;
-				return Ok((
-					(
-						name.to_own(),
-						Ranged {
-							value: tokens,
-							range: types::TextPos::Range((start, end)),
-						},
-					),
-					state,
-				));
-			}
+			Token::Newline(_) => return Err(ParseError::ExpectedBodyOpener.error_at(&state)),
 			tok => {
 				tokens.push(tok.clone());
 				state = state.next_state();
