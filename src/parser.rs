@@ -419,7 +419,7 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
 	let parser = tag_opener.preceding(cut(after_spaces(
 			macro_call.map(Tag::MacroCall)
 			.or(macro_def.map(Tag::MacroDef))
-			.or(plug_call.map(Tag::PlugCall).dbg())
+			.or(plug_call.map(Tag::PlugCall))
 			.or(content_macro.map(|_| Tag::Content))
 			.or(doctype.map(Tag::Doctype))
 			.or(if_tag.map(Tag::If))
@@ -436,6 +436,7 @@ fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
 	let parser = tag_opener
 		.preceding(cut(after_spaces(
 				macro_call.map(BodyTags::MacroCall)
+				.or(plug_call.map(BodyTags::PlugCall))
 				.or(content_macro.map(|_| BodyTags::Content))
 				.or(if_tag.map(BodyTags::If))
 				.or(for_tag.map(BodyTags::For))
@@ -688,8 +689,6 @@ fn plugin_head(state: ParserState) -> ParserResult<(Ranged<String>, Ranged<Vec<T
 		}
 	}
 
-	let (_, state) = check_tag_mismatch.parse(state)?;
-
 	Err(ParseError::EndlessString.error_at(&state).cut())
 }
 
@@ -796,8 +795,6 @@ fn plugin_body(state: ParserState) -> ParserResult<Ranged<Vec<Token>>> {
 			}
 		}
 	}
-
-	let (_, state) = check_tag_mismatch.parse(state)?;
 
 	Err(ParseError::EndlessString.error_at(&state).cut())
 }
