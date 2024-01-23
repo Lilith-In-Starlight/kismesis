@@ -35,7 +35,7 @@ impl MaybeHtml {
 				for part in output.parts.iter() {
 					match part.clone() {
 						MaybeHtml::ContentMark(x) => {
-							out.push(MaybeHtml::ContentMark(x + 1))
+							out.push(MaybeHtml::ContentMark(x + indents))
 						}
 						MaybeHtml::Html(mut output_string) => {
 							if is_first_text {
@@ -388,6 +388,20 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 		return Err(errors);
 	}
 
+	let mut inner_body = HtmlOutput::new();
+	for child in &mac.body {
+		if !inner_body.is_empty() {
+			inner_body.push_string('\n');
+			for _ in 0..state.indent {
+				inner_body.push_string('\t');
+			}
+		}
+		match parse_html_child(child, &new_state) {
+			Ok(mut string) => inner_body.push_output(&mut string),
+			Err(mut error) => errors.append(&mut error),
+		}
+	}
+
 	let mut output = HtmlOutput::new();
 	for child in template.0.body.iter() {
 		if !output.is_empty() {
@@ -401,6 +415,12 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 			Err(mut error) => errors.append(&mut error),
 		}
 	}
+
+	output.parts = output
+		.parts
+		.into_iter()
+		.flat_map(|x| x.merge(&inner_body))
+		.collect();
 
 	if errors.is_empty() {
 		Ok(output)

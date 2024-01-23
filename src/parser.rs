@@ -419,13 +419,13 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
 	let parser = tag_opener.preceding(cut(after_spaces(
 			macro_call.map(Tag::MacroCall)
 			.or(macro_def.map(Tag::MacroDef))
-			.or(plug_call.map(Tag::PlugCall))
+			.or(plug_call.map(Tag::PlugCall).dbg())
 			.or(content_macro.map(|_| Tag::Content))
 			.or(doctype.map(Tag::Doctype))
 			.or(if_tag.map(Tag::If))
 			.or(for_tag.map(Tag::For))
 			.or(tag.map(Tag::Html))
-			.set_err(|| ParseError::ExpectedSpecifierOrTag).dbg()
+			.set_err(|| ParseError::ExpectedSpecifierOrTag)
 			.followed_by(tag_closer),
 	)));
 
@@ -537,14 +537,14 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 }
 
 fn macro_call(state: ParserState<'_>) -> ParserResult<'_, Macro> {
-	let parser = macro_call_head;
+	let parser = macro_call_head.and_maybe(tag_body);
 
-	let ((name, arguments), state) = parser.parse(state)?;
+	let (((name, arguments), body), state) = parser.parse(state)?;
 	Ok((
 		Macro {
 			name,
 			arguments,
-			body: vec![],
+			body: body.unwrap_or_default(),
 		},
 		state,
 	))

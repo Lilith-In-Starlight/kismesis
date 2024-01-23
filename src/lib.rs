@@ -24,7 +24,7 @@ use parser::types::TextPos;
 use plugins::PluginInput;
 
 
-#[cfg(feature = "plugins")]
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use self::parser::errors::ParseError;
@@ -337,6 +337,7 @@ pub mod pdk {
 	pub use super::parser::types::Section;
 	pub use super::parser::types::TextPos;
 	pub use super::parser::types::Paragraph;
+	pub use super::parser::types::StringParts;
 
 	pub use super::plugins::PluginInput;
 	pub use super::PluginParseError as PluginError;
