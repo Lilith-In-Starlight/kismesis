@@ -157,6 +157,7 @@ pub enum HtmlNodes {
 	For(ForTag),
 	Paragraph(Paragraph),
 	Content,
+	Raw(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -174,6 +175,7 @@ pub enum TopNodes {
 	If(IfTag),
 	For(ForTag),
 	Paragraph(Paragraph),
+	Raw(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -185,6 +187,7 @@ pub enum BodyTags {
 	If(IfTag),
 	For(ForTag),
 	Content,
+	Raw(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -215,6 +218,7 @@ pub enum BodyNodes {
 	If(IfTag),
 	For(ForTag),
 	Paragraph(Paragraph),
+	Raw(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -397,6 +401,7 @@ impl From<BodyTags> for BodyNodes {
 			BodyTags::Content => Self::Content,
 			BodyTags::If(x) => Self::If(x),
 			BodyTags::For(x) => Self::For(x),
+			BodyTags::Raw(x) => Self::Raw(x),
 		}
 	}
 }
@@ -410,6 +415,7 @@ impl From<BodyTags> for HtmlNodes {
 			BodyTags::Content => Self::Content,
 			BodyTags::If(x) => Self::If(x),
 			BodyTags::For(x) => Self::For(x),
+			BodyTags::Raw(x) => Self::Raw(x),
 		}
 	}
 }

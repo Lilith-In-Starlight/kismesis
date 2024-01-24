@@ -76,7 +76,6 @@ impl PluginParseError {
 	}
 }
 
-/// # FileRef
 /// The tokens and path (if any) of a file.
 #[derive(Debug)]
 pub struct FileRef {
@@ -136,6 +135,7 @@ impl Kismesis {
 		}
 	}
 	#[cfg(not(feature = "plugins"))]
+	#[must_use]
 	pub fn new() -> Self {
 		Self {
 			tokens: HashMap::new(),

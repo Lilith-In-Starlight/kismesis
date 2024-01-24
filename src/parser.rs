@@ -766,8 +766,7 @@ fn tag_body(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
 
 fn plugin_body(state: ParserState) -> ParserResult<Ranged<Vec<Token>>> {
 	let parser = skip_spaces()
-		.preceding(body_opener)
-		.followed_by(skipped_blanks());
+		.preceding(body_opener);
 	let (_, mut state) = parser.parse(state)?;
 
 	let start = state.position;
@@ -945,6 +944,7 @@ pub(crate) fn file(
 			BodyNodes::Doctype(x) => output.body.push(TopNodes::Doctype(x)),
 			BodyNodes::If(x) => output.body.push(TopNodes::If(x)),
 			BodyNodes::For(x) => output.body.push(TopNodes::For(x)),
+			BodyNodes::Raw(x) => output.body.push(TopNodes::Raw(x)),
 			BodyNodes::Paragraph(x) => output.body.push(TopNodes::Paragraph(x)),
 			BodyNodes::SetStmt(config, value) => match config.as_str() {
 				"template" => {

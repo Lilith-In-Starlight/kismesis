@@ -22,3 +22,9 @@ pdk = ["serde"]
 
 [profile.dev]
 lto="off"
+
+[lints.clippy]
+enum_glob_use = "warn"
+pedantic = "warn"
+nursery = "warn"
+unwrap_used = "warn"

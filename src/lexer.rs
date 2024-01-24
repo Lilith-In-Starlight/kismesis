@@ -4,7 +4,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 /// The different tokens that can be in an input string
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Token {
 	Word(String),
