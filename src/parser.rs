@@ -401,7 +401,7 @@ fn if_tag(state: ParserState) -> ParserResult<IfTag> {
 
 fn pre_tag(state: ParserState) -> ParserResult<HtmlTag> {
 	let parser = tag_head.is(|x| &x.0.value == "pre")
-		.and_maybe(any.map(Token::get_as_string).maybe_until(tag_closer))
+		.and_maybe(any.map(Token::get_as_string).maybe_until(not(specific_symbol('\\')).preceding(tag_closer)))
 		.map(|((name, attributes, subtags), body)| {
 			let body = vec![HtmlNodes::Raw(body.unwrap_or_default().into_iter().collect())];
 			HtmlTag {
