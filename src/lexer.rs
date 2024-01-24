@@ -72,8 +72,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 			'\r' => {
 				let word = &s
 					.get(current_word..idx)
-					.map(|x| x.to_string())
-					.unwrap_or(String::new());
+					.map_or(String::new(), ToString::to_string);
 				if !word.is_empty() {
 					output.push(Token::Word(word.clone()));
 				}
@@ -121,7 +120,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 	}
 	let word = &s[current_word..s.len()];
 	if !word.is_empty() {
-		output.push(Token::Word(word.to_string()))
+		output.push(Token::Word(word.to_string()));
 	}
 	output
 }
@@ -135,8 +134,8 @@ fn push_token(
 ) {
 	let word = &string[*current_word_start..current_word_end];
 	if !word.is_empty() {
-		list.push(Token::Word(word.to_string()))
+		list.push(Token::Word(word.to_string()));
 	}
 	list.push(token);
-	*current_word_start = current_word_end + 1
+	*current_word_start = current_word_end + 1;
 }

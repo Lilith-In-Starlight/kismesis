@@ -379,8 +379,7 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 		base.extend(mac.get_argument_scope(state.scope));
 		let mut output = VariableScope::new();
 		for arg in &base {
-			match arg.1 .0 .0 {
-				None => {
+			arg.1 .0 .0.map_or_else(|| {
 					errors.push(
 						CompilerError::UnsetArgNoDefault(arg.0.clone())
 							.with_scope_at(state.scope, mac.name.range.clone())
@@ -389,14 +388,12 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 									.with_state_at(template.0.name.range.clone(), template.1),
 							),
 					);
-				}
-				Some(value) => {
+				}, |value| {
 					let _ = output.insert(
 						arg.0.clone(),
 						((Some(value), arg.1 .0 .1.clone()), template.1),
 					);
-				}
-			}
+				});
 		}
 		output
 	};
@@ -694,27 +691,20 @@ fn calculate_expression<'a>(
 			}
 		}
 		Expression::Variable(x) => {
-			if let Some(var) = state.variable_scopes.get(x) {
-				match var.0 .0 {
-					Some(value) => Ok(ExpressionValues::Reference(
-						value.clone(),
-						var.1,
-						value.range.clone(),
-					)),
-					None => Ok(ExpressionValues::Reference(
+			state.variable_scopes.get(x).map_or_else(|| Err(vec![
+					CompilerError::UndefinedVariable.with_scope_at(state.scope, expr.range.clone())
+				]), |var| var.0 .0.map_or_else(|| Ok(ExpressionValues::Reference(
 						Ranged {
 							value: Expression::None,
 							range: var.0 .1.clone(),
 						},
 						var.1,
 						var.0 .1.clone(),
-					)),
-				}
-			} else {
-				Err(vec![
-					CompilerError::UndefinedVariable.with_scope_at(state.scope, expr.range.clone())
-				])
-			}
+					)), |value| Ok(ExpressionValues::Reference(
+						value.clone(),
+						var.1,
+						value.range.clone(),
+					))))
 		}
 		Expression::Literal(x) => Ok(ExpressionValues::String(x.clone())),
 		Expression::Array(x) => Ok(ExpressionValues::Array(x.clone())),

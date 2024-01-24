@@ -245,7 +245,7 @@ fn set_stmt(state: ParserState) -> ParserResult<(String, String)> {
 		Ok(((name, value), next_state)) => {
 			let value = {
 				let mut output = Vec::new();
-				for part in value.iter() {
+				for part in &value {
 					match part {
 						StringParts::String(x) => output.push(x.clone()),
 						StringParts::Expression(_) => {
@@ -292,7 +292,7 @@ fn expr_array(state: ParserState) -> ParserResult<Expression> {
 	.and_maybe(get_range(expression))
 	.map(|(mut vec, maybe)| {
 		if let Some(last) = maybe {
-			vec.push(last)
+			vec.push(last);
 		}
 		vec
 	})
@@ -393,18 +393,35 @@ fn lambda_definition(state: ParserState) -> ParserResult<Lambda> {
 fn if_tag(state: ParserState) -> ParserResult<IfTag> {
 	let parser = specific_literal("if")
 		.preceding(after_spaces(get_range(expression)))
-		.and_also(maybe(tag_body).map(|x| x.unwrap_or_default()))
+		.and_also(maybe(tag_body).map(Option::unwrap_or_default))
 		.map(|(condition, body)| IfTag { condition, body });
 
 	parser.parse(state)
 }
 
+fn pre_tag(state: ParserState) -> ParserResult<HtmlTag> {
+	let parser = tag_head.is(|x| &x.0.value == "pre")
+		.and_maybe(any.map(Token::get_as_string).maybe_until(tag_closer))
+		.map(|((name, attributes, subtags), body)| {
+			let body = vec![HtmlNodes::Raw(body.unwrap_or_default().into_iter().collect())];
+			HtmlTag {
+				name,
+				attributes,
+				subtags,
+				body,
+			}
+		});
+
+	parser.parse(state)
+}
+
 fn for_tag(state: ParserState) -> ParserResult<ForTag> {
+
 	let parser = specific_literal("for").preceding(
 		cut(after_spaces(get_range(literal)))
 			.followed_by(after_spaces(specific_literal("in")))
 			.and_also(after_spaces(get_range(expression)))
-			.and_also(maybe(tag_body).map(|x| x.unwrap_or_default()))
+			.and_also(maybe(tag_body).map(Option::unwrap_or_default))
 			.map(|((variable, iterator), body)| ForTag {
 				variable: variable.to_own(),
 				iterator,
@@ -420,10 +437,11 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
 			macro_call.map(Tag::MacroCall)
 			.or(macro_def.map(Tag::MacroDef))
 			.or(plug_call.map(Tag::PlugCall))
-			.or(content_macro.map(|_| Tag::Content))
+			.or(content_macro.map(|()| Tag::Content))
 			.or(doctype.map(Tag::Doctype))
 			.or(if_tag.map(Tag::If))
 			.or(for_tag.map(Tag::For))
+			.or(pre_tag.map(Tag::Html))
 			.or(tag.map(Tag::Html))
 			.set_err(|| ParseError::ExpectedSpecifierOrTag)
 			.followed_by(tag_closer),
@@ -437,9 +455,10 @@ fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
 		.preceding(cut(after_spaces(
 				macro_call.map(BodyTags::MacroCall)
 				.or(plug_call.map(BodyTags::PlugCall))
-				.or(content_macro.map(|_| BodyTags::Content))
+				.or(content_macro.map(|()| BodyTags::Content))
 				.or(if_tag.map(BodyTags::If))
 				.or(for_tag.map(BodyTags::For))
+				.or(pre_tag.map(BodyTags::HtmlTag))
 				.or(tag.map(|x| BodyTags::HtmlTag(x.merge_subtags())))
 				.set_err(|| ParseError::ExpectedSpecifierOrTag)
 				.followed_by(tag_closer)
@@ -512,7 +531,7 @@ fn content_macro(state: ParserState<'_>) -> ParserResult<'_, ()> {
 fn doctype(state: ParserState<'_>) -> ParserResult<'_, String> {
 	specific_symbol('!')
 		.preceding(cut(after_spaces(specific_literal("doctype"))
-			.preceding(after_spaces(literal.map(|x| x.to_string())))))
+			.preceding(after_spaces(literal.map(ToString::to_string)))))
 		.parse(state)
 }
 
@@ -751,13 +770,13 @@ fn tag_body(state: ParserState) -> ParserResult<Vec<HtmlNodes>> {
 			skip_newline_blanks()
 				.preceding(section_block.map(|x| HtmlNodes::HtmlTag(Section::into_tag(x))))
 				.or(paragraph_string.map(|x| {
-					match (x.0.first().to_owned(), x.0.len()) {
+					match (x.0.first(), x.0.len()) {
 						(Some(HtmlNodes::String(_)),_) => HtmlNodes::Paragraph(x),
 						(Some(x), 1) => x.clone(),
 						_ => HtmlNodes::Paragraph(x),
 					}
 				}))
-				.or(skipped_blanks().preceding(some_child_tag.map(|x| x.into()))),
+				.or(skipped_blanks().preceding(some_child_tag.map(Into::into))),
 		)),
 	);
 
@@ -827,7 +846,7 @@ fn attr_string(state: ParserState) -> ParserResult<Vec<StringParts>> {
 fn paragraph_string(state: ParserState) -> ParserResult<Paragraph> {
 	let inside = string_tagless
 		.map(HtmlNodes::String)
-		.or(some_child_tag.map(|x| x.into()));
+		.or(some_child_tag.map(Into::into));
 
 	let terminator = ignore(newline)
 		.or(not(any))
@@ -893,7 +912,7 @@ pub(crate) fn file(
 	let parser = zero_or_more(
 		skipped_blanks().preceding(
 			some_tag
-				.map(|x| x.into())
+				.map(Into::into)
 				.or(lambda_definition.map(BodyNodes::LambdaDef))
 				.or(variable_definition.map(BodyNodes::VarDef))
 				.or(set_stmt.map(|(x, y)| BodyNodes::SetStmt(x, y)))

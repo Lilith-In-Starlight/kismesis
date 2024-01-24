@@ -74,29 +74,29 @@ pub enum Err {
 impl Hintable for Err {
 	fn add_hint(&mut self, hint: Hint) {
 		match self {
-			Self::Error(x) => x.add_hint(hint),
-			Self::Failure(x) => x.add_hint(hint),
+			Self::Error(x) | Self::Failure(x) => x.add_hint(hint),
 		}
 	}
 }
 
 impl Err {
+	#[must_use]
 	pub fn unpack(self) -> ErrorState<ParseError> {
 		match self {
-			Self::Error(x) => x,
-			Self::Failure(x) => x,
+			Self::Error(x) | Self::Failure(x) => x,
 		}
 	}
 
-	pub fn cut(self) -> Err {
+	#[must_use]
+	pub fn cut(self) -> Self {
 		match self {
-			Self::Error(x) => Err::Failure(x),
-			x => x,
+			Self::Error(x) => Self::Failure(x),
+			x @ Self::Failure(_) => x,
 		}
 	}
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Hints {
 	HeaderSectionDynamics,
 	HeaderForSize,
@@ -126,7 +126,7 @@ impl ErrorKind for Hints {
 }
 
 impl Hints {
-	pub fn with_state_at(self, state: TextPos, scope: KisID) -> Hint {
+	#[must_use] pub fn with_state_at(self, state: TextPos, scope: KisID) -> Hint {
 		Hint::Stateful(ScopedError {
 			error: ErrorState {
 				error: self,
@@ -136,7 +136,7 @@ impl Hints {
 			scope,
 		})
 	}
-	pub fn stateless(self) -> Hint {
+	#[must_use] pub fn stateless(self) -> Hint {
 		Hint::Stateless(StatelessError {
 			error: self,
 			hints: vec![],
@@ -155,6 +155,7 @@ where
 	Self: Sized,
 {
 	fn add_hint(&mut self, hint: Hint);
+	#[must_use]
 	fn with_hint(mut self, hint: Hint) -> Self {
 		self.add_hint(hint);
 		self
@@ -162,7 +163,7 @@ where
 }
 
 impl ParseError {
-	/// Unlike the implementation in ErrorKind, this method outputs an [`Err`],
+	/// Unlike the implementation in `ErrorKind`, this method outputs an [`Err`],
 	/// containing information about when the parser should stop considering
 	/// options and simply should crash
 	pub(crate) fn error_at(self, state: &ParserState) -> Err {
@@ -188,28 +189,27 @@ impl ErrorKind for ParseError {
 			Self::ExpectedSpecifierOrTag => 
 				"Expected one of the following:\n - tag specifier (`?` `!`)\n - tag composition (`+`)\n - parameters\n - tag body starter (`|` `:`)".into(),
 			Self::HeaderNotAllowedHere => "Headers are not allowed outside sections".into(),
-			Self::SkippedHeadingLevel(expected) => format!("Skipped heading level - expected {}", expected),
+			Self::SkippedHeadingLevel(expected) => format!("Skipped heading level - expected {expected}"),
 			Self::IncorrectHeaderNumber => "Headers can only go from 1 up to 6".to_string(),
 			Self::IncorrectChild(parent) => {
-				format!("This tag is incorrect as a child of a `<{}>` tag", parent)
+				format!("This tag is incorrect as a child of a `<{parent}>` tag")
 			}
-			Self::ThisTagCannotBeEmpty(name) => format!("The `<{}>` tag cannot be empty", name),
+			Self::ThisTagCannotBeEmpty(name) => format!("The `<{name}>` tag cannot be empty"),
 			Self::UsedDiv => "<div> tags are discouraged by Kismesis".to_string(),
 			Self::PluginError(message) => message.to_owned(),
-			Self::ExtismError(message) => format!("Plugin failed: {}", message),
+			Self::ExtismError(message) => format!("Plugin failed: {message}"),
 			Self::PluginDoesntExist => "This plugin does not exist".to_string(),
 			Self::PluginsDisabled => {
 				"This version of kismesis was not made with the `plugins` feature".to_string()
 			}
 			Self::TriedToParseInvalidID(id) => {
-				format!("Tried to parse a file with invalid ID: {:?}", id)
+				format!("Tried to parse a file with invalid ID: {id:?}")
 			}
 			Self::WronglyNestedSection => "Wrongly nested section".to_string(),
 			Self::ExpectedLambdaStart => "Expected `lambda`".to_string(),
 			Self::ConditionUnmet => "Unmet condition".to_string(),
 			Self::NotInRange(start, end) => format!(
-				"Expected this to repeat from {:?} to {:?} times",
-				start, end
+				"Expected this to repeat from {start:?} to {end:?} times"
 			),
 			Self::ExpressionInSetStmt => "Expressions are not allowed in `set` statements".into(),
 			Self::ExpectedSetStarter => "Expected `set`".into(),
@@ -220,7 +220,7 @@ impl ErrorKind for ParseError {
 			Self::ExpectedEOF => {
 				"Expected the file to end, but it didn't. You might have too many `>`".into()
 			}
-			Self::LiteralNotMatch { expected, .. } => format!("Expected the word `{}`", expected),
+			Self::LiteralNotMatch { expected, .. } => format!("Expected the word `{expected}`"),
 			Self::ExpectedExprStart => "Expected `[` to denote the start of an expression".into(),
 			Self::ExpectedExprEnd => "Expected `]`to denote the end of an expression".into(),
 			Self::ExpectedMacroMark => "Expected `!` to denote a macro call".into(),
@@ -241,7 +241,7 @@ impl ErrorKind for ParseError {
 			Self::EmptyString => "Empty string".into(),
 			Self::NotSymbol => "Expected a special character".into(),
 			Self::NotMacroStart => "Expected the start of a macro".into(),
-			Self::CharacterNotMatch { expected, .. } => format!("Expected `{}`", expected),
+			Self::CharacterNotMatch { expected, .. } => format!("Expected `{expected}`"),
 			Self::NotQuoteMark => "Expected a quotation mark".into(),
 			Self::NotASpace => "Expected a space".into(),
 			Self::NotAnIndent => "Expected an indent (tab key)".into(),

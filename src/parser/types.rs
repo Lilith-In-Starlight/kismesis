@@ -40,10 +40,10 @@ pub struct HtmlTag {
 	/// The Kismesis name of the tag. It might get compiled to something else, like how <container> is compiled as <div>
 	pub name: Ranged<String>,
 	pub attributes: Vec<Attribute>,
-	/// Children of the tag
-	pub body: Vec<HtmlNodes>,
 	/// Subtags get compiled as children of the tag
 	pub subtags: Vec<HtmlTag>,
+	/// Children of the tag
+	pub body: Vec<HtmlNodes>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -105,7 +105,7 @@ impl Section {
 		let mut content = Vec::new();
 
 		for x in self.content {
-			match (x.0.first().to_owned(), x.0.len()) {
+			match (x.0.first(), x.0.len()) {
 				(_, 2..) | (Some(HtmlNodes::String(_)), _) => {
 					let x = HtmlTag {
 						name: Ranged {
@@ -259,16 +259,15 @@ impl ParsedFile {
 		engine: &'a Kismesis,
 		predicate: impl Fn(&&Macro) -> bool,
 	) -> Option<&Macro> {
-		self.defined_macros.iter().rfind(&predicate).or(self
+		self.defined_macros.iter().rfind(&predicate).or_else(|| self
 			.template
 			.as_ref()
-			.map(|x| {
+			.and_then(|x| {
 				engine
 					.get_template(x.clone())
 					.unwrap()
 					.get_macro_template(engine, &predicate)
-			})
-			.unwrap_or(None))
+			}))
 	}
 
 	pub fn get_path_slice<'a>(&'a self, engine: &'a Kismesis) -> Option<&Path> {
@@ -280,13 +279,13 @@ impl ParsedFile {
 		engine: &'a Kismesis,
 		predicate: &str,
 	) -> VariableOption<&Ranged<Expression>> {
-		for var in self.defined_variables.iter() {
+		for var in &self.defined_variables {
 			if var.name.value == predicate {
 				return VariableOption::Some(&var.value);
 			}
 		}
 
-		for var in self.defined_lambdas.iter() {
+		for var in &self.defined_lambdas {
 			if var.name.value == predicate {
 				match var.value {
 					Some(ref value) => return VariableOption::Some(value),
@@ -295,13 +294,10 @@ impl ParsedFile {
 			}
 		}
 
-		match self.template {
-			Some(ref template) => engine
+		self.template.as_ref().map_or(VariableOption::None, |template| engine
 				.get_template(template.clone())
 				.unwrap()
-				.get_variable_value(engine, predicate),
-			None => VariableOption::None,
-		}
+				.get_variable_value(engine, predicate))
 	}
 
 	pub fn get_macro_scope<'a>(&'a self, engine: &'a Kismesis) -> HashMap<String, Scoped<&Macro>> {
@@ -312,7 +308,7 @@ impl ParsedFile {
 					.get_template(template.clone())
 					.unwrap()
 					.get_macro_scope(engine),
-			)
+			);
 		}
 
 		output.extend(
@@ -326,7 +322,7 @@ impl ParsedFile {
 
 	pub fn get_variable_scope<'a>(
 		&'a self,
-		sub_scope: &[&'a ParsedFile],
+		sub_scope: &[&'a Self],
 		engine: &'a Kismesis,
 	) -> HashMap<String, ScopedExpression> {
 		let mut out = HashMap::new();
@@ -337,12 +333,12 @@ impl ParsedFile {
 					.get_template(template.clone())
 					.unwrap()
 					.get_variable_scope(&[], engine),
-			)
+			);
 		}
 
 		out.extend(self.defined_lambdas.iter().map(|x| {
 			if !sub_scope.is_empty() {
-				for scope in sub_scope.iter() {
+				for scope in sub_scope {
 					let find = scope
 						.defined_variables
 						.iter()
@@ -354,16 +350,11 @@ impl ParsedFile {
 						);
 					}
 				}
-				(
-					x.name.value.clone(),
-					((x.value.as_ref(), x.name.range.clone()), self.file_id),
-				)
-			} else {
-				(
-					x.name.value.clone(),
-					((x.value.as_ref(), x.name.range.clone()), self.file_id),
-				)
 			}
+			(
+				x.name.value.clone(),
+				((x.value.as_ref(), x.name.range.clone()), self.file_id),
+			)
 		}));
 
 		out.extend(self.defined_variables.iter().map(|x| {
@@ -420,14 +411,14 @@ impl From<BodyTags> for HtmlNodes {
 	}
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BinFunc {
 	And,
 	Or,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum UniFunc {
 	Not,
@@ -585,13 +576,10 @@ impl Macro {
 	pub fn get_argument_scope(&self, scope: KisID) -> HashMap<String, ScopedExpression> {
 		let mut output = HashMap::new();
 
-		output.extend(self.arguments.iter().map(|x| match x.value {
-			Some(ref value) => (
+		output.extend(self.arguments.iter().map(|x| x.value.as_ref().map_or_else(|| (x.name.value.clone(), ((None, x.name.range.clone()), scope)), |value| (
 				x.name.value.clone(),
 				((Some(value), x.name.range.clone()), scope),
-			),
-			None => (x.name.value.clone(), ((None, x.name.range.clone()), scope)),
-		}));
+			))));
 
 		output
 	}

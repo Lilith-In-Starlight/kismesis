@@ -6,6 +6,7 @@ pub struct Settings {
 }
 
 impl Settings {
+	#[must_use]
 	pub fn new() -> Self {
 		Self {
 			inline: string_vec(&[
@@ -19,23 +20,27 @@ impl Settings {
 		}
 	}
 
+	#[must_use]
 	pub fn is_only_closer(&self, n: &str) -> bool {
 		self.only_closer.iter().any(|x| x == n)
 	}
 
+	#[must_use]
 	pub fn is_only_opener(&self, n: &str) -> bool {
 		self.only_opener.iter().any(|x| x == n)
 	}
 
+	#[must_use]
 	pub fn is_inline(&self, n: &str) -> bool {
 		self.inline.iter().any(|x| x == n)
 	}
 
+	#[must_use]
 	pub fn has_body(&self, n: &str) -> bool {
 		!self.is_only_closer(n) && !self.is_only_opener(n)
 	}
 }
 
 fn string_vec(s: &[&str]) -> Vec<String> {
-	s.iter().map(|x| x.to_string()).collect()
+	s.iter().map(ToString::to_string).collect()
 }

@@ -115,7 +115,7 @@ pub struct TokenPos {
 }
 
 impl TokenPos {
-	pub fn new() -> Self {
+	pub const fn new() -> Self {
 		Self {
 			idx: 0,
 			line: 0,
@@ -123,18 +123,18 @@ impl TokenPos {
 		}
 	}
 
-	pub fn new_at(idx: usize, line: usize, column: usize) -> Self {
+	pub const fn new_at(idx: usize, line: usize, column: usize) -> Self {
 		Self { idx, line, column }
 	}
-	pub fn get_idx(&self) -> usize {
+	pub const fn get_idx(&self) -> usize {
 		self.idx
 	}
 
-	pub fn get_line(&self) -> usize {
+	pub const fn get_line(&self) -> usize {
 		self.line
 	}
 
-	pub fn get_column(&self) -> usize {
+	pub const fn get_column(&self) -> usize {
 		self.column
 	}
 
@@ -160,7 +160,7 @@ impl TokenPos {
 		}
 	}
 
-	fn next_character(self) -> Self {
+	const fn next_character(self) -> Self {
 		Self {
 			idx: self.idx + 1,
 			column: self.column + 1,
@@ -168,7 +168,7 @@ impl TokenPos {
 		}
 	}
 
-	fn next_line(self) -> Self {
+	const fn next_line(self) -> Self {
 		Self {
 			idx: self.idx + 1,
 			column: 0,

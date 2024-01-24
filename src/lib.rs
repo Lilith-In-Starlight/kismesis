@@ -293,31 +293,32 @@ impl Kismesis {
 	}
 
 	/// Get the registered file that corresponds to the given ID, if any
+	#[must_use]
 	pub fn get_file(&self, id: KisID) -> Option<&FileRef> {
 		self.tokens.get(&id)
 	}
 }
 
 impl From<PathBuf> for KisTemplateID {
-	fn from(val: PathBuf) -> KisTemplateID {
-		KisTemplateID::File(val)
+	fn from(val: PathBuf) -> Self {
+		Self::File(val)
 	}
 }
 
 impl From<&Path> for KisTemplateID {
-	fn from(val: &Path) -> KisTemplateID {
-		KisTemplateID::File(val.to_path_buf())
+	fn from(val: &Path) -> Self {
+		Self::File(val.to_path_buf())
 	}
 }
 
 impl From<&str> for KisTemplateID {
-	fn from(val: &str) -> KisTemplateID {
-		KisTemplateID::File(PathBuf::from(val))
+	fn from(val: &str) -> Self {
+		Self::File(PathBuf::from(val))
 	}
 }
 
-impl From<&KisTemplateID> for KisTemplateID {
-	fn from(val: &KisTemplateID) -> KisTemplateID {
+impl From<&Self> for KisTemplateID {
+	fn from(val: &Self) -> Self {
 		val.clone()
 	}
 }

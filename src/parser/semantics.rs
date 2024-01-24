@@ -218,9 +218,9 @@ impl VerifySemantics for ForTag {
 	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
 
-		for tag in self.body.iter_mut() {
+		for tag in &mut self.body {
 			if let Err(ref mut x) = tag.check_semantics(semantics) {
-				errors.append(x)
+				errors.append(x);
 			}
 		}
 

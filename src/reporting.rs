@@ -9,8 +9,9 @@ use super::{
 	lexer::Token,
 	parser::{errors::Hint, state::TokenPos},
 };
-use colored::*;
+use colored::Colorize;
 
+#[derive(Clone, Copy)]
 pub enum ReportKind {
 	Error,
 	Hint,
@@ -36,12 +37,13 @@ enum ReportingError {
 impl ErrorKind for ReportingError {
 	fn get_text(&self) -> String {
 		match self {
-			ReportingError::InvalidKismesisID => "Tried to report an error ocurring on a file with an invalid Kismesis ID.\nPlease contact the developer of the engine you're using.".into(),
+			Self::InvalidKismesisID => "Tried to report an error ocurring on a file with an invalid Kismesis ID.\nPlease contact the developer of the engine you're using.".into(),
 		}
 	}
 }
 
 impl<'a> DrawingInfo<'a> {
+	#[must_use]
 	pub fn from(scope: KisID, engine: &'a Kismesis, kind: ReportKind) -> Option<Self> {
 		let scope = engine.get_file(scope)?;
 		let lines: Vec<&[Token]> = scope
@@ -74,12 +76,9 @@ pub fn draw_error<T: ErrorKind + Debug>(
 	engine: &Kismesis,
 	depth: usize,
 ) -> String {
-	let info = match info.as_ref() {
-		Some(x) => x,
-		None => {
-			let err = ReportingError::InvalidKismesisID.stateless();
-			return draw_stateless_error(&err, ReportKind::Fatal, engine, depth + 1);
-		}
+	let Some(info) = info.as_ref() else {
+		let err = ReportingError::InvalidKismesisID.stateless();
+		return draw_stateless_error(&err, ReportKind::Fatal, engine, depth + 1);
 	};
 	let minimum_line = {
 		let x = err.text_position.get_start_line();
@@ -172,7 +171,7 @@ pub fn draw_error<T: ErrorKind + Debug>(
 
 	output.push('\n');
 
-	for x in err.hints.iter() {
+	for x in &err.hints {
 		let hint = match x {
 			Hint::Stateful(x) => draw_error(
 				&x.error,
@@ -220,7 +219,7 @@ pub fn draw_stateless_error<T: ErrorKind + Debug>(
 
 	output.push('\n');
 
-	for x in err.hints.iter() {
+	for x in &err.hints {
 		let hint = match x {
 			Hint::Stateful(x) => draw_error(
 				&x.error,
@@ -251,7 +250,7 @@ fn draw_line<T: ErrorKind>(
 ) -> Option<String> {
 	let mut output = draw_line_number(line_number, info).white().to_string();
 	let mut error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
-	let termsize = termsize::get().map(|size| size.cols).unwrap_or(40) as usize;
+	let termsize = termsize::get().map_or(40, |size| size.cols) as usize;
 	let termsize = if termsize >= err.error.get_text().len() {
 		std::cmp::min(termsize, termsize - err.error.get_text().len())
 	} else {
@@ -267,29 +266,27 @@ fn draw_line<T: ErrorKind>(
 			let token_pos = TokenPos::new_at(line.0 + token_idx, line_number, token_idx);
 			let tkstr = match token {
 				Token::Newline(_) if token_pos.is_in(&err.text_position) => "~".to_string(),
-				Token::Newline(_) => "".to_string(),
+				Token::Newline(_) => String::new(),
 				Token::Indent(_) => " ".repeat(4),
 				x => x.get_as_string(),
 			};
 			char_idx += tkstr.len();
 			if char_idx + tkstr.len() >= termsize && token_idx != 0 {
+				output.push('\n');
+
 				if error_line.chars().any(|x| !x.is_whitespace()) {
-					output.push('\n');
 					output.push_str(error_line.yellow().to_string().trim_end());
 					output.push('\n');
-					output.push_str(&initial_spaces);
-					error_line = initial_spaces.clone();
-				} else {
-					output.push('\n');
-					output.push_str(&initial_spaces);
-					error_line = initial_spaces.clone();
 				}
+
+				output.push_str(&initial_spaces);
+				error_line = initial_spaces.clone();
 				char_idx = tkstr.len();
 			}
 			output.push_str(&tkstr);
 			let char = if token_pos.is_in(&err.text_position) {
 				if error_spaces.is_empty() {
-					error_spaces.push_str(&error_line)
+					error_spaces.push_str(&error_line);
 				}
 				'^'
 			} else {
@@ -302,7 +299,7 @@ fn draw_line<T: ErrorKind>(
 						.error
 						.get_text()
 						.replace('\n', &format!("\n  {}", &error_spaces));
-					error_line.push_str(&format!(" {}", text));
+					error_line.push_str(&format!(" {text}"));
 				} else {
 					error_line.push_str(" Error happened here");
 				}
@@ -343,7 +340,7 @@ fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
 	output
 }
 
-/// Takes a ScopedError and renders an error report
+/// Takes a `ScopedError` and renders an error report
 pub fn draw_scoped_error<T: ErrorKind + Debug>(err: &ScopedError<T>, engine: &Kismesis) -> String {
 	draw_error(
 		&err.error,
