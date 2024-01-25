@@ -423,8 +423,12 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 
 	let mut inner_body = HtmlOutput::new();
 	let mut inner_state = new_state.clone();
+	let inline = get_is_inline(new_state.force_inline, &inner_state, &mac.body);
 	inner_state.indent = 0;
-	for child in &mac.body {
+	for (idx, child) in mac.body.iter().enumerate() {
+		if !inline && idx != 0 {
+			inner_body.push_string('\n');
+		}
 		match parse_html_child(child, &inner_state) {
 			Ok(mut string) => inner_body.push_output(&mut string),
 			Err(mut error) => errors.append(&mut error),
@@ -432,24 +436,7 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 	}
 
 	let mut output = HtmlOutput::new();
-	let mut inline = new_state.force_inline;
-	if inline && !new_state.force_inline {
-		for child in &template.0.body {
-			match child {
-				HtmlNodes::HtmlTag(x) => {
-					if !new_state.options.is_inline(&x.name.value) {
-						inline = false;
-						break;
-					}
-				}
-				HtmlNodes::MacroCall(_) | HtmlNodes::PlugCall(_) => {
-					inline = false;
-					break;
-				}
-				_ => continue,
-			}
-		}
-	}
+	let inline = get_is_inline(new_state.force_inline, &new_state, &template.0.body);
 
 	for (idx, child) in template.0.body.iter().enumerate() {
 		if !inline && idx != 0 {
@@ -491,6 +478,28 @@ fn plug_call<'a>(plugin: &'a PlugCall, state: &GenerationState) -> CompileResult
 	}
 }
 
+fn get_is_inline(mut inline: bool, state: &GenerationState, body: &[HtmlNodes]) -> bool {
+	if inline && !state.force_inline {
+		for child in body {
+			match child {
+				HtmlNodes::HtmlTag(x) => {
+					if !state.options.is_inline(&x.name.value) {
+						inline = false;
+						break;
+					}
+				}
+				HtmlNodes::MacroCall(_) | HtmlNodes::PlugCall(_) => {
+					inline = false;
+					break;
+				}
+				_ => continue,
+			}
+		}
+	}
+
+	inline
+}
+
 fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
 	let mut errors = Vec::new();
 	let mut output = HtmlOutput::new();
@@ -512,24 +521,8 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, H
 	}
 
 	if state.options.has_body(&tag.name.value) {
-		let mut inline = state.options.is_inline(&tag.name.value) || tag.body.is_empty() || state.force_inline;
-		if inline && !state.force_inline {
-			for child in &tag.body {
-				match child {
-					HtmlNodes::HtmlTag(x) => {
-						if !state.options.is_inline(&x.name.value) {
-							inline = false;
-							break;
-						}
-					}
-					HtmlNodes::MacroCall(_) | HtmlNodes::PlugCall(_) => {
-						inline = false;
-						break;
-					}
-					_ => continue,
-				}
-			}
-		}
+		let inline = state.options.is_inline(&tag.name.value) || tag.body.is_empty() || state.force_inline;
+		let inline = get_is_inline(inline, state, &tag.body);
 		let mut new_state = state.clone();
 
 		if inline {
