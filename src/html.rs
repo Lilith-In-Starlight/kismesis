@@ -272,33 +272,11 @@ fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<'a, 
 	let mut output = HtmlOutput::new();
 	let mut errors = Vec::new();
 	if value.is_truthy(state)? {
-		let mut inline = state.force_inline;
-		if inline && !state.force_inline {
-			for child in &tag.body {
-				match child {
-					HtmlNodes::HtmlTag(x) => {
-						if !state.options.is_inline(&x.name.value) {
-							inline = false;
-							break;
-						}
-					}
-					HtmlNodes::MacroCall(_) | HtmlNodes::PlugCall(_) => {
-						inline = false;
-						break;
-					}
-					_ => continue,
-				}
-			}
-		}
+		let inline = get_is_inline(state.force_inline, state, &tag.body);
 
-		for (idx, child) in tag.body.iter().enumerate() {
-			if !inline && idx != 0 {
-				output.push_string('\n');
-			}
-			match parse_html_child(child, state) {
-				Ok(mut string) => output.push_output(&mut string),
-				Err(mut error) => errors.append(&mut error),
-			}
+		match render_children(inline, false, &tag.body, state) {
+			Ok(mut x) => output.push_output(&mut x),
+			Err(mut x) => errors.append(&mut x),
 		}
 	}
 	if errors.is_empty() {
@@ -327,6 +305,7 @@ fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<'a
 	let mut output = HtmlOutput::new();
 	let mut errors = Vec::new();
 	let condition = to_iterator(&tag.iterator, state)?;
+	let inline = get_is_inline(state.force_inline, state, &tag.body);
 
 	for expr in &condition {
 		let mut variable_scopes = state.variable_scopes.clone();
@@ -339,12 +318,9 @@ fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<'a
 			..state.clone()
 		};
 
-		for child in &tag.body {
-			output.push_string('\n');
-			match parse_html_child(child, &state) {
-				Ok(mut string) => output.push_output(&mut string),
-				Err(mut error) => errors.append(&mut error),
-			}
+		match render_children(inline, false, &tag.body, &state) {
+			Ok(mut x) => output.push_output(&mut x),
+			Err(mut x) => errors.append(&mut x),
 		}
 	}
 
@@ -425,27 +401,17 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 	let mut inner_state = new_state.clone();
 	let inline = get_is_inline(new_state.force_inline, &inner_state, &mac.body);
 	inner_state.indent = 0;
-	for (idx, child) in mac.body.iter().enumerate() {
-		if !inline && idx != 0 {
-			inner_body.push_string('\n');
-		}
-		match parse_html_child(child, &inner_state) {
-			Ok(mut string) => inner_body.push_output(&mut string),
-			Err(mut error) => errors.append(&mut error),
-		}
+	match render_children(inline, false, &mac.body, &inner_state) {
+		Ok(mut x) => inner_body.push_output(&mut x),
+		Err(mut x) => errors.append(&mut x),
 	}
 
 	let mut output = HtmlOutput::new();
 	let inline = get_is_inline(new_state.force_inline, &new_state, &template.0.body);
 
-	for (idx, child) in template.0.body.iter().enumerate() {
-		if !inline && idx != 0 {
-			output.push_string('\n');
-		}
-		match parse_html_child(child, &new_state) {
-			Ok(mut string) => output.push_output(&mut string),
-			Err(mut error) => errors.append(&mut error),
-		}
+	match render_children(inline, false, &template.0.body, &new_state) {
+		Ok(mut x) => output.push_output(&mut x),
+		Err(mut x) => errors.append(&mut x),
 	}
 
 	output.parts = output
@@ -463,12 +429,11 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 fn plug_call<'a>(plugin: &'a PlugCall, state: &GenerationState) -> CompileResult<'a, HtmlOutput> {
 	let mut output = HtmlOutput::new();
 	let mut errors = Vec::new();
-	for child in &plugin.body {
-		output.push_string('\n');
-		match parse_html_child(child, state) {
-			Ok(mut string) => output.push_output(&mut string),
-			Err(mut error) => errors.append(&mut error),
-		}
+	let inline = get_is_inline(state.force_inline, state, &plugin.body);
+
+	match render_children(inline, false, &plugin.body, state) {
+		Ok(mut x) => output.push_output(&mut x),
+		Err(mut x) => errors.append(&mut x),
 	}
 
 	if errors.is_empty() {
@@ -498,6 +463,25 @@ fn get_is_inline(mut inline: bool, state: &GenerationState, body: &[HtmlNodes]) 
 	}
 
 	inline
+}
+
+fn render_children<'a>(inline: bool, first_inline: bool, body: &[HtmlNodes], state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
+	let mut errors = vec![];
+	let mut output = HtmlOutput::new();
+	for (idx, child) in body.iter().enumerate() {
+		if !inline && (idx != 0 || first_inline) {
+			output.push_string('\n');
+		}
+		match parse_html_child(child, state) {
+			Ok(mut string) => output.push_output(&mut string),
+			Err(mut error) => errors.append(&mut error),
+		}
+	}
+	if errors.is_empty() {
+		Ok(output)
+	} else {
+		Err(errors)
+	}
 }
 
 fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, HtmlOutput> {
@@ -531,14 +515,9 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<'a, H
 			new_state.indent += 1;
 		}
 
-		for child in &tag.body {
-			if !inline {
-				output.push_string('\n');
-			}
-			match parse_html_child(child, &new_state) {
-				Ok(mut string) => output.push_output(&mut string),
-				Err(mut error) => errors.append(&mut error),
-			}
+		match render_children(inline, true, &tag.body, &new_state) {
+			Ok(mut x) => output.push_output(&mut x),
+			Err(mut x) => errors.append(&mut x),
 		}
 
 		if !inline {
