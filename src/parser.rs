@@ -179,8 +179,15 @@ fn tag_closer(state: ParserState) -> ParserResult<&char> {
 		Err(_) => Err(ParseError::ExpectedTagCloser.error_at(&state)),
 		Ok((val, next_state)) => match next_state.close_tag() {
 			Ok(x) => Ok((val, x)),
-			Err(x) => Err(x.error_at(&state)),
+			Err(x) => Err(x.error_at(&state).cut()),
 		},
+	}
+}
+
+fn tag_closer_superficial(state: ParserState) -> ParserResult<&char> {
+	match after_blanks(specific_symbol('>')).parse(state.clone()) {
+		Err(_) => Err(ParseError::ExpectedTagCloser.error_at(&state)),
+		Ok((val, next_state)) => Ok((val, next_state)),
 	}
 }
 
@@ -350,11 +357,11 @@ fn unary_func_expr(state: ParserState) -> ParserResult<Expression> {
 fn wrapped_expr(state: ParserState) -> ParserResult<Expression> {
 	let internal_parser = binary_func_expr
 		.or(unary_func_expr)
-		.or(expr_array)
 		.or(expression)
-		.or(specific_symbol('!').map(|_x| Expression::None));
+		.or(specific_symbol('!').map(|_x| Expression::None))
+		.or(expr_array);
 	let parser = expr_opener
-		.preceding(cut(after_blanks(internal_parser)).followed_by(after_blanks(expr_closer)));
+		.preceding(cut(after_blanks(internal_parser).followed_by(after_blanks(expr_closer))));
 
 	parser.parse(state)
 }
@@ -401,8 +408,15 @@ fn if_tag(state: ParserState) -> ParserResult<IfTag> {
 
 fn pre_tag(state: ParserState) -> ParserResult<HtmlTag> {
 	let parser = tag_head.is(|x| &x.0.value == "pre")
-		.and_maybe(any.map(Token::get_as_string).maybe_until(not(specific_symbol('\\')).preceding(tag_closer)))
-		.map(|((name, attributes, subtags), body)| {
+		.and_maybe(
+			after_spaces(body_opener)
+			.preceding(
+				specific_symbol('\\').preceding(any)
+				.or(any)
+				.map(Token::get_as_string)
+				.maybe_until(after_spaces(specific_symbol('>')))
+			)
+		).map(|((name, attributes, subtags), body)| {
 			let body = vec![HtmlNodes::Raw(body.unwrap_or_default().into_iter().collect())];
 			HtmlTag {
 				name,
@@ -658,7 +672,7 @@ fn tag_head(state: ParserState) -> ParserResult<(Ranged<String>, Vec<Attribute>,
 	let cut_cond = space
 		.or(indent)
 		.or(body_opener)
-		.or(tag_closer)
+		.or(tag_closer_superficial)
 		.or(tag_opener)
 		.or(subtag_opener);
 	let parser = get_range(non_macro_starter)
@@ -829,7 +843,7 @@ fn string_tagless_content<'a>() -> impl Parser<'a, StringParts> {
 fn string_tagless(state: ParserState) -> ParserResult<Vec<StringParts>> {
 	let terminator = ignore(newline)
 		.or(ignore(tag_opener))
-		.or(ignore(tag_closer))
+		.or(ignore(tag_closer_superficial))
 		.or(not(any));
 	let parser = maybe_until(string_tagless_content(), terminator);
 	parser.parse(state)
@@ -850,7 +864,7 @@ fn paragraph_string(state: ParserState) -> ParserResult<Paragraph> {
 
 	let terminator = ignore(newline)
 		.or(not(any))
-		.or(ignore(tag_closer));
+		.or(ignore(tag_closer_superficial));
 
 	after_blanks(inside.maybe_until(terminator))
 		.map(Paragraph).parse(state)
@@ -891,7 +905,7 @@ fn argument(state: ParserState) -> ParserResult<Argument> {
 	let parser = get_range(literal)
 		.followed_by(zero_or_more(space.or(indent)))
 		.and_maybe(
-			equals.preceding(zero_or_more(space.or(indent)).preceding(get_range(expression))),
+			equals.preceding(cut(zero_or_more(space.or(indent)).preceding(get_range(expression)))),
 		);
 	let ((name, value), state) = parser.parse(state)?;
 	Ok((

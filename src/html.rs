@@ -168,6 +168,7 @@ pub fn generate_html<'a>(
 	let state = GenerationState::from(file, &sub_scopes, options, engine);
 	let mut errors = Vec::new();
 	let mut output = HtmlOutput::new();
+	println!("{:#?}", file.defined_macros);
 	for node in &file.body {
 		if !output.is_empty() {
 			output.push_string('\n');
@@ -211,7 +212,7 @@ fn parse_node<'a>(
 		TopNodes::Content => Ok(HtmlOutput::new_with_content(state.indent)),
 		TopNodes::If(x) => if_tag(x, state),
 		TopNodes::For(x) => for_tag(x, state),
-		TopNodes::Raw(string) => Ok(HtmlOutput { parts: vec![MaybeHtml::Raw(string.clone())] }),
+		TopNodes::Raw(string) => Ok(HtmlOutput { parts: vec![MaybeHtml::Raw(escape_all_quotes(string).to_string())] }),
 		TopNodes::Doctype(string) => {
 			let mut htmlo = HtmlOutput::new();
 			htmlo.push_string(format!("<!DOCTYPE {string}>"));
@@ -272,11 +273,46 @@ fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<'a, 
 	let mut output = HtmlOutput::new();
 	let mut errors = Vec::new();
 	if value.is_truthy(state)? {
+		let mut state = state.clone();
+		let mut inline = state.force_inline;
+		if inline && !state.force_inline {
+			for child in &tag.body {
+				match child {
+					HtmlNodes::HtmlTag(x) => {
+						if !state.options.is_inline(&x.name.value) {
+							inline = false;
+							break;
+						}
+					}
+					HtmlNodes::MacroCall(_) | HtmlNodes::PlugCall(_) => {
+						inline = false;
+						break;
+					}
+					_ => continue,
+				}
+			}
+		}
+
+		if inline {
+			state.indent = 0;
+		} else {
+			state.indent += 1;
+		}
+
 		for child in &tag.body {
-			output.push_string('\n');
-			match parse_html_child(child, state) {
+			if !inline {
+				output.push_string('\n');
+			}
+			match parse_html_child(child, &state) {
 				Ok(mut string) => output.push_output(&mut string),
 				Err(mut error) => errors.append(&mut error),
+			}
+		}
+
+		if !inline {
+			output.push_string('\n');
+			for _ in 0..state.indent {
+				output.push_string('\t');
 			}
 		}
 
@@ -360,7 +396,7 @@ fn parse_html_child<'a>(
 			Err(x) => Err(x),
 		},
 		HtmlNodes::Paragraph(paragraph) => child_paragraph(paragraph, state),
-		HtmlNodes::Raw(string) => Ok(HtmlOutput { parts: vec![MaybeHtml::Raw(string.clone())] })
+		HtmlNodes::Raw(string) => Ok(HtmlOutput { parts: vec![MaybeHtml::Raw(escape_all_quotes(string).to_string())] }),
 	}
 }
 
@@ -417,16 +453,58 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 	}
 
 	let mut output = HtmlOutput::new();
-	for child in &template.0.body {
-		if !output.is_empty() {
-			output.push_string('\n');
-			for _ in 0..state.indent {
-				output.push_string('\t');
+	// for child in &template.0.body {
+	// 	if !output.is_empty() {
+	// 		output.push_string('\n');
+	// 		for _ in 0..state.indent {
+	// 			output.push_string('\t');
+	// 		}
+	// 	}
+	// 	match parse_html_child(child, &new_state) {
+	// 		Ok(mut string) => output.push_output(&mut string),
+	// 		Err(mut error) => errors.append(&mut error),
+	// 	}
+	// }
+
+	let mut inline = new_state.force_inline;
+	if inline && !new_state.force_inline {
+		for child in &template.0.body {
+			match child {
+				HtmlNodes::HtmlTag(x) => {
+					if !new_state.options.is_inline(&x.name.value) {
+						inline = false;
+						break;
+					}
+				}
+				HtmlNodes::MacroCall(_) | HtmlNodes::PlugCall(_) => {
+					inline = false;
+					break;
+				}
+				_ => continue,
 			}
+		}
+	}
+
+	if inline {
+		new_state.indent = 0;
+	} else {
+		new_state.indent += 1;
+	}
+
+	for child in &template.0.body {
+		if !inline {
+			output.push_string('\n');
 		}
 		match parse_html_child(child, &new_state) {
 			Ok(mut string) => output.push_output(&mut string),
 			Err(mut error) => errors.append(&mut error),
+		}
+	}
+
+	if !inline {
+		output.push_string('\n');
+		for _ in 0..new_state.indent {
+			output.push_string('\t');
 		}
 	}
 

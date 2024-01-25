@@ -13,7 +13,7 @@ impl Settings {
 				"p", "b", "i", "strong", "italic", "sub", "sup", "h1", "h2", "h3", "h4", "h5",
 				"h6", "a", "li", "title", "span", "emphasis", "code", "abbr", "bdo", "button", 
 				"cite", "dfn", "em", "img", "input", "kbd", "label", "map", "object", "output", 
-				"q", "script", "select", "small", "textarea", "time", "tt", "var",
+				"q", "script", "select", "small", "textarea", "time", "tt", "var", "pre",
 			]),
 			only_opener: string_vec(&["meta", "img", "link"]),
 			only_closer: string_vec(&["br"]),

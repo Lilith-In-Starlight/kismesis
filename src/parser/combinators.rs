@@ -225,10 +225,10 @@ where
 		Err(x) => {
 			let failure = matches!(x, Err::Failure(_));
 			let mut x = x.unpack();
-			x.error = fun();
 			if failure {
 				Err(Err::Failure(x))
 			} else {
+				x.error = fun();
 				Err(Err::Error(x))
 			}
 		}

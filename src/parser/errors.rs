@@ -221,8 +221,8 @@ impl ErrorKind for ParseError {
 				"Expected the file to end, but it didn't. You might have too many `>`".into()
 			}
 			Self::LiteralNotMatch { expected, .. } => format!("Expected the word `{expected}`"),
-			Self::ExpectedExprStart => "Expected `[` to denote the start of an expression".into(),
-			Self::ExpectedExprEnd => "Expected `]`to denote the end of an expression".into(),
+			Self::ExpectedExprStart => "Expected `{` to denote the start of an expression".into(),
+			Self::ExpectedExprEnd => "Expected `}`to denote the end of an expression".into(),
 			Self::ExpectedMacroMark => "Expected `!` to denote a macro call".into(),
 			Self::ExpectedPluginMark => "Expected `?` to denote a plugin call".into(),
 			Self::ExpectedUniFunc => "Expected `not` or some other unary function".into(),
