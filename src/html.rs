@@ -168,7 +168,6 @@ pub fn generate_html<'a>(
 	let state = GenerationState::from(file, &sub_scopes, options, engine);
 	let mut errors = Vec::new();
 	let mut output = HtmlOutput::new();
-	println!("{:#?}", file.defined_macros);
 	for node in &file.body {
 		if !output.is_empty() {
 			output.push_string('\n');
@@ -273,7 +272,6 @@ fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<'a, 
 	let mut output = HtmlOutput::new();
 	let mut errors = Vec::new();
 	if value.is_truthy(state)? {
-		let mut state = state.clone();
 		let mut inline = state.force_inline;
 		if inline && !state.force_inline {
 			for child in &tag.body {
@@ -293,30 +291,15 @@ fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<'a, 
 			}
 		}
 
-		if inline {
-			state.indent = 0;
-		} else {
-			state.indent += 1;
-		}
-
-		for child in &tag.body {
-			if !inline {
+		for (idx, child) in tag.body.iter().enumerate() {
+			if !inline && idx != 0 {
 				output.push_string('\n');
 			}
-			match parse_html_child(child, &state) {
+			match parse_html_child(child, state) {
 				Ok(mut string) => output.push_output(&mut string),
 				Err(mut error) => errors.append(&mut error),
 			}
 		}
-
-		if !inline {
-			output.push_string('\n');
-			for _ in 0..state.indent {
-				output.push_string('\t');
-			}
-		}
-
-		output.push_string('\n');
 	}
 	if errors.is_empty() {
 		Ok(output)
@@ -439,33 +422,16 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 	}
 
 	let mut inner_body = HtmlOutput::new();
+	let mut inner_state = new_state.clone();
+	inner_state.indent = 0;
 	for child in &mac.body {
-		if !inner_body.is_empty() {
-			inner_body.push_string('\n');
-			for _ in 0..state.indent {
-				inner_body.push_string('\t');
-			}
-		}
-		match parse_html_child(child, &new_state) {
+		match parse_html_child(child, &inner_state) {
 			Ok(mut string) => inner_body.push_output(&mut string),
 			Err(mut error) => errors.append(&mut error),
 		}
 	}
 
 	let mut output = HtmlOutput::new();
-	// for child in &template.0.body {
-	// 	if !output.is_empty() {
-	// 		output.push_string('\n');
-	// 		for _ in 0..state.indent {
-	// 			output.push_string('\t');
-	// 		}
-	// 	}
-	// 	match parse_html_child(child, &new_state) {
-	// 		Ok(mut string) => output.push_output(&mut string),
-	// 		Err(mut error) => errors.append(&mut error),
-	// 	}
-	// }
-
 	let mut inline = new_state.force_inline;
 	if inline && !new_state.force_inline {
 		for child in &template.0.body {
@@ -485,26 +451,13 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<'a
 		}
 	}
 
-	if inline {
-		new_state.indent = 0;
-	} else {
-		new_state.indent += 1;
-	}
-
-	for child in &template.0.body {
-		if !inline {
+	for (idx, child) in template.0.body.iter().enumerate() {
+		if !inline && idx != 0 {
 			output.push_string('\n');
 		}
 		match parse_html_child(child, &new_state) {
 			Ok(mut string) => output.push_output(&mut string),
 			Err(mut error) => errors.append(&mut error),
-		}
-	}
-
-	if !inline {
-		output.push_string('\n');
-		for _ in 0..new_state.indent {
-			output.push_string('\t');
 		}
 	}
 

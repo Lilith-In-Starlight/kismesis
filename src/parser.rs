@@ -99,14 +99,14 @@ pub(crate) trait Parser<'a, Output> {
 	{
 		BoxedParser::new(and_also(self, other))
 	}
-	fn maybe_until<P, O2>(self, terminator: P) -> BoxedParser<'a, Vec<Output>>
+	fn maybe_until<P, O2>(self, terminator: P, allow_empty: bool) -> BoxedParser<'a, Vec<Output>>
 	where
 		Self: Sized + 'a,
 		P: Parser<'a, O2> + 'a,
 		Output: 'a,
 		O2: 'a,
 	{
-		BoxedParser::new(maybe_until(self, terminator))
+		BoxedParser::new(maybe_until(self, terminator, allow_empty))
 	}
 	fn and_maybe<P, O2>(self, other: P) -> BoxedParser<'a, (Output, Option<O2>)>
 	where
@@ -414,7 +414,7 @@ fn pre_tag(state: ParserState) -> ParserResult<HtmlTag> {
 				specific_symbol('\\').preceding(any)
 				.or(any)
 				.map(Token::get_as_string)
-				.maybe_until(after_spaces(specific_symbol('>')))
+				.maybe_until(after_spaces(specific_symbol('>')), true)
 			)
 		).map(|((name, attributes, subtags), body)| {
 			let body = vec![HtmlNodes::Raw(body.unwrap_or_default().into_iter().collect())];
@@ -571,7 +571,7 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 }
 
 fn macro_call(state: ParserState<'_>) -> ParserResult<'_, Macro> {
-	let parser = macro_call_head.and_maybe(tag_body);
+	let parser = macro_call_head.and_maybe(cut(tag_body));
 
 	let (((name, arguments), body), state) = parser.parse(state)?;
 	Ok((
@@ -845,7 +845,7 @@ fn string_tagless(state: ParserState) -> ParserResult<Vec<StringParts>> {
 		.or(ignore(tag_opener))
 		.or(ignore(tag_closer_superficial))
 		.or(not(any));
-	let parser = maybe_until(string_tagless_content(), terminator);
+	let parser = maybe_until(string_tagless_content(), terminator, false);
 	parser.parse(state)
 }
 
@@ -853,7 +853,7 @@ fn attr_string(state: ParserState) -> ParserResult<Vec<StringParts>> {
 	let (quote_mark, state) = quote_mark.parse(state)?;
 	let terminator = newline.or(specific_symbol(*quote_mark));
 	let parser =
-		maybe_until(string_tagless_content(), terminator).followed_by(specific_symbol(*quote_mark));
+		cut(maybe_until(string_tagless_content(), terminator, true).followed_by(specific_symbol(*quote_mark)));
 	parser.parse(state)
 }
 
@@ -866,7 +866,7 @@ fn paragraph_string(state: ParserState) -> ParserResult<Paragraph> {
 		.or(not(any))
 		.or(ignore(tag_closer_superficial));
 
-	after_blanks(inside.maybe_until(terminator))
+	after_blanks(inside.maybe_until(terminator, false))
 		.map(Paragraph).parse(state)
 }
 

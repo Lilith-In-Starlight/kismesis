@@ -30,7 +30,7 @@ where
 	}
 }
 
-pub(super) fn maybe_until<'a, P1, O1, P2, O2>(p1: P1, p2: P2) -> impl Parser<'a, Vec<O1>>
+pub(super) fn maybe_until<'a, P1, O1, P2, O2>(p1: P1, p2: P2, allow_empty: bool) -> impl Parser<'a, Vec<O1>>
 where
 	P1: Parser<'a, O1>,
 	P2: Parser<'a, O2>,
@@ -40,7 +40,7 @@ where
 		loop {
 			match p2.parse(state.clone()) {
 				Ok((_, next_state)) => {
-					if found.is_empty() {
+					if found.is_empty() && !allow_empty {
 						return Err(ParseError::EmptyString.error_at(&next_state));
 					}
 					return Ok((found, state));
