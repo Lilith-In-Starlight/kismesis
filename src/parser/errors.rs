@@ -10,6 +10,7 @@ use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+	ExpectedStatement,
 	ExpectedSpecifierOrTag,
 	HeaderNotAllowedHere,
 	SkippedHeadingLevel(usize),
@@ -186,6 +187,7 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
+			Self::ExpectedStatement => "Expected `mut`, `const` or `set`".to_string(),
 			Self::ExpectedSpecifierOrTag => 
 				"Expected one of the following:\n - tag specifier (`?` `!`)\n - tag composition (`+`)\n - parameters\n - tag body starter (`|` `:`)".into(),
 			Self::HeaderNotAllowedHere => "Headers are not allowed outside sections".into(),
