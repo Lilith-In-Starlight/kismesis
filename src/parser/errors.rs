@@ -10,6 +10,7 @@ use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+	UnregisteredFileID(KisID),
 	ExpectedStatement,
 	ExpectedSpecifierOrTag,
 	HeaderNotAllowedHere,
@@ -187,6 +188,7 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
+			Self::UnregisteredFileID(id) => format!("No file with the ID {} has been registered", id.0),
 			Self::ExpectedStatement => "Expected `mut`, `const` or `set`".to_string(),
 			Self::ExpectedSpecifierOrTag => 
 				"Expected one of the following:\n - tag specifier (`?` `!`)\n - tag composition (`+`)\n - parameters\n - tag body starter (`|` `:`)".into(),
