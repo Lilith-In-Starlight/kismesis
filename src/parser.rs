@@ -936,7 +936,7 @@ pub(crate) fn file(
 		skipped_blanks().preceding(
 			some_tag
 				.map(Into::into)
-				.or(specific_symbol('$').preceding(after_spaces(statement)))
+				.or(specific_symbol('$').preceding(after_spaces(cut(statement))))
 				.or(section_block.map(|x| BodyNodes::HtmlTag(Section::into_tag(x))))
 				.or(paragraph_string
 					.map(BodyNodes::Paragraph)),
