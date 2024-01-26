@@ -1,5 +1,5 @@
 use htmlize::escape_all_quotes;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::{PathBuf, Path}};
 
 use crate::{
 	parser::types::{ParsedFile, Paragraph},
@@ -131,6 +131,7 @@ struct GenerationState<'a> {
 	indent: usize,
 	scope: KisID,
 	force_inline: bool,
+	stack_paths: Box<[Option<PathBuf>]>,
 }
 
 type ValueRef<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, TextPos)>;
@@ -151,6 +152,7 @@ impl<'a> GenerationState<'a> {
 			indent: 0,
 			scope: file.file_id,
 			force_inline: false,
+			stack_paths: sub_scopes.iter().map(|x| x.get_path_slice(engine).map(Path::to_path_buf)).collect::<Vec<_>>().into_boxed_slice(),
 		}
 	}
 }
@@ -644,7 +646,9 @@ impl ExpressionValues {
 				match calculate_expression(x, state)?.to_string(range, scope, state) {
 					Ok(x) => Ok(x),
 					Err(mut x) => {
-						x[0].add_hint(Hints::ReferenceToThis.with_state_at(pos.clone(), *id));
+						let err = &mut x[0];
+						err.add_hint(Hints::ReferenceToThis.with_state_at(pos.clone(), *id));
+						err.add_hint(Hints::StackIsThis(state.stack_paths.clone()).stateless());
 						Err(x)
 					}
 				}

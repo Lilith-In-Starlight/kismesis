@@ -1,4 +1,4 @@
-use std::ops::Bound;
+use std::{ops::Bound, path::PathBuf};
 
 use crate::{
 	errors::{ErrorKind, ErrorState, StatelessError},
@@ -100,6 +100,7 @@ impl Err {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Hints {
+	StackIsThis(Box<[Option<PathBuf>]>),
 	HeaderSectionDynamics,
 	HeaderForSize,
 	ArgumentDefinedHere,
@@ -114,6 +115,7 @@ pub enum Hints {
 impl ErrorKind for Hints {
 	fn get_text(&self) -> String {
 		match self {
+			Self::StackIsThis(stack) => todo!(),
 			Self::HeaderSectionDynamics => "Headers must always be the first child of a `<section>`, and their number must correspond to the amount of nested sections".into(),
 			Self::HeaderForSize => "If you're trying to control the size of text for aesthetic purposes, use CSS instead".into(),
 			Self::HgroupContents => "An `<hgroup>` must have a heading (e.g. `<h1>` `<h2>`, etc) as its first child".into(),
