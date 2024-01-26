@@ -10,7 +10,7 @@ This is a basic rundown of how to get started. It doesn't tell you much because 
 3. Add `kismesis` to that library with the `pdk` feature.
 4. In `lib.rs`, add `use extism_pdk::*` and `kismesis::pdk::*`.
 5. Create a function `fn parser(Json(input): (Json<PluginInput>)) -> FnResult<Json<PlugResult>>`
-6. Make sure your program doesn't panic, as this results in an error report that offers very little help to both you and the user. FnResult uses anyhow::Error, so you can use the elvis operatora lot of the time.
+6. Make sure your program doesn't panic, as this results in an error report that offers very little help to both you and the user. FnResult uses anyhow::Error, so you can use the elvis operator a lot of the time.
 7. Use `PluginParseError::new()` to create a new error at the position of one of your tokens, or the ranges given in the input.
 8. Use `.add_hint()` to add a hint to an error.
 
@@ -28,7 +28,6 @@ The Kismesis engine is made as a separate crate from the Kismesis static site ge
 - Allow for recursive templating
 - Output errors for irrefutable infinite recursion (this can only be caused by macros and expressions that unconditionally reference each other, and futurely, by template self-reference)
 - Somehow realize when two values have been bouncing around through references a lot???? And report an error for that. Somehow.
-- Compiler errors for trying to use the `<div>` tag, and make use of `<container>` instead.
 - Allow plugins to have a second pass once the AST is compiled, so they can have access to almost-fully-compiled AST.
 
 This is not a checklist. Elements will be deleted from the list as they are completed.
