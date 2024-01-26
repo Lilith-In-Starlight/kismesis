@@ -927,9 +927,9 @@ pub(crate) fn file(
 		skipped_blanks().preceding(
 			some_tag
 				.map(Into::into)
-				.or(lambda_definition.map(BodyNodes::LambdaDef))
-				.or(variable_definition.map(BodyNodes::VarDef))
-				.or(set_stmt.map(|(x, y)| BodyNodes::SetStmt(x, y)))
+				.or(specific_symbol('$').preceding(cut(after_spaces(lambda_definition))).map(BodyNodes::LambdaDef))
+				.or(specific_symbol('$').preceding(cut(after_spaces(variable_definition))).map(BodyNodes::VarDef))
+				.or(specific_symbol('$').preceding(cut(after_spaces(set_stmt))).map(|(x, y)| BodyNodes::SetStmt(x, y)))
 				.or(section_block.map(|x| BodyNodes::HtmlTag(Section::into_tag(x))))
 				.or(paragraph_string
 					.map(BodyNodes::Paragraph)),
