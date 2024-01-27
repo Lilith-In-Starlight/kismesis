@@ -19,6 +19,73 @@ pub enum ReportKind {
 	Help,
 }
 
+impl<'a> DrawingInfo<'a> {
+	fn get_header(&self) -> String {
+		let mut output = String::new();
+		match self.kind {
+			ReportKind::Error => {
+				output.push_str(&" ERROR ".black().on_red().to_string());
+				output.push_str(&" in `".black().on_red().to_string());
+				match self.scope.path {
+					Some(ref path) => {
+						output.push_str(&path.to_string_lossy().as_ref().black().on_red().to_string());
+						output.push_str(&"` ".black().on_red().to_string());
+					}
+					None => output.push_str(&"input` ".black().on_red().to_string()),
+				}
+			}
+			ReportKind::Hint => {
+				output.push_str(&" HINT ".black().on_yellow().to_string());
+				output.push_str(&" in `".black().on_yellow().to_string());
+				match self.scope.path {
+					Some(ref path) => {
+						output.push_str(
+							&path
+								.to_string_lossy()
+								.as_ref()
+								.black()
+								.on_yellow()
+								.to_string(),
+						);
+						output.push_str(&"` ".black().on_yellow().to_string());
+					}
+					None => output.push_str(&"input` ".black().on_yellow().to_string()),
+				}
+			}
+			ReportKind::Fatal => {
+				output.push_str(&" FATAL ERROR ".black().on_red().to_string());
+				output.push_str(&" in `".black().on_red().to_string());
+				match self.scope.path {
+					Some(ref path) => {
+						output.push_str(&path.to_string_lossy().as_ref().black().on_red().to_string());
+						output.push_str(&"` ".black().on_red().to_string());
+					}
+					None => output.push_str(&"input` ".black().on_red().to_string()),
+				}
+			}
+			ReportKind::Help => {
+				output.push_str(&" HELP ".black().on_green().to_string());
+				output.push_str(&" in `".black().on_green().to_string());
+				match self.scope.path {
+					Some(ref path) => {
+						output.push_str(
+							&path
+								.to_string_lossy()
+								.as_ref()
+								.black()
+								.on_green()
+								.to_string(),
+						);
+						output.push_str(&"` ".black().on_green().to_string());
+					}
+					None => output.push_str(&"input` ".black().on_green().to_string()),
+				}
+			}
+		};
+		output
+	}
+}
+
 /// Information related to how the error reporter will report an error
 pub struct DrawingInfo<'a> {
 	pub(crate) line_number_length: usize,
@@ -99,66 +166,7 @@ pub fn draw_error<T: ErrorKind + Debug>(
 
 	let mut output = String::new();
 
-	match info.kind {
-		ReportKind::Error => {
-			output.push_str(&" ERROR ".black().on_red().to_string());
-			output.push_str(&" in `".black().on_red().to_string());
-			match info.scope.path {
-				Some(ref path) => {
-					output.push_str(&path.to_string_lossy().as_ref().black().on_red().to_string());
-					output.push_str(&"` ".black().on_red().to_string());
-				}
-				None => output.push_str(&"input` ".black().on_red().to_string()),
-			}
-		}
-		ReportKind::Hint => {
-			output.push_str(&" HINT ".black().on_yellow().to_string());
-			output.push_str(&" in `".black().on_yellow().to_string());
-			match info.scope.path {
-				Some(ref path) => {
-					output.push_str(
-						&path
-							.to_string_lossy()
-							.as_ref()
-							.black()
-							.on_yellow()
-							.to_string(),
-					);
-					output.push_str(&"` ".black().on_yellow().to_string());
-				}
-				None => output.push_str(&"input` ".black().on_yellow().to_string()),
-			}
-		}
-		ReportKind::Fatal => {
-			output.push_str(&" FATAL ERROR ".black().on_red().to_string());
-			output.push_str(&" in `".black().on_red().to_string());
-			match info.scope.path {
-				Some(ref path) => {
-					output.push_str(&path.to_string_lossy().as_ref().black().on_red().to_string());
-					output.push_str(&"` ".black().on_red().to_string());
-				}
-				None => output.push_str(&"input` ".black().on_red().to_string()),
-			}
-		}
-		ReportKind::Help => {
-			output.push_str(&" HELP ".black().on_green().to_string());
-			output.push_str(&" in `".black().on_green().to_string());
-			match info.scope.path {
-				Some(ref path) => {
-					output.push_str(
-						&path
-							.to_string_lossy()
-							.as_ref()
-							.black()
-							.on_green()
-							.to_string(),
-					);
-					output.push_str(&"` ".black().on_green().to_string());
-				}
-				None => output.push_str(&"input` ".black().on_green().to_string()),
-			}
-		}
-	};
+	output.push_str(&info.get_header());
 
 	output.push('\n');
 
@@ -249,7 +257,7 @@ fn draw_line<T: ErrorKind>(
 	info: &DrawingInfo,
 ) -> Option<String> {
 	let mut output = draw_line_number(line_number, info).white().to_string();
-	let mut error_line = turn_to_chars(draw_line_number(line_number, info), ' ');
+	let mut error_line = turn_to_chars(&draw_line_number(line_number, info), ' ');
 	let termsize = termsize::get().map_or(40, |size| size.cols) as usize;
 	let termsize = if termsize >= err.error.get_text().len() {
 		std::cmp::min(termsize, termsize - err.error.get_text().len())
@@ -292,7 +300,7 @@ fn draw_line<T: ErrorKind>(
 			} else {
 				' '
 			};
-			error_line.push_str(&turn_to_chars(tkstr, char));
+			error_line.push_str(&turn_to_chars(&tkstr, char));
 			if token_pos.is_at_an_end(&err.text_position) {
 				if err.text_position.is_one_line() {
 					let text = err
@@ -310,16 +318,16 @@ fn draw_line<T: ErrorKind>(
 	}
 
 	error_line = error_line.trim_end().to_string();
-	if !error_line.is_empty() {
-		Some(format!("{}\n{}", output, error_line.yellow()))
-	} else {
+	if error_line.is_empty() {
 		Some(output)
+	} else {
+		Some(format!("{}\n{}", output, error_line.yellow()))
 	}
 }
 
 /// Turns a string of characters into a repeated sequence of a given character.
 /// Tabs are turned into four instances of the character
-fn turn_to_chars(string: String, chr: char) -> String {
+fn turn_to_chars(string: &str, chr: char) -> String {
 	string
 		.chars()
 		.map(|x| match x {

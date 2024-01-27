@@ -1,9 +1,9 @@
 use htmlize::escape_all_quotes;
-use std::{collections::HashMap, path::{PathBuf, Path}};
+use std::collections::HashMap;
 
 use crate::{
 	parser::types::{ParsedFile, Paragraph},
-	{KisID, Kismesis},
+	{KisID, Kismesis}, KisTemplateID,
 };
 
 use super::{
@@ -131,7 +131,7 @@ struct GenerationState<'a> {
 	indent: usize,
 	scope: KisID,
 	force_inline: bool,
-	stack_paths: Box<[Option<PathBuf>]>,
+	stack_paths: Box<[KisTemplateID]>,
 }
 
 type ValueRef<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, TextPos)>;
@@ -152,7 +152,17 @@ impl<'a> GenerationState<'a> {
 			indent: 0,
 			scope: file.file_id,
 			force_inline: false,
-			stack_paths: sub_scopes.iter().map(|x| x.get_path_slice(engine).map(Path::to_path_buf)).collect::<Vec<_>>().into_boxed_slice(),
+			stack_paths: {
+				let mut output = vec![];
+				let mut current = Some(file);
+				while let Some(current_verified) = current {
+					if let Some(id) = current_verified.template.clone() {
+						output.push(id);
+					}
+					current = current_verified.template.as_ref().and_then(|x| engine.get_template(x));
+				}
+				output.into_boxed_slice()
+			},
 		}
 	}
 }

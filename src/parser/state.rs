@@ -56,7 +56,7 @@ impl<'a> ParserState<'a> {
 		}
 	}
 
-	pub(crate) fn first_token(&self) -> Option<&Token> {
+	pub(crate) const fn first_token(&self) -> Option<&Token> {
 		self.tokens.first()
 	}
 
@@ -106,7 +106,7 @@ impl<'a> ParserState<'a> {
 	}
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Default)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct TokenPos {
 	idx: usize,

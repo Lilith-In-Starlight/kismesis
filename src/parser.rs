@@ -13,7 +13,7 @@ use crate::plugins::PluginInput;
 use crate::{KisID, KisTemplateID, Kismesis};
 
 use self::errors::{Err, ParseError};
-use self::semantics::{VerifySemantics, Semantics};
+use self::semantics::{Verify, Semantics};
 use self::state::ParserState;
 use self::types::{
 	Argument, Attribute, BinFunc, BodyNodes, BodyTags, Expression, ForTag,
@@ -938,8 +938,8 @@ pub(crate) fn file(
 				.map(Into::into)
 				.or(specific_symbol('$').preceding(after_spaces(cut(statement))))
 				.or(section_block.map(|x| BodyNodes::HtmlTag(Section::into_tag(x))))
-				.or(paragraph_string
-					.map(BodyNodes::Paragraph)),
+				.or(peek(cut(not(statement).set_err(|| ParseError::SuspiciousStmtString))).preceding(paragraph_string
+					.map(BodyNodes::Paragraph))),
 		),
 	)
 	.followed_by(check_tag_mismatch)

@@ -1,13 +1,13 @@
-use super::types::*;
+use super::types::{BodyNodes, ForTag, HtmlNodes, HtmlTag, IfTag, Macro, PlugCall, TopNodes};
 use super::errors::{Err, Hints, ParseError, Hintable};
 
 #[derive(Clone)]
-pub(crate) struct Semantics {
+pub struct Semantics {
     section_depth: usize,
 }
 
 impl Semantics {
-    pub(crate) fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             section_depth: 0,
         }
@@ -16,18 +16,18 @@ impl Semantics {
 
 /// This trait is for things whose semantics, or whose children's semantics, must be validated in the
 /// semantics checking step.
-pub(crate) trait VerifySemantics {
+pub trait Verify {
     fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>>;
 }
 
 
-impl VerifySemantics for Macro {
+impl Verify for Macro {
 	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
 
-		for tag in self.body.iter_mut() {
+		for tag in &mut self.body {
 			if let Err(ref mut x) = tag.check_semantics(semantics) {
-				errors.append(x)
+				errors.append(x);
 			}
 		}
 
@@ -39,13 +39,13 @@ impl VerifySemantics for Macro {
 	}
 }
 
-impl VerifySemantics for PlugCall {
+impl Verify for PlugCall {
 	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
 
-		for tag in self.body.iter_mut() {
+		for tag in &mut self.body {
 			if let Err(ref mut x) = tag.check_semantics(semantics) {
-				errors.append(x)
+				errors.append(x);
 			}
 		}
 
@@ -57,7 +57,7 @@ impl VerifySemantics for PlugCall {
 	}
 }
 
-impl VerifySemantics for HtmlNodes {
+impl Verify for HtmlNodes {
 	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		match self {
 			Self::HtmlTag(ref mut tag) => tag.check_semantics(semantics),
@@ -71,7 +71,7 @@ impl VerifySemantics for HtmlNodes {
 }
 
 
-impl VerifySemantics for TopNodes {
+impl Verify for TopNodes {
 	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		match self {
 			Self::HtmlTag(ref mut tag) => tag.check_semantics(semantics),
@@ -85,7 +85,7 @@ impl VerifySemantics for TopNodes {
 }
 
 
-impl VerifySemantics for BodyNodes {
+impl Verify for BodyNodes {
 	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		match self {
 			Self::HtmlTag(ref mut tag) => tag.check_semantics(semantics),
@@ -98,7 +98,7 @@ impl VerifySemantics for BodyNodes {
 	}
 }
 
-impl VerifySemantics for HtmlTag {
+impl Verify for HtmlTag {
 	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
         let mut semantics = semantics.clone();
@@ -127,7 +127,7 @@ impl VerifySemantics for HtmlTag {
 						ParseError::ThisTagCannotBeEmpty(self.name.value.clone())
 							.error_at_pos(self.name.range.clone())
 							.with_hint(Hints::SectionTagContents.stateless()),
-					)
+					);
 				}
 			}
 			"section" => {
@@ -148,7 +148,7 @@ impl VerifySemantics for HtmlTag {
 						ParseError::ThisTagCannotBeEmpty(self.name.value.clone())
 							.error_at_pos(self.name.range.clone())
 							.with_hint(Hints::SectionTagContents.stateless()),
-					)
+					);
 				}
 			}
 			x => {
@@ -182,9 +182,9 @@ impl VerifySemantics for HtmlTag {
 			}
 		}
 
-		for tag in self.body.iter_mut() {
+		for tag in &mut self.body {
 			if let Err(ref mut x) = tag.check_semantics(&semantics) {
-				errors.append(x)
+				errors.append(x);
 			}
 		}
 
@@ -196,13 +196,13 @@ impl VerifySemantics for HtmlTag {
 	}
 }
 
-impl VerifySemantics for IfTag {
+impl Verify for IfTag {
 	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
 
-		for tag in self.body.iter_mut() {
+		for tag in &mut self.body {
 			if let Err(ref mut x) = tag.check_semantics(semantics) {
-				errors.append(x)
+				errors.append(x);
 			}
 		}
 
@@ -214,7 +214,7 @@ impl VerifySemantics for IfTag {
 	}
 }
 
-impl VerifySemantics for ForTag {
+impl Verify for ForTag {
 	fn check_semantics(&mut self, semantics: &Semantics) -> Result<(), Vec<Err>> {
 		let mut errors = vec![];
 

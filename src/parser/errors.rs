@@ -1,5 +1,7 @@
-use std::{ops::Bound, path::PathBuf};
+use std::ops::Bound;
+use std::fmt::Write;
 
+use crate::KisTemplateID;
 use crate::{
 	errors::{ErrorKind, ErrorState, StatelessError},
 	html::ScopedError,
@@ -10,6 +12,7 @@ use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+	SuspiciousStmtString,
 	UnregisteredFileID(KisID),
 	ExpectedStatement,
 	ExpectedSpecifierOrTag,
@@ -100,7 +103,7 @@ impl Err {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Hints {
-	StackIsThis(Box<[Option<PathBuf>]>),
+	StackIsThis(Box<[KisTemplateID]>),
 	HeaderSectionDynamics,
 	HeaderForSize,
 	ArgumentDefinedHere,
@@ -115,7 +118,20 @@ pub enum Hints {
 impl ErrorKind for Hints {
 	fn get_text(&self) -> String {
 		match self {
-			Self::StackIsThis(stack) => todo!(),
+			Self::StackIsThis(stack) => {
+				let formatted = stack.iter().fold(String::new(), |mut output, current| {
+					let current = match current {
+						KisTemplateID::Input(x) => format!("Command Line Input #{x}"),
+						KisTemplateID::File(x) => x.display().to_string(),
+					};
+					if !output.is_empty() {
+						let _ = writeln!(&mut output);
+					}
+					let _ = write!(&mut output, " - {current}");
+					output
+				});
+				format!("This error could be caused by a mistake made in any of these templates:\n{formatted}")
+			},
 			Self::HeaderSectionDynamics => "Headers must always be the first child of a `<section>`, and their number must correspond to the amount of nested sections".into(),
 			Self::HeaderForSize => "If you're trying to control the size of text for aesthetic purposes, use CSS instead".into(),
 			Self::HgroupContents => "An `<hgroup>` must have a heading (e.g. `<h1>` `<h2>`, etc) as its first child".into(),
@@ -190,6 +206,7 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
+			Self::SuspiciousStmtString => r"This looks too much like a statement. If it isn't meant to be one, add a `\` before the first word".to_string(),
 			Self::UnregisteredFileID(id) => format!("No file with the ID {} has been registered", id.0),
 			Self::ExpectedStatement => "Expected `mut`, `const` or `set`".to_string(),
 			Self::ExpectedSpecifierOrTag => 
