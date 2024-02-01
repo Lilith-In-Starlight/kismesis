@@ -220,6 +220,8 @@ impl Kismesis {
 
 	#[cfg(not(feature = "plugins"))]
 	/// Send tokens and body to a plugin with a given `name`
+	/// # Errors
+	/// Whenever called, as the plugins feature is not enabled
 	pub fn call_plugin(
 		&self,
 		name: &Ranged<String>,
@@ -239,6 +241,8 @@ impl Kismesis {
 	}
 
 	/// Parse and register a file
+	/// # Errors
+	/// If the file cannot be parsed, or if there is an IO error when accessing or reading `path`.
 	// TODO: This is a misnomer
 	pub fn register_file(
 		&mut self,

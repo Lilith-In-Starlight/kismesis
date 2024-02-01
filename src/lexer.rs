@@ -45,19 +45,19 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 		let mut buffer2 = Vec::new();
 		let mut comments = false;
 		for x in s.chars() {
-			if !comments {
+			if comments {
+				buffer2.push(x);
+				if let [.., '-', '>'] = buffer2.as_slice() {
+					buffer2.clear();
+					comments = false;
+				}
+			} else {
 				buffer.push(x);
 				if let [.., '<', '!', '-'] = buffer.as_slice() {
 					buffer.pop();
 					buffer.pop();
 					buffer.pop();
 					comments = true;
-				}
-			} else {
-				buffer2.push(x);
-				if let [.., '-', '>'] = buffer2.as_slice() {
-					buffer2.clear();
-					comments = false;
 				}
 			}
 		}

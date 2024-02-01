@@ -12,6 +12,7 @@ use super::{state::ParserState, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
+	InvalidAttrName,
 	SuspiciousStmtString,
 	UnregisteredFileID(KisID),
 	ExpectedStatement,
@@ -206,6 +207,7 @@ impl ParseError {
 impl ErrorKind for ParseError {
 	fn get_text(&self) -> String {
 		match self {
+			Self::InvalidAttrName => "Invalid attribute name".to_string(),
 			Self::SuspiciousStmtString => r"This looks too much like a statement. If it isn't meant to be one, add a `\` before the first word".to_string(),
 			Self::UnregisteredFileID(id) => format!("No file with the ID {} has been registered", id.0),
 			Self::ExpectedStatement => "Expected `mut`, `const` or `set`".to_string(),

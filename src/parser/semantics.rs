@@ -153,7 +153,7 @@ impl Verify for HtmlTag {
 			}
 			x => {
 				let mut chars = x.chars();
-				if x.len() >= 2 && chars.next().unwrap() == 'h' {
+				if x.len() >= 2 && chars.next().expect("This state is unreachable") == 'h' {
 					match chars.collect::<String>().parse::<usize>() {
 						Ok(x) if x > 6 || x == 0 => errors.push(
 							ParseError::IncorrectHeaderNumber

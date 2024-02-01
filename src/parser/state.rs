@@ -65,15 +65,15 @@ impl<'a> ParserState<'a> {
 	}
 
 	pub(crate) fn close_tag(&self) -> Result<Self, ParseError> {
-		if !self.tag_openers.is_empty() {
+		if self.tag_openers.is_empty() {
+			Err(ParseError::TagCloserMismatch)
+		} else {
 			let mut clone = self.clone();
 			clone.tag_openers.pop();
 			Ok(Self {
 				tag_openers: clone.tag_openers,
 				..clone
 			})
-		} else {
-			Err(ParseError::TagCloserMismatch)
 		}
 	}
 
