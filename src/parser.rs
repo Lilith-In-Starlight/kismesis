@@ -237,6 +237,12 @@ fn macro_name(state: ParserState) -> ParserResult<&str> {
 	}
 }
 
+fn attr_name(state: ParserState) -> ParserResult<String> {
+	repeated(literal.map(ToString::to_string).or(specific_symbol('-').map(ToString::to_string)), 1..)
+		.map(|x| x.into_iter().collect())
+		.set_err(|| ParseError::InvalidAttrName).parse(state)
+}
+
 fn set_starter(state: ParserState) -> ParserResult<&str> {
 	match literal.parse(state.clone()) {
 		Ok(ok) if ok.0 == "set" => Ok(ok),
@@ -891,13 +897,13 @@ fn subtag(state: ParserState) -> ParserResult<HtmlTag> {
 }
 
 fn attribute(state: ParserState) -> ParserResult<Attribute> {
-	let parser = get_range(literal).followed_by(skip_spaces()).and_also(cut(
+	let parser = get_range(attr_name).followed_by(skip_spaces()).and_also(cut(
 		equals.preceding(zero_or_more(space.or(indent)).preceding(get_range(expression)))
 	));
 	let ((name, value), state) = parser.parse(state)?;
 	Ok((
 		Attribute {
-			name: name.to_own(),
+			name,
 			value,
 		},
 		state,
@@ -905,7 +911,7 @@ fn attribute(state: ParserState) -> ParserResult<Attribute> {
 }
 
 fn argument(state: ParserState) -> ParserResult<Argument> {
-	let parser = get_range(literal)
+	let parser = get_range(attr_name)
 		.followed_by(zero_or_more(space.or(indent)))
 		.and_maybe(
 			equals.preceding(cut(zero_or_more(space.or(indent)).preceding(get_range(expression)))),
@@ -913,7 +919,7 @@ fn argument(state: ParserState) -> ParserResult<Argument> {
 	let ((name, value), state) = parser.parse(state)?;
 	Ok((
 		Argument {
-			name: name.to_own(),
+			name,
 			value,
 		},
 		state,
@@ -950,7 +956,7 @@ pub(crate) fn file(
 	.followed_by(eof.or(ignore(tag_closer)));
 
 	let state = ParserState::new(
-		&engine.get_file(tokens_id).unwrap().tokens,
+		&engine.get_file(tokens_id).expect("Tried to parse a file that does not exist").tokens,
 		file_path,
 		engine,
 	);
