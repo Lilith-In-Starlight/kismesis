@@ -16,7 +16,7 @@ impl Settings {
 				"q", "script", "select", "small", "textarea", "time", "tt", "var", "pre",
 			]),
 			only_opener: string_vec(&["meta", "img", "link"]),
-			only_closer: string_vec(&["br"]),
+			only_closer: string_vec(&["br", "hr"]),
 		}
 	}
 
