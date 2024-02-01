@@ -1,3 +1,4 @@
+#![allow(clippy::needless_pass_by_value)]
 mod combinators;
 mod semantics;
 pub mod errors;
@@ -399,9 +400,12 @@ fn lambda_definition(state: ParserState) -> ParserResult<Lambda> {
 
 fn if_tag(state: ParserState) -> ParserResult<IfTag> {
 	let parser = specific_literal("if")
-		.preceding(after_spaces(get_range(expression)))
-		.and_also(maybe(tag_body).map(Option::unwrap_or_default))
-		.map(|(condition, body)| IfTag { condition, body });
+		.preceding(cut(
+			after_spaces(get_range(expression))
+			.and_also(maybe(tag_body).map(Option::unwrap_or_default))
+			.map(|(condition, body)| IfTag { condition, body }))
+		);
+		
 
 	parser.parse(state)
 }
@@ -430,7 +434,6 @@ fn pre_tag(state: ParserState) -> ParserResult<HtmlTag> {
 }
 
 fn for_tag(state: ParserState) -> ParserResult<ForTag> {
-
 	let parser = specific_literal("for").preceding(
 		cut(after_spaces(get_range(literal)))
 			.followed_by(after_spaces(specific_literal("in")))
@@ -571,7 +574,7 @@ fn plug_call(state: ParserState<'_>) -> ParserResult<'_, Box<PlugCall>> {
 }
 
 fn macro_call(state: ParserState<'_>) -> ParserResult<'_, Macro> {
-	let parser = macro_call_head.and_maybe(cut(tag_body));
+	let parser = macro_call_head.and_maybe(tag_body);
 
 	let (((name, arguments), body), state) = parser.parse(state)?;
 	Ok((
