@@ -156,7 +156,7 @@ pub enum HtmlNodes {
 	If(IfTag),
 	For(ForTag),
 	Paragraph(Paragraph),
-	Content,
+	Content(Option<usize>),
 	Raw(String),
 }
 
@@ -170,7 +170,7 @@ pub enum TopNodes {
 	HtmlTag(HtmlTag),
 	MacroCall(Macro),
 	PlugCall(Box<PlugCall>),
-	Content,
+	Content(Option<usize>),
 	Doctype(String),
 	If(IfTag),
 	For(ForTag),
@@ -186,7 +186,7 @@ pub enum BodyTags {
 	PlugCall(Box<PlugCall>),
 	If(IfTag),
 	For(ForTag),
-	Content,
+	Content(Option<usize>),
 	Raw(String),
 }
 
@@ -197,7 +197,7 @@ pub enum Tag {
 	MacroDef(Macro),
 	MacroCall(Macro),
 	PlugCall(Box<PlugCall>),
-	Content,
+	Content(Option<usize>),
 	Doctype(String),
 	If(IfTag),
 	For(ForTag),
@@ -212,7 +212,7 @@ pub enum BodyNodes {
 	PlugCall(Box<PlugCall>),
 	LambdaDef(Lambda),
 	VarDef(Variable),
-	Content,
+	Content(Option<usize>),
 	SetStmt(String, String),
 	Doctype(String),
 	If(IfTag),
@@ -366,6 +366,32 @@ impl ParsedFile {
 
 		out.into_iter().collect()
 	}
+	
+	pub fn get_local_macro_scope<'a>(&'a self) -> HashMap<String, Scoped<&Macro>> {
+		let mut output = HashMap::new();
+		output.extend(
+			self.defined_macros
+				.iter()
+				.map(|x| (x.name.value.clone(), (x, self.file_id))),
+		);
+
+		output
+	}
+	
+	pub fn get_local_variable_scope<'a>(
+		&'a self,
+	) -> HashMap<String, ScopedExpression> {
+		let mut out = HashMap::new();
+
+		out.extend(self.defined_variables.iter().map(|x| {
+			(
+				x.name.value.clone(),
+				((Some(&x.value), x.name.range.clone()), self.file_id),
+			)
+		}));
+
+		out.into_iter().collect()
+	}
 }
 
 impl From<Tag> for BodyNodes {
@@ -375,7 +401,7 @@ impl From<Tag> for BodyNodes {
 			Tag::MacroCall(x) => Self::MacroCall(x),
 			Tag::MacroDef(x) => Self::MacroDef(x),
 			Tag::PlugCall(x) => Self::PlugCall(x),
-			Tag::Content => Self::Content,
+			Tag::Content(x) => Self::Content(x),
 			Tag::Doctype(x) => Self::Doctype(x),
 			Tag::If(x) => Self::If(x),
 			Tag::For(x) => Self::For(x),
@@ -389,7 +415,7 @@ impl From<BodyTags> for BodyNodes {
 			BodyTags::HtmlTag(x) => Self::HtmlTag(x),
 			BodyTags::MacroCall(x) => Self::MacroCall(x),
 			BodyTags::PlugCall(x) => Self::PlugCall(x),
-			BodyTags::Content => Self::Content,
+			BodyTags::Content(x) => Self::Content(x),
 			BodyTags::If(x) => Self::If(x),
 			BodyTags::For(x) => Self::For(x),
 			BodyTags::Raw(x) => Self::Raw(x),
@@ -403,7 +429,7 @@ impl From<BodyTags> for HtmlNodes {
 			BodyTags::HtmlTag(x) => Self::HtmlTag(x),
 			BodyTags::MacroCall(x) => Self::MacroCall(x),
 			BodyTags::PlugCall(x) => Self::PlugCall(x),
-			BodyTags::Content => Self::Content,
+			BodyTags::Content(x) => Self::Content(x),
 			BodyTags::If(x) => Self::If(x),
 			BodyTags::For(x) => Self::For(x),
 			BodyTags::Raw(x) => Self::Raw(x),

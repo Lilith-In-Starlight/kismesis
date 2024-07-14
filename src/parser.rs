@@ -457,17 +457,17 @@ fn for_tag(state: ParserState) -> ParserResult<ForTag> {
 
 fn some_tag(state: ParserState) -> ParserResult<Tag> {
 	let parser = tag_opener.preceding(cut(after_spaces(
-			macro_call.map(Tag::MacroCall)
-			.or(macro_def.map(Tag::MacroDef))
-			.or(plug_call.map(Tag::PlugCall))
-			.or(content_macro.map(|()| Tag::Content))
-			.or(doctype.map(Tag::Doctype))
-			.or(if_tag.map(Tag::If))
-			.or(for_tag.map(Tag::For))
-			.or(pre_tag.map(Tag::Html))
-			.or(tag.map(Tag::Html))
-			.set_err(|| ParseError::ExpectedSpecifierOrTag)
-			.followed_by(tag_closer),
+		macro_call.map(Tag::MacroCall)
+		.or(macro_def.map(Tag::MacroDef))
+		.or(plug_call.map(Tag::PlugCall))
+		.or(content_macro.map(|()| Tag::Content(None)))
+		.or(doctype.map(Tag::Doctype))
+		.or(if_tag.map(Tag::If))
+		.or(for_tag.map(Tag::For))
+		.or(pre_tag.map(Tag::Html))
+		.or(tag.map(Tag::Html))
+		.set_err(|| ParseError::ExpectedSpecifierOrTag)
+		.followed_by(tag_closer),
 	)));
 
 	parser.parse(state)
@@ -476,15 +476,15 @@ fn some_tag(state: ParserState) -> ParserResult<Tag> {
 fn some_child_tag(state: ParserState) -> ParserResult<BodyTags> {
 	let parser = tag_opener
 		.preceding(cut(after_spaces(
-				macro_call.map(BodyTags::MacroCall)
-				.or(plug_call.map(BodyTags::PlugCall))
-				.or(content_macro.map(|()| BodyTags::Content))
-				.or(if_tag.map(BodyTags::If))
-				.or(for_tag.map(BodyTags::For))
-				.or(pre_tag.map(BodyTags::HtmlTag))
-				.or(tag.map(|x| BodyTags::HtmlTag(x.merge_subtags())))
-				.set_err(|| ParseError::ExpectedSpecifierOrTag)
-				.followed_by(tag_closer)
+			macro_call.map(BodyTags::MacroCall)
+			.or(plug_call.map(BodyTags::PlugCall))
+			.or(content_macro.map(|()| BodyTags::Content(None)))
+			.or(if_tag.map(BodyTags::If))
+			.or(for_tag.map(BodyTags::For))
+			.or(pre_tag.map(BodyTags::HtmlTag))
+			.or(tag.map(|x| BodyTags::HtmlTag(x.merge_subtags())))
+			.set_err(|| ParseError::ExpectedSpecifierOrTag)
+			.followed_by(tag_closer)
 		)))
 		.or(section_block.map(|x| BodyTags::HtmlTag(x.into_tag())));
 
@@ -989,7 +989,7 @@ pub(crate) fn file(
 			BodyNodes::LambdaDef(lambda) => output.defined_lambdas.push(lambda),
 			BodyNodes::VarDef(var) => output.defined_variables.push(var),
 			BodyNodes::PlugCall(plug) => output.body.push(TopNodes::PlugCall(plug)),
-			BodyNodes::Content => output.body.push(TopNodes::Content),
+			BodyNodes::Content(x) => output.body.push(TopNodes::Content(x)),
 			BodyNodes::Doctype(x) => output.body.push(TopNodes::Doctype(x)),
 			BodyNodes::If(x) => output.body.push(TopNodes::If(x)),
 			BodyNodes::For(x) => output.body.push(TopNodes::For(x)),

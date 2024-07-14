@@ -288,7 +288,7 @@ fn draw_line<T: ErrorKind>(
 				}
 
 				output.push_str(&initial_spaces);
-				error_line = initial_spaces.clone();
+				error_line.clone_from(&initial_spaces);
 				char_idx = tkstr.len();
 			}
 			output.push_str(&tkstr);

@@ -18,11 +18,10 @@ pub mod reporting;
 
 #[cfg(feature = "plugins")]
 use extism::{convert::Json, Manifest, Plugin, Wasm};
-#[cfg(any(feature="plugins", feature="pdk"))]
+#[cfg(any(feature = "plugins", feature = "pdk"))]
 use parser::types::TextPos;
 
 use plugins::PluginInput;
-
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -44,6 +43,7 @@ use parser::{
 
 pub type KisResult<T> = Result<T, KismesisError>;
 
+#[derive(Debug)]
 pub enum KismesisError {
 	IOError(io::Error, PathBuf),
 	ParseError(Vec<Err>, KisID),
@@ -51,7 +51,7 @@ pub enum KismesisError {
 
 /// Error struct used in plugin parsing
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg(any(feature="plugins", feature="pdk"))]
+#[cfg(any(feature = "plugins", feature = "pdk"))]
 pub struct PluginParseError {
 	/// The message displayed as an error
 	message: String,
@@ -61,7 +61,7 @@ pub struct PluginParseError {
 	state: Option<TextPos>,
 }
 
-#[cfg(any(feature="plugins", feature="pdk"))]
+#[cfg(any(feature = "plugins", feature = "pdk"))]
 impl PluginParseError {
 	pub fn new(message: String, state: Option<TextPos>) -> Self {
 		PluginParseError {
@@ -244,10 +244,7 @@ impl Kismesis {
 	/// # Errors
 	/// If the file cannot be parsed, or if there is an IO error when accessing or reading `path`.
 	// TODO: This is a misnomer
-	pub fn register_file(
-		&mut self,
-		path: PathBuf,
-	) -> KisResult<ParsedFile> {
+	pub fn register_file(&mut self, path: PathBuf) -> KisResult<ParsedFile> {
 		let text =
 			fs::read_to_string(&path).map_err(|x| KismesisError::IOError(x, path.clone()))?;
 		let tokens = lexer::tokenize(&text);
@@ -293,7 +290,7 @@ impl Kismesis {
 	where
 		T: Into<KisTemplateID>,
 	{
-		self.templates.get(&id.into()).is_some()
+		self.templates.contains_key(&id.into())
 	}
 
 	/// Get the registered file that corresponds to the given ID, if any
@@ -338,11 +335,11 @@ pub mod pdk {
 	pub use super::parser::types::HtmlTag;
 	pub use super::parser::types::IfTag;
 	pub use super::parser::types::Macro;
+	pub use super::parser::types::Paragraph;
 	pub use super::parser::types::Ranged;
 	pub use super::parser::types::Section;
-	pub use super::parser::types::TextPos;
-	pub use super::parser::types::Paragraph;
 	pub use super::parser::types::StringParts;
+	pub use super::parser::types::TextPos;
 
 	pub use super::plugins::PluginInput;
 	pub use super::PluginParseError as PluginError;
@@ -352,4 +349,21 @@ pub mod pdk {
 	pub type AST = Vec<HtmlNodes>;
 
 	pub type PlugResult = Result<AST, PluginError>;
+}
+
+#[cfg(test)]
+mod test {
+	use std::{path::PathBuf, str::FromStr};
+
+use crate::{html, options::Settings, Kismesis};
+
+	#[test]
+	fn test_file() {
+		let mut engine = Kismesis::new();
+		let template = engine.register_file(PathBuf::from_str("test/templating/template.kis").unwrap()).unwrap();
+		let template = engine.register_template(template);
+		let mut input = engine.register_file(PathBuf::from_str("test/templating/file.kis").unwrap()).unwrap();
+		input.template = Some(template);
+		println!("{:#?}", html::compile(&input, &Settings::default(), &engine));
+	}
 }

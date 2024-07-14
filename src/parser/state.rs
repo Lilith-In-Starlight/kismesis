@@ -60,7 +60,7 @@ impl<'a> ParserState<'a> {
 		self.tokens.first()
 	}
 
-	pub(crate) fn advanced(&self) -> (Option<&'a Token>, ParserState<'a>) {
+	pub(crate) fn advanced(&self) -> (Option<&'a Token>, Self) {
 		(self.tokens.first(), self.clone().next_state())
 	}
 
