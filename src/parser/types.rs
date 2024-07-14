@@ -156,7 +156,7 @@ pub enum HtmlNodes {
 	If(IfTag),
 	For(ForTag),
 	Paragraph(Paragraph),
-	Content(Option<usize>),
+	Content(Content),
 	Raw(String),
 }
 
@@ -165,12 +165,18 @@ pub enum HtmlNodes {
 pub struct Paragraph(pub Vec<HtmlNodes>);
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Content {
+	pub position: TextPos,
+	pub content: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 /// All AST nodes that can be at the topmost level of a file
 pub enum TopNodes {
 	HtmlTag(HtmlTag),
 	MacroCall(Macro),
 	PlugCall(Box<PlugCall>),
-	Content(Option<usize>),
+	Content(Content),
 	Doctype(String),
 	If(IfTag),
 	For(ForTag),
@@ -186,7 +192,7 @@ pub enum BodyTags {
 	PlugCall(Box<PlugCall>),
 	If(IfTag),
 	For(ForTag),
-	Content(Option<usize>),
+	Content(Content),
 	Raw(String),
 }
 
@@ -197,7 +203,7 @@ pub enum Tag {
 	MacroDef(Macro),
 	MacroCall(Macro),
 	PlugCall(Box<PlugCall>),
-	Content(Option<usize>),
+	Content(Content),
 	Doctype(String),
 	If(IfTag),
 	For(ForTag),
@@ -212,7 +218,7 @@ pub enum BodyNodes {
 	PlugCall(Box<PlugCall>),
 	LambdaDef(Lambda),
 	VarDef(Variable),
-	Content(Option<usize>),
+	Content(Content),
 	SetStmt(String, String),
 	Doctype(String),
 	If(IfTag),
@@ -232,15 +238,15 @@ pub struct ParsedFile {
 	pub template: Option<KisTemplateID>,
 }
 
-/// An Option with the possibility of something not being set
-pub enum VariableOption<T> {
-	/// The variable was found and has a value
-	Some(T),
-	/// The variable was not found
-	None,
-	/// The variable was found, but it's not set
-	Unset,
-}
+// /// An Option with the possibility of something not being set
+// pub enum VariableOption<T> {
+// 	/// The variable was found and has a value
+// 	Some(T),
+// 	/// The variable was not found
+// 	None,
+// 	/// The variable was found, but it's not set
+// 	Unset,
+// }
 
 impl ParsedFile {
 	pub fn new(file_id: KisID) -> Self {
@@ -254,61 +260,65 @@ impl ParsedFile {
 		}
 	}
 
-	pub fn get_macro_template<'a>(
-		&'a self,
-		engine: &'a Kismesis,
-		predicate: impl Fn(&&Macro) -> bool,
-	) -> Option<&Macro> {
-		self.defined_macros.iter().rfind(&predicate).or_else(|| self
-			.template
-			.as_ref()
-			.and_then(|x| {
-				engine
-					.get_template(x.clone())
-					.unwrap()
-					.get_macro_template(engine, &predicate)
-			}))
-	}
+	// pub fn get_macro_template<'a>(
+	// 	&'a self,
+	// 	engine: &'a Kismesis,
+	// 	predicate: impl Fn(&&Macro) -> bool,
+	// ) -> Option<&Macro> {
+	// 	self.defined_macros.iter().rfind(&predicate).or_else(|| self
+	// 		.template
+	// 		.as_ref()
+	// 		.and_then(|x| {
+	// 			engine
+	// 				.get_template(x.clone())
+	// 				.unwrap()
+	// 				.get_macro_template(engine, &predicate)
+	// 		}))
+	// }
 
 	pub fn get_path_slice<'a>(&'a self, engine: &'a Kismesis) -> Option<&Path> {
 		engine.get_file(self.file_id)?.path.as_deref()
 	}
 
-	pub fn get_variable_value<'a>(
-		&'a self,
-		engine: &'a Kismesis,
-		predicate: &str,
-	) -> VariableOption<&Ranged<Expression>> {
-		for var in &self.defined_variables {
-			if var.name.value == predicate {
-				return VariableOption::Some(&var.value);
-			}
-		}
+	// pub fn get_variable_value<'a>(
+	// 	&'a self,
+	// 	engine: &'a Kismesis,
+	// 	predicate: &str,
+	// ) -> VariableOption<&Ranged<Expression>> {
+	// 	for var in &self.defined_variables {
+	// 		if var.name.value == predicate {
+	// 			return VariableOption::Some(&var.value);
+	// 		}
+	// 	}
 
-		for var in &self.defined_lambdas {
-			if var.name.value == predicate {
-				match var.value {
-					Some(ref value) => return VariableOption::Some(value),
-					None => return VariableOption::Unset,
-				}
-			}
-		}
+	// 	for var in &self.defined_lambdas {
+	// 		if var.name.value == predicate {
+	// 			match var.value {
+	// 				Some(ref value) => return VariableOption::Some(value),
+	// 				None => return VariableOption::Unset,
+	// 			}
+	// 		}
+	// 	}
 
-		self.template.as_ref().map_or(VariableOption::None, |template| engine
-				.get_template(template.clone())
-				.unwrap()
-				.get_variable_value(engine, predicate))
-	}
+	// 	self.template
+	// 		.as_ref()
+	// 		.map_or(VariableOption::None, |template| {
+	// 			engine
+	// 				.get_template(template.clone())
+	// 				.unwrap()
+	// 				.get_variable_value(engine, predicate)
+	// 		})
+	// }
 
 	pub fn get_macro_scope<'a>(&'a self, engine: &'a Kismesis) -> HashMap<String, Scoped<&Macro>> {
 		let mut output = HashMap::new();
-		if let Some(ref template) = self.template {
-			output.extend(
-				engine
-					.get_template(template.clone())
-					.unwrap()
-					.get_macro_scope(engine),
-			);
+		if let Some(template) = self
+			.template
+			.as_ref()
+			.and_then(|x| engine.get_template(x))
+			.map(|x| x.get_macro_scope(engine))
+		{
+			output.extend(template);
 		}
 
 		output.extend(
@@ -327,13 +337,13 @@ impl ParsedFile {
 	) -> HashMap<String, ScopedExpression> {
 		let mut out = HashMap::new();
 
-		if let Some(ref template) = self.template {
-			out.extend(
-				engine
-					.get_template(template.clone())
-					.unwrap()
-					.get_variable_scope(&[], engine),
-			);
+		if let Some(template) = self
+			.template
+			.as_ref()
+			.and_then(|x| engine.get_template(x))
+			.map(|x| x.get_variable_scope(sub_scope, engine))
+		{
+			out.extend(template);
 		}
 
 		out.extend(self.defined_lambdas.iter().map(|x| {
@@ -366,8 +376,8 @@ impl ParsedFile {
 
 		out.into_iter().collect()
 	}
-	
-	pub fn get_local_macro_scope<'a>(&'a self) -> HashMap<String, Scoped<&Macro>> {
+
+	pub fn get_local_macro_scope(&self) -> HashMap<String, Scoped<&Macro>> {
 		let mut output = HashMap::new();
 		output.extend(
 			self.defined_macros
@@ -377,10 +387,8 @@ impl ParsedFile {
 
 		output
 	}
-	
-	pub fn get_local_variable_scope<'a>(
-		&'a self,
-	) -> HashMap<String, ScopedExpression> {
+
+	pub fn get_local_variable_scope(&self) -> HashMap<String, ScopedExpression> {
 		let mut out = HashMap::new();
 
 		out.extend(self.defined_variables.iter().map(|x| {
@@ -489,91 +497,12 @@ impl Ranged<&str> {
 	}
 }
 
-/*pub trait AstNode {
-	fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>>;
-}
-
-impl AstNode for Macro {
-	fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
-		self.body
-			.iter()
-			.flat_map(|x| x.find_undefined_vars(defined))
-			.collect()
-	}
-}
-
-impl AstNode for Vec<StringParts> {
-	fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
-		self.iter()
-			.flat_map(|x| x.find_undefined_vars(defined))
-			.collect()
-	}
-}
-
-impl AstNode for StringParts {
-	fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
-		match self {
-			StringParts::String(_) => Vec::new(),
-			StringParts::Expression(x) => x.find_undefined_vars(defined),
-		}
-	}
-}
-
-impl AstNode for Ranged<Expression> {
-	fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
-		match &self.value {
-			Expression::None => Vec::new(),
-			Expression::Variable(x) => {
-				if defined.iter().any(|y| y == x) {
-					vec![Ranged {
-						value: x.clone(),
-						range: self.range,
-					}]
-				} else {
-					vec![]
-				}
-			}
-			Expression::BinFunc(_, x, y) => x
-				.find_undefined_vars(defined)
-				.into_iter()
-				.chain(y.find_undefined_vars(defined))
-				.collect(),
-			Expression::UniFunc(_, x) => x.find_undefined_vars(defined),
-			Expression::Literal(x) => x.find_undefined_vars(defined),
-		}
-	}
-}
-*/
-/*impl AstNode for HtmlTag {
-	fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
-		self.body
-			.iter()
-			.flat_map(|x| x.find_undefined_vars(defined))
-			.collect()
-	}
-}
-*/
-/*impl AstNode for HtmlNodes {
-	fn find_undefined_vars(&self, defined: &[String]) -> Vec<Ranged<String>> {
-		match self {
-			HtmlNodes::HtmlTag(x) => x.find_undefined_vars(defined),
-			HtmlNodes::MacroCall(x) => x.find_undefined_vars(defined),
-			HtmlNodes::String(x) => x.find_undefined_vars(defined),
-			HtmlNodes::Section(_) => todo!("undefined vars in body"),
-			HtmlNodes::PlugCall(_) => Vec::new(),
-			HtmlNodes::If(x) => x.body.find_unde
-			Self::Content => Vec::new(),
-		}
-	}
-}
-*/
-
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum TextPos {
 	Single(TokenPos),
 	Range((TokenPos, TokenPos)),
-	Multi(Vec<TextPos>),
+	Multi(Box<[TextPos]>),
 }
 
 impl TextPos {
@@ -602,10 +531,17 @@ impl Macro {
 	pub fn get_argument_scope(&self, scope: KisID) -> HashMap<String, ScopedExpression> {
 		let mut output = HashMap::new();
 
-		output.extend(self.arguments.iter().map(|x| x.value.as_ref().map_or_else(|| (x.name.value.clone(), ((None, x.name.range.clone()), scope)), |value| (
-				x.name.value.clone(),
-				((Some(value), x.name.range.clone()), scope),
-			))));
+		output.extend(self.arguments.iter().map(|x| {
+			x.value.as_ref().map_or_else(
+				|| (x.name.value.clone(), ((None, x.name.range.clone()), scope)),
+				|value| {
+					(
+						x.name.value.clone(),
+						((Some(value), x.name.range.clone()), scope),
+					)
+				},
+			)
+		}));
 
 		output
 	}
@@ -650,4 +586,107 @@ pub struct ForTag {
 	pub variable: Ranged<String>,
 	pub iterator: Ranged<Expression>,
 	pub body: Vec<HtmlNodes>,
+}
+
+pub trait FillContent {
+	fn fill_content(&mut self, number: usize);
+}
+
+impl FillContent for TopNodes {
+	fn fill_content(&mut self, number: usize) {
+		match self {
+			Self::HtmlTag(x) => x.fill_content(number),
+			Self::MacroCall(x) => x.fill_content(number),
+			Self::PlugCall(x) => x.fill_content(number),
+			Self::Content(Content {
+				position: _,
+				content: x @ None,
+			}) => *x = Some(number),
+			Self::If(x) => x.fill_content(number),
+			Self::For(x) => x.fill_content(number),
+			Self::Paragraph(x) => x.fill_content(number),
+			Self::Raw(_) | Self::Doctype(_) | Self::Content(_) => (),
+		}
+	}
+}
+
+impl FillContent for HtmlNodes {
+	fn fill_content(&mut self, number: usize) {
+		match self {
+			Self::HtmlTag(x) => x.fill_content(number),
+			Self::MacroCall(x) => x.fill_content(number),
+			Self::PlugCall(x) => x.fill_content(number),
+			Self::Content(Content {
+				position: _,
+				content: x @ None,
+			}) => *x = Some(number),
+			Self::For(x) => x.fill_content(number),
+			Self::Paragraph(x) => x.fill_content(number),
+			Self::If(x) => x.fill_content(number),
+			Self::Raw(_) | Self::String(_) | Self::Content(_) => (),
+		}
+	}
+}
+
+impl FillContent for HtmlTag {
+	fn fill_content(&mut self, number: usize) {
+		for node in &mut self.body {
+			node.fill_content(number);
+		}
+	}
+}
+
+impl FillContent for Macro {
+	fn fill_content(&mut self, number: usize) {
+		for node in &mut self.body {
+			node.fill_content(number);
+		}
+	}
+}
+
+impl FillContent for PlugCall {
+	fn fill_content(&mut self, number: usize) {
+		for node in &mut self.body {
+			node.fill_content(number);
+		}
+	}
+}
+
+impl FillContent for IfTag {
+	fn fill_content(&mut self, number: usize) {
+		for node in &mut self.body {
+			node.fill_content(number);
+		}
+	}
+}
+
+impl FillContent for ForTag {
+	fn fill_content(&mut self, number: usize) {
+		for node in &mut self.body {
+			node.fill_content(number);
+		}
+	}
+}
+
+impl FillContent for Paragraph {
+	fn fill_content(&mut self, number: usize) {
+		for node in &mut self.0 {
+			node.fill_content(number);
+		}
+	}
+}
+
+impl<T> FillContent for Vec<T>
+where
+	T: FillContent,
+{
+	fn fill_content(&mut self, number: usize) {
+		self.iter_mut().for_each(|x| x.fill_content(number));
+	}
+}
+
+impl FillContent for ParsedFile {
+	fn fill_content(&mut self, number: usize) {
+		self.body.fill_content(number);
+	}
 }

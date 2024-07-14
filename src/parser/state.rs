@@ -2,13 +2,16 @@ use std::path::PathBuf;
 
 use crate::{lexer::Token, Kismesis};
 
-use super::{errors::{ParseError, Err}, types::TextPos};
+use super::{
+	errors::{Err, ParseError},
+	types::TextPos,
+};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
-pub struct ParserState<'a> {
+pub struct State<'a> {
 	pub(crate) tokens: &'a [Token],
 	pub(crate) position: TokenPos,
 	pub(crate) errors: Vec<Err>,
@@ -18,7 +21,7 @@ pub struct ParserState<'a> {
 	pub(crate) engine: &'a Kismesis,
 }
 
-impl<'a> ParserState<'a> {
+impl<'a> State<'a> {
 	pub(crate) fn new(
 		tokens: &'a [Token],
 		file_path: Option<PathBuf>,
@@ -50,10 +53,7 @@ impl<'a> ParserState<'a> {
 	pub(crate) fn with_error(self, error: Err) -> Self {
 		let mut errors = self.errors;
 		errors.push(error);
-		Self {
-			errors,
-			..self
-		}
+		Self { errors, ..self }
 	}
 
 	pub(crate) const fn first_token(&self) -> Option<&Token> {

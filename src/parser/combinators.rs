@@ -5,7 +5,7 @@ use std::{
 
 use super::{
 	errors::{Err, ParseError},
-	state::ParserState,
+	state::State,
 	types::{Ranged, TextPos},
 	Parser, ParserResult,
 };
@@ -30,12 +30,16 @@ where
 	}
 }
 
-pub(super) fn maybe_until<'a, P1, O1, P2, O2>(p1: P1, p2: P2, allow_empty: bool) -> impl Parser<'a, Vec<O1>>
+pub(super) fn maybe_until<'a, P1, O1, P2, O2>(
+	p1: P1,
+	p2: P2,
+	allow_empty: bool,
+) -> impl Parser<'a, Vec<O1>>
 where
 	P1: Parser<'a, O1>,
 	P2: Parser<'a, O2>,
 {
-	move |mut state: ParserState<'a>| {
+	move |mut state: State<'a>| {
 		let mut found = Vec::new();
 		loop {
 			match p2.parse(state.clone()) {
@@ -101,7 +105,7 @@ where
 	P1: Parser<'a, O1>,
 	P2: Parser<'a, O1>,
 {
-	move |state: ParserState<'a>| match p1.parse(state.clone()) {
+	move |state: State<'a>| match p1.parse(state.clone()) {
 		Ok((result, next_state)) => Ok((result, next_state)),
 		Err(Err::Failure(x)) => Err(Err::Failure(x)),
 		Err(_) => p2.parse(state),
@@ -122,7 +126,7 @@ pub(super) fn repeated<'a, P, T>(
 where
 	P: Parser<'a, T>,
 {
-	move |state: ParserState<'a>| {
+	move |state: State<'a>| {
 		let mut state = state;
 		let mut found = Vec::<T>::new();
 		loop {
@@ -157,7 +161,7 @@ pub(super) fn peek<'a, P, T>(parser: P) -> impl Parser<'a, T>
 where
 	P: Parser<'a, T>,
 {
-	move |state: ParserState<'a>| {
+	move |state: State<'a>| {
 		let (val, _) = parser.parse(state.clone())?;
 		Ok((val, state))
 	}
@@ -168,7 +172,7 @@ pub(super) fn dbg<'a, P, T: Debug>(parser: P) -> impl Parser<'a, T>
 where
 	P: Parser<'a, T>,
 {
-	move |state: ParserState<'a>| {
+	move |state: State<'a>| {
 		let r = parser.parse(state);
 		println!("{r:#?}");
 		r
@@ -179,7 +183,7 @@ pub(super) fn cut<'a, P, T>(parser: P) -> impl Parser<'a, T>
 where
 	P: Parser<'a, T>,
 {
-	move |state: ParserState<'a>| match parser.parse(state) {
+	move |state: State<'a>| match parser.parse(state) {
 		Err(Err::Error(x)) => Err(Err::Failure(x)),
 		pat => pat,
 	}
@@ -189,7 +193,7 @@ pub(super) fn not<'a, P, T>(parser: P) -> impl Parser<'a, ()>
 where
 	P: Parser<'a, T>,
 {
-	move |state: ParserState<'a>| match parser.parse(state.clone()) {
+	move |state: State<'a>| match parser.parse(state.clone()) {
 		Err(Err::Error(_)) => Ok(((), state)),
 		Err(Err::Failure(x)) => Err(Err::Failure(x)),
 		Ok((_, state)) => Err(ParseError::ConditionUnmet.error_at(&state)),
@@ -200,7 +204,7 @@ pub(super) fn maybe<'a, P, T>(parser: P) -> impl Parser<'a, Option<T>>
 where
 	P: Parser<'a, T>,
 {
-	move |state: ParserState<'a>| match parser.parse(state.clone()) {
+	move |state: State<'a>| match parser.parse(state.clone()) {
 		Err(Err::Error(_)) => Ok((None, state)),
 		Err(Err::Failure(x)) => Err(Err::Failure(x)),
 		Ok((x, state)) => Ok((Some(x), state)),
@@ -212,7 +216,7 @@ where
 	P: Parser<'a, T1>,
 	F: Fn(T1) -> T2,
 {
-	move |state: ParserState<'a>| parser.parse(state).map(|(val, state)| (fun(val), state))
+	move |state: State<'a>| parser.parse(state).map(|(val, state)| (fun(val), state))
 }
 
 pub(super) fn change_err<'a, P, F, T1>(parser: P, fun: F) -> impl Parser<'a, T1>
@@ -220,7 +224,7 @@ where
 	P: Parser<'a, T1>,
 	F: Fn() -> ParseError,
 {
-	move |state: ParserState<'a>| match parser.parse(state) {
+	move |state: State<'a>| match parser.parse(state) {
 		x @ Ok(_) => x,
 		Err(x) => {
 			let failure = matches!(x, Err::Failure(_));
@@ -241,7 +245,7 @@ where
 	F: Fn(&T1) -> bool,
 	T1: 'a,
 {
-	move |state: ParserState<'a>| {
+	move |state: State<'a>| {
 		let (val, state) = match parser.parse(state) {
 			Ok(x) => x,
 			Err(x) => return Err(x),
@@ -258,7 +262,7 @@ pub(super) fn get_range<'a, P, T1>(parser: P) -> impl Parser<'a, Ranged<T1>>
 where
 	P: Parser<'a, T1>,
 {
-	move |state: ParserState<'a>| {
+	move |state: State<'a>| {
 		let start = state.position;
 		let (val, next_state) = parser.parse(state)?;
 		let end = next_state.position;

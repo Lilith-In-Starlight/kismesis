@@ -1,25 +1,25 @@
-#[derive(Default)]
 pub struct Settings {
 	inline: Vec<String>,
 	only_closer: Vec<String>,
 	only_opener: Vec<String>,
 }
 
-impl Settings {
-	#[must_use]
-	pub fn new() -> Self {
+impl Default for Settings {
+	fn default() -> Self {
 		Self {
 			inline: string_vec(&[
 				"p", "b", "i", "strong", "italic", "sub", "sup", "h1", "h2", "h3", "h4", "h5",
-				"h6", "a", "li", "title", "span", "emphasis", "code", "abbr", "bdo", "button", 
-				"cite", "dfn", "em", "img", "input", "kbd", "label", "map", "object", "output", 
+				"h6", "a", "li", "title", "span", "emphasis", "code", "abbr", "bdo", "button",
+				"cite", "dfn", "em", "img", "input", "kbd", "label", "map", "object", "output",
 				"q", "script", "select", "small", "textarea", "time", "tt", "var", "pre",
 			]),
 			only_opener: string_vec(&["meta", "img", "link"]),
 			only_closer: string_vec(&["br", "hr"]),
 		}
 	}
+}
 
+impl Settings {
 	#[must_use]
 	pub fn is_only_closer(&self, n: &str) -> bool {
 		self.only_closer.iter().any(|x| x == n)

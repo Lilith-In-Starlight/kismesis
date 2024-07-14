@@ -167,7 +167,9 @@ impl Kismesis {
 
 	/// Register a plugin from a path
 	#[cfg(not(feature = "plugins"))]
-	pub fn register_plugin(&mut self, _name: String, _path: &Path) {}
+	pub fn register_plugin(&mut self, name: String, _path: &Path) {
+		drop(name);
+	}
 
 	/// Send tokens and body to a plugin with a given `name`
 	#[cfg(feature = "plugins")]
@@ -225,8 +227,9 @@ impl Kismesis {
 	pub fn call_plugin(
 		&self,
 		name: &Ranged<String>,
-		_input: PluginInput,
+		input: PluginInput,
 	) -> Result<Vec<HtmlNodes>, Err> {
+		drop(input);
 		Err(ParseError::PluginsDisabled
 			.error_at_pos(name.range.clone())
 			.cut())
@@ -352,18 +355,26 @@ pub mod pdk {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod test {
 	use std::{path::PathBuf, str::FromStr};
 
-use crate::{html, options::Settings, Kismesis};
+	use crate::{html, options::Settings, Kismesis};
 
 	#[test]
 	fn test_file() {
 		let mut engine = Kismesis::new();
-		let template = engine.register_file(PathBuf::from_str("test/templating/template.kis").unwrap()).unwrap();
+		let template = engine
+			.register_file(PathBuf::from_str("test/templating/template.kis").unwrap())
+			.unwrap();
 		let template = engine.register_template(template);
-		let mut input = engine.register_file(PathBuf::from_str("test/templating/file.kis").unwrap()).unwrap();
+		let mut input = engine
+			.register_file(PathBuf::from_str("test/templating/file.kis").unwrap())
+			.unwrap();
 		input.template = Some(template);
-		println!("{:#?}", html::compile(&input, &Settings::default(), &engine));
+		println!(
+			"{:#?}",
+			html::compile(&input, &Settings::default(), &engine)
+		);
 	}
 }

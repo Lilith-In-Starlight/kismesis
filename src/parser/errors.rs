@@ -8,7 +8,7 @@ use crate::{
 	KisID,
 };
 
-use super::{state::ParserState, types::TextPos};
+use super::{state::State, types::TextPos};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
@@ -187,7 +187,7 @@ impl ParseError {
 	/// Unlike the implementation in `ErrorKind`, this method outputs an [`Err`],
 	/// containing information about when the parser should stop considering
 	/// options and simply should crash
-	pub(crate) fn error_at(self, state: &ParserState) -> Err {
+	pub(crate) fn error_at(self, state: &State) -> Err {
 		let pos = state.position;
 		Err::Error(ErrorState {
 			error: self,

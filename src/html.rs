@@ -2,8 +2,8 @@ use htmlize::escape_all_quotes;
 use std::collections::HashMap;
 
 use crate::{
-	parser::types::{Paragraph, ParsedFile},
-	KisTemplateID, {KisID, Kismesis},
+	parser::types::{Content, FillContent, Paragraph, ParsedFile},
+	KisID, KisTemplateID, Kismesis,
 };
 
 use super::{
@@ -21,23 +21,23 @@ use super::{
 type CompileResult<T> = Result<T, Vec<ScopedError<CompilerError>>>;
 
 #[derive(Clone, Debug)]
-pub enum MaybeHtml {
+pub enum MaybeRaw {
 	Raw(String),
 	Html(String),
 }
 
-impl MaybeHtml {
+impl MaybeRaw {
 	fn merge(self) -> Vec<Self> {
 		vec![self]
 	}
 }
 
 #[derive(Clone, Debug, Default)]
-pub struct HtmlOutput {
-	parts: Vec<MaybeHtml>,
+pub struct Output {
+	parts: Vec<MaybeRaw>,
 }
 
-impl HtmlOutput {
+impl Output {
 	#[must_use]
 	pub const fn new() -> Self {
 		Self { parts: Vec::new() }
@@ -53,18 +53,18 @@ impl HtmlOutput {
 	{
 		let appended_string = new.into();
 		match self.parts.last_mut() {
-			Some(MaybeHtml::Html(old_string)) => old_string.push_str(&appended_string),
-			_ => self.parts.push(MaybeHtml::Html(appended_string)),
+			Some(MaybeRaw::Html(old_string)) => old_string.push_str(&appended_string),
+			_ => self.parts.push(MaybeRaw::Html(appended_string)),
 		}
 	}
 
 	fn push_output(&mut self, new: Self) {
 		for new_part in new.parts {
 			match new_part {
-				MaybeHtml::Html(x) => {
+				MaybeRaw::Html(x) => {
 					self.push_string(x);
 				}
-				_ => self.parts.push(new_part)
+				MaybeRaw::Raw(_) => self.parts.push(new_part),
 			}
 		}
 	}
@@ -74,7 +74,7 @@ impl HtmlOutput {
 		let mut output = String::new();
 		for part in &self.parts {
 			match part {
-				MaybeHtml::Raw(string) | MaybeHtml::Html(string) => output.push_str(string),
+				MaybeRaw::Raw(string) | MaybeRaw::Html(string) => output.push_str(string),
 			}
 		}
 		output
@@ -87,7 +87,7 @@ impl HtmlOutput {
 		let mut output = String::new();
 		for part in &self.parts {
 			match part {
-				MaybeHtml::Raw(string) | MaybeHtml::Html(string) => output.push_str(string),
+				MaybeRaw::Raw(string) | MaybeRaw::Html(string) => output.push_str(string),
 			}
 		}
 		Ok(output)
@@ -133,16 +133,8 @@ pub fn expand(
 	engine: &Kismesis,
 ) -> (ParsedFile, Vec<ParsedFile>) {
 	let mut file = file.clone();
-	for node in &mut file.body {
-		match (node, children.last()) {
-			(TopNodes::Content(value @ None), Some(_)) => {
-				*value = Some(children.len() - 1);
-			}
-			(TopNodes::Content(None), None) => {
-				todo!("Content on top");
-			}
-			_ => (),
-		}
+	if children.last().is_some() {
+		file.fill_content(children.len() - 1);
 	}
 
 	if let Some(template) = file.template.as_ref().and_then(|x| engine.get_template(x)) {
@@ -154,11 +146,9 @@ pub fn expand(
 	}
 }
 
-pub fn compile(
-	file: &ParsedFile,
-	options: &Settings,
-	engine: &Kismesis,
-) -> CompileResult<HtmlOutput> {
+/// # Errors
+/// When the file can't be compiled into html
+pub fn compile(file: &ParsedFile, options: &Settings, engine: &Kismesis) -> CompileResult<Output> {
 	let (file, contexts) = expand(file, vec![], engine);
 	let state = GenerationState {
 		options,
@@ -184,19 +174,16 @@ pub fn compile(
 		},
 	};
 
-	generate_html(&file, &state) 
+	generate_html(&file, &state)
 }
 
 /// Generates HTML from a file and all the files that are being templated by it
 /// # Errors
 /// - Whenever an expression cannot be evaluated
 /// - Whenever an expression which doesn't evaluate to a pure String is written to content
-pub fn generate_html<'a>(
-	file: &'a ParsedFile,
-	state: &GenerationState<'a>,
-) -> CompileResult<HtmlOutput> {
+fn generate_html<'a>(file: &'a ParsedFile, state: &GenerationState<'a>) -> CompileResult<Output> {
 	let mut errors = Vec::new();
-	let mut output = HtmlOutput::new();
+	let mut output = Output::new();
 	for node in &file.body {
 		if !output.is_empty() {
 			output.push_string('\n');
@@ -214,23 +201,28 @@ pub fn generate_html<'a>(
 	Ok(output)
 }
 
-fn parse_node<'a>(node: &'a TopNodes, state: &GenerationState<'a>) -> CompileResult<HtmlOutput> {
+fn parse_node<'a>(node: &'a TopNodes, state: &GenerationState<'a>) -> CompileResult<Output> {
 	match node {
 		TopNodes::HtmlTag(t) => tag(t, state),
 		TopNodes::MacroCall(t) => mac_call(t, state),
 		TopNodes::PlugCall(t) => plug_call(t, state),
-		TopNodes::Content(Some(bottom)) => generate_html(
-			&state.bottom_scopes[*bottom],
-			&state.nth_scope(*bottom),
-		),
-		TopNodes::Content(None) => todo!(),
+		TopNodes::Content(Content {
+			position: _,
+			content: Some(bottom),
+		}) => generate_html(&state.bottom_scopes[*bottom], &state.nth_scope(*bottom)),
+		TopNodes::Content(Content {
+			position,
+			content: None,
+		}) => Err(vec![
+			CompilerError::ContentTagInOutput.with_scope_at(state.scope, position.clone())
+		]),
 		TopNodes::If(x) => if_tag(x, state),
 		TopNodes::For(x) => for_tag(x, state),
-		TopNodes::Raw(string) => Ok(HtmlOutput {
-			parts: vec![MaybeHtml::Raw(escape_all_quotes(string).to_string())],
+		TopNodes::Raw(string) => Ok(Output {
+			parts: vec![MaybeRaw::Raw(escape_all_quotes(string).to_string())],
 		}),
 		TopNodes::Doctype(string) => {
-			let mut htmlo = HtmlOutput::new();
+			let mut htmlo = Output::new();
 			htmlo.push_string(format!("<!DOCTYPE {string}>"));
 			Ok(htmlo)
 		}
@@ -241,8 +233,8 @@ fn parse_node<'a>(node: &'a TopNodes, state: &GenerationState<'a>) -> CompileRes
 fn top_paragraph<'a>(
 	paragraph: &'a Paragraph,
 	state: &GenerationState<'a>,
-) -> CompileResult<HtmlOutput> {
-	let mut output = HtmlOutput::new();
+) -> CompileResult<Output> {
+	let mut output = Output::new();
 	let mut errors = vec![];
 	output.push_string(make_indents(state.indent));
 	output.push_string("<p>");
@@ -268,8 +260,8 @@ fn top_paragraph<'a>(
 fn child_paragraph<'a>(
 	paragraph: &'a Paragraph,
 	state: &GenerationState<'a>,
-) -> CompileResult<HtmlOutput> {
-	let mut output = HtmlOutput::new();
+) -> CompileResult<Output> {
+	let mut output = Output::new();
 	let mut errors = vec![];
 	output.push_string(make_indents(state.indent));
 	let state = &GenerationState {
@@ -279,7 +271,7 @@ fn child_paragraph<'a>(
 	};
 	for child in &paragraph.0 {
 		match parse_html_child(child, state) {
-			Ok(mut string) => output.push_output(string),
+			Ok(string) => output.push_output(string),
 			Err(mut error) => errors.append(&mut error),
 		}
 	}
@@ -290,9 +282,9 @@ fn child_paragraph<'a>(
 	}
 }
 
-fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<HtmlOutput> {
+fn if_tag<'a>(tag: &'a IfTag, state: &GenerationState<'a>) -> CompileResult<Output> {
 	let value = calculate_expression(&tag.condition, state)?;
-	let mut output = HtmlOutput::new();
+	let mut output = Output::new();
 	let mut errors = Vec::new();
 	if value.is_truthy(state)? {
 		let inline = get_is_inline(state.force_inline, state, &tag.body);
@@ -324,8 +316,8 @@ fn to_iterator<'a>(
 	}
 }
 
-fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<HtmlOutput> {
-	let mut output = HtmlOutput::new();
+fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<Output> {
+	let mut output = Output::new();
 	let mut errors = Vec::new();
 	let condition = to_iterator(&tag.iterator, state)?;
 	let inline = get_is_inline(state.force_inline, state, &tag.body);
@@ -342,7 +334,7 @@ fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<Ht
 		};
 
 		match render_children(inline, false, &tag.body, &state) {
-			Ok(mut x) => output.push_output(x),
+			Ok(x) => output.push_output(x),
 			Err(mut x) => errors.append(&mut x),
 		}
 	}
@@ -354,25 +346,27 @@ fn for_tag<'a>(tag: &'a ForTag, state: &GenerationState<'a>) -> CompileResult<Ht
 	}
 }
 
-fn parse_html_child<'a>(
-	node: &'a HtmlNodes,
-	state: &GenerationState<'a>,
-) -> CompileResult<HtmlOutput> {
+fn parse_html_child<'a>(node: &'a HtmlNodes, state: &GenerationState<'a>) -> CompileResult<Output> {
 	match node {
 		HtmlNodes::HtmlTag(t) => tag(t, state),
 		HtmlNodes::MacroCall(t) => mac_call(t, state),
 		HtmlNodes::PlugCall(t) => plug_call(t, state),
-		HtmlNodes::Content(Some(bottom)) => generate_html(
-			&state.bottom_scopes[*bottom],
-			&state.nth_scope(*bottom),
-		),
-		HtmlNodes::Content(None) => todo!(),
+		HtmlNodes::Content(Content {
+			position: _,
+			content: Some(bottom),
+		}) => generate_html(&state.bottom_scopes[*bottom], &state.nth_scope(*bottom)),
+		HtmlNodes::Content(Content {
+			position,
+			content: None,
+		}) => Err(vec![
+			CompilerError::ContentTagInOutput.with_scope_at(state.scope, position.clone())
+		]),
 		HtmlNodes::If(t) => if_tag(t, state),
 		HtmlNodes::For(t) => for_tag(t, state),
 		HtmlNodes::String(t) => match parse_kis_string(t, state) {
 			Ok(x) => {
-				let mut a = HtmlOutput {
-					parts: vec![MaybeHtml::Html(make_indents(state.indent))],
+				let mut a = Output {
+					parts: vec![MaybeRaw::Html(make_indents(state.indent))],
 				};
 				let x = escape_all_quotes(x).to_string();
 				a.push_string(x);
@@ -382,13 +376,13 @@ fn parse_html_child<'a>(
 			Err(x) => Err(x),
 		},
 		HtmlNodes::Paragraph(paragraph) => child_paragraph(paragraph, state),
-		HtmlNodes::Raw(string) => Ok(HtmlOutput {
-			parts: vec![MaybeHtml::Raw(escape_all_quotes(string).to_string())],
+		HtmlNodes::Raw(string) => Ok(Output {
+			parts: vec![MaybeRaw::Raw(escape_all_quotes(string).to_string())],
 		}),
 	}
 }
 
-fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<HtmlOutput> {
+fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<Output> {
 	let mut errors = Vec::new();
 	let template = state.macro_templates.get(&mac.name.value).ok_or_else(|| {
 		vec![CompilerError::UndefinedMacroCall.with_scope_at(state.scope, mac.name.range.clone())]
@@ -426,28 +420,24 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<Ht
 		return Err(errors);
 	}
 
-	let mut inner_body = HtmlOutput::new();
+	let mut inner_body = Output::new();
 	let mut inner_state = new_state.clone();
 	let inline = get_is_inline(new_state.force_inline, &inner_state, &mac.body);
 	inner_state.indent = 0;
 	match render_children(inline, false, &mac.body, &inner_state) {
-		Ok(mut x) => inner_body.push_output(x),
+		Ok(x) => inner_body.push_output(x),
 		Err(mut x) => errors.append(&mut x),
 	}
 
-	let mut output = HtmlOutput::new();
+	let mut output = Output::new();
 	let inline = get_is_inline(new_state.force_inline, &new_state, &template.0.body);
 
 	match render_children(inline, false, &template.0.body, &new_state) {
-		Ok(mut x) => output.push_output(x),
+		Ok(x) => output.push_output(x),
 		Err(mut x) => errors.append(&mut x),
 	}
 
-	output.parts = output
-		.parts
-		.into_iter()
-		.flat_map(MaybeHtml::merge)
-		.collect();
+	output.parts = output.parts.into_iter().flat_map(MaybeRaw::merge).collect();
 
 	if errors.is_empty() {
 		Ok(output)
@@ -455,13 +445,13 @@ fn mac_call<'a>(mac: &'a Macro, state: &GenerationState<'a>) -> CompileResult<Ht
 		Err(errors)
 	}
 }
-fn plug_call(plugin: &PlugCall, state: &GenerationState) -> CompileResult<HtmlOutput> {
-	let mut output = HtmlOutput::new();
+fn plug_call(plugin: &PlugCall, state: &GenerationState) -> CompileResult<Output> {
+	let mut output = Output::new();
 	let mut errors = Vec::new();
 	let inline = get_is_inline(state.force_inline, state, &plugin.body);
 
 	match render_children(inline, false, &plugin.body, state) {
-		Ok(mut x) => output.push_output(x),
+		Ok(x) => output.push_output(x),
 		Err(mut x) => errors.append(&mut x),
 	}
 
@@ -499,15 +489,15 @@ fn render_children(
 	first_inline: bool,
 	body: &[HtmlNodes],
 	state: &GenerationState<'_>,
-) -> CompileResult<HtmlOutput> {
+) -> CompileResult<Output> {
 	let mut errors = vec![];
-	let mut output = HtmlOutput::new();
+	let mut output = Output::new();
 	for (idx, child) in body.iter().enumerate() {
 		if !inline && (idx != 0 || first_inline) {
 			output.push_string('\n');
 		}
 		match parse_html_child(child, state) {
-			Ok(mut string) => output.push_output(string),
+			Ok(string) => output.push_output(string),
 			Err(mut error) => errors.append(&mut error),
 		}
 	}
@@ -518,9 +508,9 @@ fn render_children(
 	}
 }
 
-fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<HtmlOutput> {
+fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<Output> {
 	let mut errors = Vec::new();
-	let mut output = HtmlOutput::new();
+	let mut output = Output::new();
 	if !state.force_inline {
 		for _ in 0..state.indent {
 			output.push_string('\t');
@@ -551,7 +541,7 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<HtmlO
 		}
 
 		match render_children(inline, true, &tag.body, &new_state) {
-			Ok(mut x) => output.push_output(x),
+			Ok(x) => output.push_output(x),
 			Err(mut x) => errors.append(&mut x),
 		}
 
@@ -598,7 +588,7 @@ fn parse_kis_string<'a>(
 	state: &GenerationState<'a>,
 ) -> CompileResult<String> {
 	let mut output = String::new();
-	let mut errors = Vec::new(); // TODO actually use this vector, remove elvis operators below
+	let mut errors = Vec::new();
 	for parse in string {
 		match parse {
 			StringParts::String(x) => output.push_str(x),
