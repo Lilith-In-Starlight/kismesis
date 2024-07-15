@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use crate::{
 	parser::types::{Content, FillContent, Paragraph, ParsedFile},
+	plugins::PostProcPluginInput,
 	KisID, KisTemplateID, Kismesis,
 };
 
@@ -121,6 +122,7 @@ impl<'a> GenerationState<'a> {
 			variable_scopes,
 			macro_templates,
 			bottom_scopes: &self.bottom_scopes[0..nth],
+			scope: next_scope.file_id,
 			..self.clone()
 		}
 	}
@@ -148,30 +150,29 @@ pub fn expand(
 
 /// # Errors
 /// When the file can't be compiled into html
-pub fn compile(file: &ParsedFile, options: &Settings, engine: &Kismesis) -> CompileResult<Output> {
-	let (file, contexts) = expand(file, vec![], engine);
+pub fn compile(file: &ParsedFile, engine: &Kismesis) -> CompileResult<Output> {
+	let first_expansion = expand(file, vec![], engine);
+	let current_file = engine
+		.get_file(first_expansion.0.file_id)
+		.unwrap()
+		.path
+		.clone();
+
+	let (file, contexts) = engine
+		.call_post_processing_plugins(PostProcPluginInput {
+			body: first_expansion,
+			current_file,
+		})
+		.unwrap();
 	let state = GenerationState {
-		options,
-		variable_scopes: file.get_local_variable_scope(),
-		macro_templates: file.get_local_macro_scope(),
+		options: &engine.settings,
+		variable_scopes: file.get_variable_scope(&contexts, engine),
+		macro_templates: file.get_macro_scope(engine),
 		indent: 0,
 		scope: file.file_id,
 		bottom_scopes: &contexts,
 		force_inline: false,
-		stack_paths: {
-			let mut output = vec![];
-			let mut current = Some(&file);
-			while let Some(current_verified) = current {
-				if let Some(id) = current_verified.template.clone() {
-					output.push(id);
-				}
-				current = current_verified
-					.template
-					.as_ref()
-					.and_then(|x| engine.get_template(x));
-			}
-			output.into_boxed_slice()
-		},
+		stack_paths: contexts.iter().filter_map(|x| x.template.clone()).collect(),
 	};
 
 	generate_html(&file, &state)

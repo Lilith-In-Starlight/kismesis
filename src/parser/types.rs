@@ -14,8 +14,8 @@ pub type ScopedExpression<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, Text
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// A Kismesis string, containing both string literals and expressions
 pub enum StringParts {
-	String(String),
 	Expression(Ranged<Expression>),
+	String(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -149,15 +149,15 @@ pub struct PlugCall {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// All AST nodes that end up in the final HTML in one way or another
 pub enum HtmlNodes {
-	HtmlTag(HtmlTag),
-	MacroCall(Macro),
-	String(Vec<StringParts>),
-	PlugCall(Box<PlugCall>),
-	If(IfTag),
-	For(ForTag),
-	Paragraph(Paragraph),
 	Content(Content),
+	For(ForTag),
+	HtmlTag(HtmlTag),
+	If(IfTag),
+	MacroCall(Macro),
+	Paragraph(Paragraph),
+	PlugCall(Box<PlugCall>),
 	Raw(String),
+	String(Vec<StringParts>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -165,69 +165,75 @@ pub enum HtmlNodes {
 pub struct Paragraph(pub Vec<HtmlNodes>);
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Content {
 	pub position: TextPos,
 	pub content: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// All AST nodes that can be at the topmost level of a file
 pub enum TopNodes {
-	HtmlTag(HtmlTag),
-	MacroCall(Macro),
-	PlugCall(Box<PlugCall>),
 	Content(Content),
 	Doctype(String),
-	If(IfTag),
 	For(ForTag),
+	HtmlTag(HtmlTag),
+	If(IfTag),
+	MacroCall(Macro),
 	Paragraph(Paragraph),
+	PlugCall(Box<PlugCall>),
 	Raw(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// All AST nodes that can be in any level of a file except for the topmost
 pub enum BodyTags {
+	Content(Content),
+	For(ForTag),
 	HtmlTag(HtmlTag),
+	If(IfTag),
 	MacroCall(Macro),
 	PlugCall(Box<PlugCall>),
-	If(IfTag),
-	For(ForTag),
-	Content(Content),
 	Raw(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// All Kismesis tags
 pub enum Tag {
-	Html(HtmlTag),
-	MacroDef(Macro),
-	MacroCall(Macro),
-	PlugCall(Box<PlugCall>),
 	Content(Content),
 	Doctype(String),
-	If(IfTag),
 	For(ForTag),
+	Html(HtmlTag),
+	If(IfTag),
+	MacroCall(Macro),
+	MacroDef(Macro),
+	PlugCall(Box<PlugCall>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// All AST nodes
 pub enum BodyNodes {
-	HtmlTag(HtmlTag),
-	MacroDef(Macro),
-	MacroCall(Macro),
-	PlugCall(Box<PlugCall>),
-	LambdaDef(Lambda),
-	VarDef(Variable),
 	Content(Content),
-	SetStmt(String, String),
 	Doctype(String),
-	If(IfTag),
 	For(ForTag),
+	HtmlTag(HtmlTag),
+	If(IfTag),
+	LambdaDef(Lambda),
+	MacroCall(Macro),
+	MacroDef(Macro),
 	Paragraph(Paragraph),
+	PlugCall(Box<PlugCall>),
 	Raw(String),
+	SetStmt(String, String),
+	VarDef(Variable),
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// The completely parsed file, including macros, variables, lambdas and a template
 pub struct ParsedFile {
 	pub file_id: KisID,
@@ -332,7 +338,7 @@ impl ParsedFile {
 
 	pub fn get_variable_scope<'a>(
 		&'a self,
-		sub_scope: &[&'a Self],
+		sub_scope: &'a [Self],
 		engine: &'a Kismesis,
 	) -> HashMap<String, ScopedExpression> {
 		let mut out = HashMap::new();
@@ -461,21 +467,23 @@ pub enum UniFunc {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Expression {
-	None,
-	Variable(String),
-	Literal(Vec<StringParts>),
-	BinFunc(BinFunc, Box<Ranged<Expression>>, Box<Ranged<Expression>>),
-	UniFunc(UniFunc, Box<Ranged<Expression>>),
 	Array(Vec<Ranged<Expression>>),
+	BinFunc(BinFunc, Box<Ranged<Expression>>, Box<Ranged<Expression>>),
+	Literal(Vec<StringParts>),
+	None,
+	UniFunc(UniFunc, Box<Ranged<Expression>>),
+	Variable(String),
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Variable {
 	pub name: Ranged<String>,
 	pub value: Ranged<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Lambda {
 	pub name: Ranged<String>,
 	pub value: Option<Ranged<Expression>>,
@@ -500,9 +508,9 @@ impl Ranged<&str> {
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum TextPos {
-	Single(TokenPos),
-	Range((TokenPos, TokenPos)),
 	Multi(Box<[TextPos]>),
+	Range((TokenPos, TokenPos)),
+	Single(TokenPos),
 }
 
 impl TextPos {

@@ -21,7 +21,9 @@ use extism::{convert::Json, Manifest, Plugin, Wasm};
 #[cfg(any(feature = "plugins", feature = "pdk"))]
 use parser::types::TextPos;
 
+use options::Settings;
 use plugins::PluginInput;
+use plugins::PostProcPluginInput;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -63,8 +65,9 @@ pub struct PluginParseError {
 
 #[cfg(any(feature = "plugins", feature = "pdk"))]
 impl PluginParseError {
+	#[must_use]
 	pub fn new(message: String, state: Option<TextPos>) -> Self {
-		PluginParseError {
+		Self {
 			message,
 			hints: vec![],
 			state,
@@ -72,7 +75,7 @@ impl PluginParseError {
 	}
 	/// Adds a hint to the error struct
 	pub fn add_hint(&mut self, message: String, state: Option<TextPos>) {
-		self.hints.push(Self::new(message, state))
+		self.hints.push(Self::new(message, state));
 	}
 }
 
@@ -88,14 +91,16 @@ pub struct FileRef {
 #[derive(Default, Debug)]
 #[cfg(feature = "plugins")]
 pub struct Kismesis {
-	/// The tokens of all the files.
-	tokens: HashMap<KisID, FileRef>,
-	/// The loaded templates.
-	templates: HashMap<KisTemplateID, ParsedFile>,
-	/// The loaded plugins.
-	plugins: HashMap<String, Manifest>,
 	/// The next ID to be used for the ID in case templates are registered from input that is not from a file.
 	id: usize,
+	/// The loaded plugins.
+	plugins: HashMap<String, Manifest>,
+	/// The settings to be used for this instance of Kismesis
+	settings: Settings,
+	/// The loaded templates.
+	templates: HashMap<KisTemplateID, ParsedFile>,
+	/// The tokens of all the files.
+	tokens: HashMap<KisID, FileRef>,
 }
 
 #[derive(Default, Debug)]
@@ -103,20 +108,24 @@ pub struct Kismesis {
 /// # Kismesis Engine
 /// A struct which contains Kismesis data that might be self-referential, such as templates (which might be recursuve)
 pub struct Kismesis {
-	/// The tokens of all the files.
-	tokens: HashMap<KisID, FileRef>,
-	/// The loaded templates.
-	templates: HashMap<KisTemplateID, ParsedFile>,
 	/// The next ID to be used for the ID in case templates are registered from input that is not from a file.
 	id: usize,
+	/// The settings to be used for this instance of Kismesis
+	settings: Settings,
+	/// The loaded templates.
+	templates: HashMap<KisTemplateID, ParsedFile>,
+	/// The tokens of all the files.
+	tokens: HashMap<KisID, FileRef>,
 }
 
 /// ID newtype for kismesis tokens
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KisID(usize);
 
 /// IDs for kismesis templates
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum KisTemplateID {
 	/// Input is not from a file
 	Input(usize),
@@ -126,12 +135,14 @@ pub enum KisTemplateID {
 
 impl Kismesis {
 	#[cfg(feature = "plugins")]
+	#[must_use]
 	pub fn new() -> Self {
 		Self {
 			tokens: HashMap::new(),
 			templates: HashMap::new(),
 			plugins: HashMap::new(),
 			id: 0,
+			settings: Settings::default(),
 		}
 	}
 	#[cfg(not(feature = "plugins"))]
@@ -141,6 +152,7 @@ impl Kismesis {
 			tokens: HashMap::new(),
 			templates: HashMap::new(),
 			id: 0,
+			settings: Settings::default(),
 		}
 	}
 
@@ -154,7 +166,7 @@ impl Kismesis {
 	pub fn register_plugin(&mut self, name: String, path: &Path) {
 		let plugin = Wasm::file(path);
 		let manifest = Manifest::new([plugin]);
-		let manifest = manifest.with_allowed_hosts(["*".to_string()].into_iter());
+		let manifest = manifest.with_allowed_hosts(std::iter::once("*".to_string()));
 		let manifest = manifest.with_allowed_paths(
 			[
 				(PathBuf::from("input"), PathBuf::from("input")),
@@ -172,6 +184,8 @@ impl Kismesis {
 	}
 
 	/// Send tokens and body to a plugin with a given `name`
+	/// # Errors
+	/// When the plugin cannot be called, and when the pluing returns an error
 	#[cfg(feature = "plugins")]
 	pub fn call_plugin(
 		&self,
@@ -193,19 +207,21 @@ impl Kismesis {
 		let mut plugin = match Plugin::new(manifest, [], true) {
 			Ok(x) => x,
 			Err(x) => {
-				return Err(ParseError::ExtismError(format!("{}", x))
+				return Err(ParseError::ExtismError(format!("{x}"))
 					.error_at_pos(name.range.clone())
 					.cut())
 			}
 		};
 		let input = Json(input);
-		match plugin.call::<_, Json<Result<Vec<HtmlNodes>, PluginParseError>>>("parser", input) {
+		match plugin.call::<_, Json<Result<_, PluginParseError>>>("parser", input) {
 			Ok(Json(x)) => match x {
 				Ok(x) => Ok(x),
 				Err(x) => {
 					let error = ParseError::PluginError(x.message);
-					let mut error =
-						ErrorKind::with_state_at(error, x.state.unwrap_or(name.range.clone()));
+					let mut error = ErrorKind::with_state_at(
+						error,
+						x.state.unwrap_or_else(|| name.range.clone()),
+					);
 					for hint in x.hints {
 						// TODO let plugin hints be stateful
 						let new_hint = Hints::CustomMessage(hint.message).stateless();
@@ -214,9 +230,77 @@ impl Kismesis {
 					Err(Err::Failure(error))
 				}
 			},
-			Err(x) => Err(ParseError::ExtismError(format!("{}", x))
+			Err(x) => Err(ParseError::ExtismError(format!("{x}"))
 				.error_at_pos(name.range.clone())
 				.cut()),
+		}
+	}
+
+	/// # Errors
+	/// Never
+	#[cfg(not(feature = "plugins"))]
+	pub fn call_post_processing_plugins(
+		&self,
+		input: PostProcPluginInput,
+	) -> Result<(ParsedFile, Vec<ParsedFile>), Err> {
+		Ok(input.body)
+	}
+
+	#[cfg(feature = "plugins")]
+	pub fn call_post_processing_plugins(
+		&self,
+		mut input: PostProcPluginInput,
+	) -> Result<(ParsedFile, Vec<ParsedFile>), Err> {
+		let current_file = input.current_file.clone();
+		for plugin in self.settings.post_processing() {
+			let body = self.call_post_processing_plugin(input, plugin)?;
+			input = PostProcPluginInput {
+				body,
+				current_file: current_file.clone(),
+			}
+		}
+
+		Ok(input.body)
+	}
+
+	/// Send file to a post_processing plugin with a given `name`
+	/// # Errors
+	/// When the plugin cannot be called, and when the pluing returns an error
+	#[cfg(feature = "plugins")]
+	pub fn call_post_processing_plugin(
+		&self,
+		input: PostProcPluginInput,
+		name: &str,
+	) -> Result<(ParsedFile, Vec<ParsedFile>), Err> {
+		use errors::ErrorKind;
+
+		use crate::parser::errors::{Hintable, Hints};
+
+		let manifest = match self.plugins.get(name) {
+			Some(x) => x.clone(),
+			None => return todo!(),
+		};
+		let mut plugin = match Plugin::new(manifest, [], true) {
+			Ok(x) => x,
+			Err(_) => return todo!(),
+		};
+		let input = Json(input);
+		match plugin.call::<_, Json<Result<_, PluginParseError>>>("parser", input) {
+			Ok(Json(x)) => match x {
+				Ok(x) => Ok(x),
+				Err(x) => {
+					let error = ParseError::PluginError(x.message);
+					let mut error =
+						ErrorKind::with_state_at(error, x.state.unwrap_or_else(|| todo!()));
+					for hint in x.hints {
+						// TODO let plugin hints be stateful
+						let new_hint = Hints::CustomMessage(hint.message).stateless();
+						error.add_hint(new_hint);
+					}
+					Err(Err::Failure(error))
+				}
+			},
+			Err(_) => todo!(),
 		}
 	}
 
@@ -359,7 +443,7 @@ pub mod pdk {
 mod test {
 	use std::{path::PathBuf, str::FromStr};
 
-	use crate::{html, options::Settings, Kismesis};
+	use crate::{html, Kismesis};
 
 	#[test]
 	fn test_file() {
@@ -372,9 +456,6 @@ mod test {
 			.register_file(PathBuf::from_str("test/templating/file.kis").unwrap())
 			.unwrap();
 		input.template = Some(template);
-		println!(
-			"{:#?}",
-			html::compile(&input, &Settings::default(), &engine)
-		);
+		println!("{:#?}", html::compile(&input, &engine));
 	}
 }

@@ -3,7 +3,10 @@ use std::path::PathBuf;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{lexer::Token, parser::types::Ranged};
+use crate::{
+	lexer::Token,
+	parser::types::{ParsedFile, Ranged},
+};
 
 #[cfg_attr(feature = "serde", derive(Deserialize))]
 pub struct PluginData {
@@ -16,5 +19,11 @@ pub struct PluginData {
 pub struct PluginInput {
 	pub parameters: Ranged<Vec<Token>>,
 	pub body: Option<Ranged<Vec<Token>>>,
+	pub current_file: Option<PathBuf>,
+}
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct PostProcPluginInput {
+	pub body: (ParsedFile, Vec<ParsedFile>),
 	pub current_file: Option<PathBuf>,
 }

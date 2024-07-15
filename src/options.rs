@@ -1,4 +1,6 @@
+#[derive(Debug)]
 pub struct Settings {
+	post_processing_pipeline: Vec<String>,
 	inline: Vec<String>,
 	only_closer: Vec<String>,
 	only_opener: Vec<String>,
@@ -15,11 +17,17 @@ impl Default for Settings {
 			]),
 			only_opener: string_vec(&["meta", "img", "link"]),
 			only_closer: string_vec(&["br", "hr"]),
+			post_processing_pipeline: vec![],
 		}
 	}
 }
 
 impl Settings {
+	#[must_use]
+	pub fn post_processing(&self) -> &[String] {
+		&self.post_processing_pipeline
+	}
+
 	#[must_use]
 	pub fn is_only_closer(&self, n: &str) -> bool {
 		self.only_closer.iter().any(|x| x == n)
