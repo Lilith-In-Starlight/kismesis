@@ -1,11 +1,13 @@
+//! Everything related to parsing errors.
+
 use std::ops::Bound;
 use std::fmt::Write;
 
-use crate::KisTemplateID;
+use crate::KisTemplateId;
 use crate::{
 	errors::{ErrorKind, ErrorState, StatelessError},
 	html::ScopedError,
-	KisID,
+	KisTokenId,
 };
 
 use super::{state::State, types::TextPos};
@@ -14,7 +16,7 @@ use super::{state::State, types::TextPos};
 pub enum ParseError {
 	InvalidAttrName,
 	SuspiciousStmtString,
-	UnregisteredFileID(KisID),
+	UnregisteredFileID(KisTokenId),
 	ExpectedStatement,
 	ExpectedSpecifierOrTag,
 	HeaderNotAllowedHere,
@@ -27,7 +29,7 @@ pub enum ParseError {
 	ExtismError(String),
 	PluginDoesntExist,
 	PluginsDisabled,
-	TriedToParseInvalidID(KisID),
+	TriedToParseInvalidID(KisTokenId),
 	WronglyNestedSection,
 	ExpectedLambdaStart,
 	ConditionUnmet,
@@ -104,7 +106,7 @@ impl Err {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Hints {
-	StackIsThis(Box<[KisTemplateID]>),
+	StackIsThis(Box<[KisTemplateId]>),
 	HeaderSectionDynamics,
 	HeaderForSize,
 	ArgumentDefinedHere,
@@ -122,8 +124,8 @@ impl ErrorKind for Hints {
 			Self::StackIsThis(stack) => {
 				let formatted = stack.iter().fold(String::new(), |mut output, current| {
 					let current = match current {
-						KisTemplateID::Input(x) => format!("Command Line Input #{x}"),
-						KisTemplateID::File(x) => x.display().to_string(),
+						KisTemplateId::Input(x) => format!("Command Line Input #{x}"),
+						KisTemplateId::File(x) => x.display().to_string(),
 					};
 					if !output.is_empty() {
 						let _ = writeln!(&mut output);
@@ -147,7 +149,7 @@ impl ErrorKind for Hints {
 }
 
 impl Hints {
-	#[must_use] pub fn with_state_at(self, state: TextPos, scope: KisID) -> Hint {
+	#[must_use] pub fn with_state_at(self, state: TextPos, scope: KisTokenId) -> Hint {
 		Hint::Stateful(ScopedError {
 			error: ErrorState {
 				error: self,

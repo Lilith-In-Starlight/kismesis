@@ -1,13 +1,15 @@
+//! The types that the parser might output.
+
 use std::{collections::HashMap, path::Path};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{KisID, KisTemplateID, Kismesis};
+use crate::{KisTemplateId, KisTokenId, Kismesis};
 
 use super::state::TokenPos;
 
-pub type Scoped<'a, T> = (T, KisID);
+pub type Scoped<'a, T> = (T, KisTokenId);
 pub type ScopedExpression<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, TextPos)>;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -37,7 +39,7 @@ pub struct Argument {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// An HTML tag
 pub struct HtmlTag {
-	/// The Kismesis name of the tag. It might get compiled to something else, like how <container> is compiled as <div>
+	/// The Kismesis name of the tag. It might get compiled to something else, like how `<container>` is compiled as `<div>`
 	pub name: Ranged<String>,
 	pub attributes: Vec<Attribute>,
 	/// Subtags get compiled as children of the tag
@@ -66,6 +68,7 @@ pub struct Section {
 }
 
 impl Section {
+	#[must_use]
 	pub fn into_tag(self) -> HtmlTag {
 		let mut tags = Vec::new();
 		let hstr = format!("h{}", self.depth.value);
@@ -236,12 +239,12 @@ pub enum BodyNodes {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// The completely parsed file, including macros, variables, lambdas and a template
 pub struct ParsedFile {
-	pub file_id: KisID,
+	pub file_id: KisTokenId,
 	pub body: Vec<TopNodes>,
 	pub defined_macros: Vec<Macro>,
 	pub defined_variables: Vec<Variable>,
 	pub defined_lambdas: Vec<Lambda>,
-	pub template: Option<KisTemplateID>,
+	pub template: Option<KisTemplateId>,
 }
 
 // /// An Option with the possibility of something not being set
@@ -255,7 +258,8 @@ pub struct ParsedFile {
 // }
 
 impl ParsedFile {
-	pub fn new(file_id: KisID) -> Self {
+	#[must_use]
+	pub fn new(file_id: KisTokenId) -> Self {
 		Self {
 			file_id,
 			body: vec![],
@@ -282,6 +286,7 @@ impl ParsedFile {
 	// 		}))
 	// }
 
+	#[must_use]
 	pub fn get_path_slice<'a>(&'a self, engine: &'a Kismesis) -> Option<&Path> {
 		engine.get_file(self.file_id)?.path.as_deref()
 	}
@@ -316,6 +321,7 @@ impl ParsedFile {
 	// 		})
 	// }
 
+	#[must_use]
 	pub fn get_macro_scope<'a>(&'a self, engine: &'a Kismesis) -> HashMap<String, Scoped<&Macro>> {
 		let mut output = HashMap::new();
 		if let Some(template) = self
@@ -336,6 +342,7 @@ impl ParsedFile {
 		output
 	}
 
+	#[must_use]
 	pub fn get_variable_scope<'a>(
 		&'a self,
 		sub_scope: &'a [Self],
@@ -383,6 +390,7 @@ impl ParsedFile {
 		out.into_iter().collect()
 	}
 
+	#[must_use]
 	pub fn get_local_macro_scope(&self) -> HashMap<String, Scoped<&Macro>> {
 		let mut output = HashMap::new();
 		output.extend(
@@ -394,6 +402,7 @@ impl ParsedFile {
 		output
 	}
 
+	#[must_use]
 	pub fn get_local_variable_scope(&self) -> HashMap<String, ScopedExpression> {
 		let mut out = HashMap::new();
 
@@ -497,6 +506,7 @@ pub struct Ranged<T> {
 }
 
 impl Ranged<&str> {
+	#[must_use]
 	pub fn to_own(&self) -> Ranged<String> {
 		Ranged {
 			value: self.value.to_owned(),
@@ -514,6 +524,7 @@ pub enum TextPos {
 }
 
 impl TextPos {
+	#[must_use]
 	pub fn get_start_line(&self) -> usize {
 		match self {
 			Self::Single(x) => x.get_line(),
@@ -522,6 +533,7 @@ impl TextPos {
 		}
 	}
 
+	#[must_use]
 	pub fn get_end_line(&self) -> usize {
 		match self {
 			Self::Single(x) => x.get_line(),
@@ -530,13 +542,15 @@ impl TextPos {
 		}
 	}
 
+	#[must_use]
 	pub fn is_one_line(&self) -> bool {
 		self.get_end_line() == self.get_start_line()
 	}
 }
 
 impl Macro {
-	pub fn get_argument_scope(&self, scope: KisID) -> HashMap<String, ScopedExpression> {
+	#[must_use]
+	pub fn get_argument_scope(&self, scope: KisTokenId) -> HashMap<String, ScopedExpression> {
 		let mut output = HashMap::new();
 
 		output.extend(self.arguments.iter().map(|x| {
@@ -557,6 +571,7 @@ impl Macro {
 
 impl HtmlTag {
 	/// Turn all subtags into regular HTML tags
+	#[must_use]
 	pub fn merge_subtags(mut self) -> Self {
 		let mut subtag_stack = self.subtags;
 		let Some(top) = subtag_stack.last_mut() else {

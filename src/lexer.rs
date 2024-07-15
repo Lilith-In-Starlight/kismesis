@@ -1,3 +1,4 @@
+//! Module regarding [`Token`]s and tokenization.
 use std::fmt;
 
 #[cfg(feature = "serde")]
@@ -30,6 +31,7 @@ impl Token {
 	}
 
 	/// Returns the content of the token as a string
+	#[must_use]
 	pub fn get_as_string(&self) -> String {
 		match self {
 			Self::Word(word) => word.clone(),

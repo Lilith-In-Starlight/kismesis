@@ -1,10 +1,12 @@
+//! Module containing everything that turns kismesis into html.
+
 use htmlize::escape_all_quotes;
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use crate::{
 	parser::types::{Content, FillContent, Paragraph, ParsedFile},
 	plugins::PostProcPluginInput,
-	KisID, KisTemplateID, Kismesis,
+	KisTemplateId, KisTokenId, Kismesis,
 };
 
 use super::{
@@ -69,29 +71,16 @@ impl Output {
 			}
 		}
 	}
+}
 
-	#[must_use]
-	pub fn to_string_forced(&self) -> String {
-		let mut output = String::new();
+impl Display for Output {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		for part in &self.parts {
 			match part {
-				MaybeRaw::Raw(string) | MaybeRaw::Html(string) => output.push_str(string),
+				MaybeRaw::Raw(string) | MaybeRaw::Html(string) => write!(f, "{string}")?,
 			}
 		}
-		output
-	}
-
-	/// Converts the output to string.
-	/// # Errors
-	/// When the string contains `MaybeHtml::ContentMark`.
-	pub fn to_string(&self) -> Result<String, CompilerError> {
-		let mut output = String::new();
-		for part in &self.parts {
-			match part {
-				MaybeRaw::Raw(string) | MaybeRaw::Html(string) => output.push_str(string),
-			}
-		}
-		Ok(output)
+		Ok(())
 	}
 }
 
@@ -101,10 +90,10 @@ struct GenerationState<'a> {
 	variable_scopes: VariableScope<'a>,
 	macro_templates: HashMap<String, Scoped<'a, &'a Macro>>,
 	indent: usize,
-	scope: KisID,
+	scope: KisTokenId,
 	bottom_scopes: &'a [ParsedFile],
 	force_inline: bool,
-	stack_paths: Box<[KisTemplateID]>,
+	stack_paths: Box<[KisTemplateId]>,
 }
 
 type ValueRef<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, TextPos)>;
@@ -618,13 +607,13 @@ enum ExpressionValues {
 	None,
 	Generic,
 	Array(Vec<Ranged<Expression>>),
-	Reference(Ranged<Expression>, KisID, TextPos),
+	Reference(Ranged<Expression>, KisTokenId, TextPos),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScopedError<T> {
 	pub error: ErrorState<T>,
-	pub scope: KisID,
+	pub scope: KisTokenId,
 }
 
 impl<T> Hintable for ScopedError<T> {
@@ -645,7 +634,7 @@ impl ExpressionValues {
 	fn to_string<'a>(
 		&'a self,
 		range: &TextPos,
-		scope: KisID,
+		scope: KisTokenId,
 		state: &GenerationState<'a>,
 	) -> CompileResult<String> {
 		match self {

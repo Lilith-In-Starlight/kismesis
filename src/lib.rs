@@ -1,14 +1,35 @@
-//! # Kismesis
-//! Module for everything related to the Kismesis templating engine.
+//! This crate is used to create engines based on Kismesis.
 //!
-//! # Using the engine
-//! This module contains the `Kismesis` struct, which is utilized in
-//! every templating operation. It also works as an arena that holds
-//! templates and token strings.
+//! # Basic Use
+//! First, we create the engine and register some files.
+//! ```
+//! use kismesis::Kismesis;
+//! let mut engine = Kismesis::new(); // Engine must be mutable
+//! let mut my_parsed_file = engine.register_str("<p: this is a kismesis string!>").unwrap();
+//! ```
+//!
+//! This will give us a [`ParsedFile`] that we can then use during templating. Templates can only be used through a [`KisTemplateId`] because they might have other templates and even be self referential. The engine provides [`register_template`](Kismesis::register_template) to store the file and obtain the ID.
+//!
+//! ```
+//! # use kismesis::Kismesis;
+//! # use kismesis::html;
+//! # let mut engine = Kismesis::new(); // Engine must be mutable
+//! # let mut my_parsed_file = engine.register_str("<p: this is a kismesis string!>").unwrap();
+//! // This obtains a ParsedFile.
+//! let my_template = engine.register_str("# Test\n<content!>").unwrap();
+//! // This registers that file as a template, returning a KisTemplateId
+//! let my_template = engine.register_template(my_template);
+//!
+//! my_parsed_file.template = Some(my_template);
+//!
+//! println!("{}", html::compile(&my_parsed_file, &engine).unwrap());
+//! ```
+//!
+//!
 
 pub mod errors;
 pub mod html;
-mod lexer;
+pub mod lexer;
 pub mod options;
 pub mod parser;
 pub mod plugins;
@@ -48,7 +69,7 @@ pub type KisResult<T> = Result<T, KismesisError>;
 #[derive(Debug)]
 pub enum KismesisError {
 	IOError(io::Error, PathBuf),
-	ParseError(Vec<Err>, KisID),
+	ParseError(Vec<Err>, KisTokenId),
 }
 
 /// Error struct used in plugin parsing
@@ -86,7 +107,6 @@ pub struct FileRef {
 	pub path: Option<PathBuf>,
 }
 
-/// # Kismesis Engine
 /// A struct which contains Kismesis data that might be self-referential, such as templates (which might be recursuve)
 #[derive(Default, Debug)]
 #[cfg(feature = "plugins")]
@@ -98,14 +118,13 @@ pub struct Kismesis {
 	/// The settings to be used for this instance of Kismesis
 	settings: Settings,
 	/// The loaded templates.
-	templates: HashMap<KisTemplateID, ParsedFile>,
+	templates: HashMap<KisTemplateId, ParsedFile>,
 	/// The tokens of all the files.
-	tokens: HashMap<KisID, FileRef>,
+	tokens: HashMap<KisTokenId, FileRef>,
 }
 
 #[derive(Default, Debug)]
 #[cfg(not(feature = "plugins"))]
-/// # Kismesis Engine
 /// A struct which contains Kismesis data that might be self-referential, such as templates (which might be recursuve)
 pub struct Kismesis {
 	/// The next ID to be used for the ID in case templates are registered from input that is not from a file.
@@ -113,20 +132,20 @@ pub struct Kismesis {
 	/// The settings to be used for this instance of Kismesis
 	settings: Settings,
 	/// The loaded templates.
-	templates: HashMap<KisTemplateID, ParsedFile>,
+	templates: HashMap<KisTemplateId, ParsedFile>,
 	/// The tokens of all the files.
-	tokens: HashMap<KisID, FileRef>,
+	tokens: HashMap<KisTokenId, FileRef>,
 }
 
 /// ID newtype for kismesis tokens
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct KisID(usize);
+pub struct KisTokenId(usize);
 
 /// IDs for kismesis templates
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum KisTemplateID {
+pub enum KisTemplateId {
 	/// Input is not from a file
 	Input(usize),
 	/// Input is from a file
@@ -157,7 +176,7 @@ impl Kismesis {
 	}
 
 	/// Remove a set file from the engine's registry
-	pub fn drop_id(&mut self, id: &KisID) {
+	pub fn drop_id(&mut self, id: &KisTokenId) {
 		self.tokens.remove(id);
 	}
 
@@ -320,8 +339,8 @@ impl Kismesis {
 	}
 
 	/// Register a file
-	pub fn register_tokens(&mut self, tokens: Vec<Token>, path: Option<PathBuf>) -> KisID {
-		let new_kis_id = KisID(self.id);
+	pub fn register_tokens(&mut self, tokens: Vec<Token>, path: Option<PathBuf>) -> KisTokenId {
+		let new_kis_id = KisTokenId(self.id);
 		self.id += 1;
 		self.tokens.insert(new_kis_id, FileRef { tokens, path });
 		new_kis_id
@@ -330,7 +349,6 @@ impl Kismesis {
 	/// Parse and register a file
 	/// # Errors
 	/// If the file cannot be parsed, or if there is an IO error when accessing or reading `path`.
-	// TODO: This is a misnomer
 	pub fn register_file(&mut self, path: PathBuf) -> KisResult<ParsedFile> {
 		let text =
 			fs::read_to_string(&path).map_err(|x| KismesisError::IOError(x, path.clone()))?;
@@ -341,28 +359,39 @@ impl Kismesis {
 		Ok(file)
 	}
 
-	/// Register a template
-	pub fn register_template(&mut self, file: ParsedFile) -> KisTemplateID {
+	/// Parse and register a string of text
+	/// # Errors
+	/// If the string cannot be parsed.
+	pub fn register_str(&mut self, string: &str) -> KisResult<ParsedFile> {
+		let tokens = lexer::tokenize(string);
+		let tokens = self.register_tokens(tokens, None);
+		let file = parser::file(tokens, self, None, None)
+			.map_err(|x| KismesisError::ParseError(x, tokens))?;
+		Ok(file)
+	}
+
+	/// Register a template.
+	pub fn register_template(&mut self, file: ParsedFile) -> KisTemplateId {
 		let output_id = match self.get_file(file.file_id).and_then(|x| x.path.clone()) {
-			Some(path) => KisTemplateID::File(path),
-			None => KisTemplateID::Input(self.templates.len()),
+			Some(path) => KisTemplateId::File(path),
+			None => KisTemplateId::Input(self.templates.len()),
 		};
 		self.templates.insert(output_id.clone(), file);
 		output_id
 	}
 
-	/// Get a template from an ID
+	/// Get a template from an ID.
 	pub fn get_template<T>(&self, id: T) -> Option<&ParsedFile>
 	where
-		T: Into<KisTemplateID>,
+		T: Into<KisTemplateId>,
 	{
 		self.templates.get(&id.into())
 	}
 
 	/// Verify whether a template ID is registered
-	pub fn verify_template_id<T>(&self, id: T) -> Option<KisTemplateID>
+	pub fn verify_template_id<T>(&self, id: T) -> Option<KisTemplateId>
 	where
-		T: Into<KisTemplateID>,
+		T: Into<KisTemplateId>,
 	{
 		let id = id.into();
 		if self.has_template(id.clone()) {
@@ -375,37 +404,37 @@ impl Kismesis {
 	/// Verify whether a template ID is registered
 	pub fn has_template<T>(&self, id: T) -> bool
 	where
-		T: Into<KisTemplateID>,
+		T: Into<KisTemplateId>,
 	{
 		self.templates.contains_key(&id.into())
 	}
 
 	/// Get the registered file that corresponds to the given ID, if any
 	#[must_use]
-	pub fn get_file(&self, id: KisID) -> Option<&FileRef> {
+	pub fn get_file(&self, id: KisTokenId) -> Option<&FileRef> {
 		self.tokens.get(&id)
 	}
 }
 
-impl From<PathBuf> for KisTemplateID {
+impl From<PathBuf> for KisTemplateId {
 	fn from(val: PathBuf) -> Self {
 		Self::File(val)
 	}
 }
 
-impl From<&Path> for KisTemplateID {
+impl From<&Path> for KisTemplateId {
 	fn from(val: &Path) -> Self {
 		Self::File(val.to_path_buf())
 	}
 }
 
-impl From<&str> for KisTemplateID {
+impl From<&str> for KisTemplateId {
 	fn from(val: &str) -> Self {
 		Self::File(PathBuf::from(val))
 	}
 }
 
-impl From<&Self> for KisTemplateID {
+impl From<&Self> for KisTemplateId {
 	fn from(val: &Self) -> Self {
 		val.clone()
 	}

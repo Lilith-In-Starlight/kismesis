@@ -1,4 +1,6 @@
-use crate::KisID;
+//! Data structures representing every possible failure during Kismesis' runtime.
+
+use crate::KisTokenId;
 
 use super::{
 	html::ScopedError,
@@ -20,7 +22,7 @@ where
 			text_position: position,
 		}
 	}
-	fn with_scope_at(self, scope: KisID, position: TextPos) -> ScopedError<Self> {
+	fn with_scope_at(self, scope: KisTokenId, position: TextPos) -> ScopedError<Self> {
 		ScopedError {
 			error: self.with_state_at(position),
 			scope,

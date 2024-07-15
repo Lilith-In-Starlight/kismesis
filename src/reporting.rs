@@ -1,7 +1,9 @@
+//! Print Kismesis' aesthetically pleasing and information-ful errors.
+
 use std::fmt::Debug;
 use std::fmt::Write;
 
-use crate::{FileRef, KisID, Kismesis};
+use crate::{FileRef, KisTokenId, Kismesis};
 
 use super::{
 	errors::{ErrorKind, ErrorState, StatelessError},
@@ -28,7 +30,9 @@ impl<'a> DrawingInfo<'a> {
 				output.push_str(&" in `".black().on_red().to_string());
 				match self.scope.path {
 					Some(ref path) => {
-						output.push_str(&path.to_string_lossy().as_ref().black().on_red().to_string());
+						output.push_str(
+							&path.to_string_lossy().as_ref().black().on_red().to_string(),
+						);
 						output.push_str(&"` ".black().on_red().to_string());
 					}
 					None => output.push_str(&"input` ".black().on_red().to_string()),
@@ -57,7 +61,9 @@ impl<'a> DrawingInfo<'a> {
 				output.push_str(&" in `".black().on_red().to_string());
 				match self.scope.path {
 					Some(ref path) => {
-						output.push_str(&path.to_string_lossy().as_ref().black().on_red().to_string());
+						output.push_str(
+							&path.to_string_lossy().as_ref().black().on_red().to_string(),
+						);
 						output.push_str(&"` ".black().on_red().to_string());
 					}
 					None => output.push_str(&"input` ".black().on_red().to_string()),
@@ -111,7 +117,7 @@ impl ErrorKind for ReportingError {
 
 impl<'a> DrawingInfo<'a> {
 	#[must_use]
-	pub fn from(scope: KisID, engine: &'a Kismesis, kind: ReportKind) -> Option<Self> {
+	pub fn from(scope: KisTokenId, engine: &'a Kismesis, kind: ReportKind) -> Option<Self> {
 		let scope = engine.get_file(scope)?;
 		let lines: Vec<&[Token]> = scope
 			.tokens

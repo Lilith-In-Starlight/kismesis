@@ -1,9 +1,13 @@
+//! Module containing all of kismesis' parsing utilities.
+//!
+//! Kismesis uses parser combinators over tokens to get the job done.
+
 #![allow(clippy::needless_pass_by_value)]
 mod combinators;
 pub mod errors;
 mod semantics;
 pub(crate) mod state;
-pub(crate) mod types;
+pub mod types;
 
 use combinators::{
 	and_also, and_maybe, change_err, cut, dbg, followed_by, get_range, ignore, is, map, maybe,
@@ -14,7 +18,7 @@ use std::path::PathBuf;
 
 use crate::lexer::Token;
 use crate::plugins::PluginInput;
-use crate::{KisID, KisTemplateID, Kismesis};
+use crate::{KisTemplateId, KisTokenId, Kismesis};
 
 use self::errors::{Err, ParseError};
 use self::semantics::{Semantics, Verify};
@@ -949,9 +953,9 @@ fn statement(state: State) -> ParserResult<BodyNodes> {
 }
 
 pub(crate) fn file(
-	tokens_id: KisID,
+	tokens_id: KisTokenId,
 	engine: &Kismesis,
-	default_template: Option<KisTemplateID>,
+	default_template: Option<KisTemplateId>,
 	file_path: Option<PathBuf>,
 ) -> Result<ParsedFile, Vec<Err>> {
 	let parser = zero_or_more(

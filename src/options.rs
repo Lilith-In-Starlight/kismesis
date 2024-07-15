@@ -1,3 +1,5 @@
+//! Kismesis configuration data structure
+
 #[derive(Debug)]
 pub struct Settings {
 	post_processing_pipeline: Vec<String>,
