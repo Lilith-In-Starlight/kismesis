@@ -54,8 +54,6 @@ impl<T> Hintable for StatelessError<T> {
 	}
 }
 
-pub trait Reportable {}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct ErrorState<T> {
 	pub error: T,

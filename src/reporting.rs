@@ -21,6 +21,25 @@ pub enum ReportKind {
 	Help,
 }
 
+pub trait Report {
+	fn create_report(
+		&self,
+		kind: ReportKind,
+		info: Option<&DrawingInfo>,
+		engine: &Kismesis,
+		depth: usize,
+	) -> String;
+	fn report(
+		&self,
+		kind: ReportKind,
+		info: Option<&DrawingInfo>,
+		engine: &Kismesis,
+		depth: usize,
+	) {
+		eprintln!("{}", self.create_report(kind, info, engine, depth));
+	}
+}
+
 impl<'a> DrawingInfo<'a> {
 	fn get_header(&self) -> String {
 		let mut output = String::new();
@@ -142,118 +161,138 @@ impl<'a> DrawingInfo<'a> {
 	}
 }
 
-/// Returns a report with tokens in a file
-pub fn draw_error<T: ErrorKind + Debug>(
-	err: &ErrorState<T>,
-	info: &Option<DrawingInfo>,
-	engine: &Kismesis,
-	depth: usize,
-) -> String {
-	let Some(info) = info.as_ref() else {
-		let err = ReportingError::InvalidKismesisID.stateless();
-		return draw_stateless_error(&err, ReportKind::Fatal, engine, depth + 1);
-	};
-	let minimum_line = {
-		let x = err.text_position.get_start_line();
-		if x < info.line_offset.0 {
-			0
-		} else {
-			x - info.line_offset.0
-		}
-	};
-	let maximum_line = {
-		let x = err.text_position.get_end_line();
-		if x + info.line_offset.1 > info.lines.len() {
-			info.lines.len()
-		} else {
-			x + info.line_offset.1
-		}
-	};
-
-	let mut output = String::new();
-
-	output.push_str(&info.get_header());
-
-	output.push('\n');
-
-	for line_number in minimum_line..=maximum_line {
-		if let Some(string) = draw_line(line_number, err, info) {
-			output.push_str(&string);
-			output.push('\n');
-		}
+impl<T> Report for ScopedError<T>
+where
+	T: ErrorKind + Debug,
+{
+	fn create_report(
+		&self,
+		kind: ReportKind,
+		info: Option<&DrawingInfo>,
+		engine: &Kismesis,
+		depth: usize,
+	) -> String {
+		self.error.create_report(kind, info, engine, depth)
 	}
-
-	output.push('\n');
-
-	for x in &err.hints {
-		let hint = match x {
-			Hint::Stateful(x) => draw_error(
-				&x.error,
-				&DrawingInfo::from(x.scope, engine, ReportKind::Hint),
-				engine,
-				depth + 1,
-			),
-			Hint::Stateless(x) => draw_stateless_error(x, ReportKind::Hint, engine, depth + 1),
-		};
-		output.push_str(&hint);
-	}
-
-	if !err.text_position.is_one_line() {
-		output.push_str(&format!("\n{}", err.error.get_text()));
-	}
-
-	output
-		.split('\n')
-		.fold(String::new(), |mut output, y| {
-			let _ = write!(output, "{}\n{}", " ".repeat(depth * 2), y);
-			output
-		})
-		.trim_start_matches('\n')
-		.to_string()
 }
 
-/// Returns a report where errors are not related to a file
-pub fn draw_stateless_error<T: ErrorKind + Debug>(
-	err: &StatelessError<T>,
-	kind: ReportKind,
-	engine: &Kismesis,
-	depth: usize,
-) -> String {
-	let mut output = String::new();
-
-	match kind {
-		ReportKind::Error => output.push_str(&" ERROR ".black().on_red().to_string()),
-		ReportKind::Hint => output.push_str(&" HINT ".black().on_yellow().to_string()),
-		ReportKind::Fatal => output.push_str(&" FATAL ERROR ".black().on_red().to_string()),
-		ReportKind::Help => output.push_str(&" HELP ".black().on_red().to_string()),
-	}
-	output.push('\n');
-
-	output.push_str(&err.error.get_text());
-
-	output.push('\n');
-
-	for x in &err.hints {
-		let hint = match x {
-			Hint::Stateful(x) => draw_error(
-				&x.error,
-				&DrawingInfo::from(x.scope, engine, ReportKind::Hint),
-				engine,
-				depth + 1,
-			),
-			Hint::Stateless(x) => draw_stateless_error(x, ReportKind::Hint, engine, depth + 1),
+impl<T> Report for ErrorState<T>
+where
+	T: ErrorKind + Debug,
+{
+	fn create_report(
+		&self,
+		_kind: ReportKind,
+		info: Option<&DrawingInfo>,
+		engine: &Kismesis,
+		depth: usize,
+	) -> String {
+		let Some(info) = info else {
+			let err = ReportingError::InvalidKismesisID.stateless();
+			return err.create_report(ReportKind::Fatal, None, engine, depth);
 		};
-		output.push_str(&hint);
-	}
+		let minimum_line = {
+			let x = self.text_position.get_start_line();
+			if x < info.line_offset.0 {
+				0
+			} else {
+				x - info.line_offset.0
+			}
+		};
+		let maximum_line = {
+			let x = self.text_position.get_end_line();
+			if x + info.line_offset.1 > info.lines.len() {
+				info.lines.len()
+			} else {
+				x + info.line_offset.1
+			}
+		};
 
-	output
-		.split('\n')
-		.fold(String::new(), |mut output, y| {
-			let _ = write!(output, "{}\n{}", " ".repeat(depth * 2), y);
-			output
-		})
-		.trim_start_matches('\n')
-		.to_string()
+		let mut output = String::new();
+
+		output.push_str(&info.get_header());
+
+		output.push('\n');
+
+		for line_number in minimum_line..=maximum_line {
+			if let Some(string) = draw_line(line_number, self, info) {
+				output.push_str(&string);
+				output.push('\n');
+			}
+		}
+
+		output.push('\n');
+
+		for x in &self.hints {
+			let hint = match x {
+				Hint::Stateful(x) => x.create_report(ReportKind::Hint, Some(info), engine, depth),
+				Hint::Stateless(x) => x.create_report(ReportKind::Hint, Some(info), engine, depth),
+			};
+			output.push_str(&hint);
+		}
+
+		if !self.text_position.is_one_line() {
+			output.push_str(&format!("\n{}", self.error.get_text()));
+		}
+
+		output
+			.split('\n')
+			.fold(String::new(), |mut output, y| {
+				let _ = write!(output, "{}\n{}", " ".repeat(depth * 2), y);
+				output
+			})
+			.trim_start_matches('\n')
+			.to_string()
+	}
+}
+
+impl<T> Report for StatelessError<T>
+where
+	T: ErrorKind + Debug,
+{
+	fn create_report(
+		&self,
+		kind: ReportKind,
+		info: Option<&DrawingInfo>,
+		engine: &Kismesis,
+		depth: usize,
+	) -> String {
+		let mut output = String::new();
+
+		match kind {
+			ReportKind::Error => output.push_str(&" ERROR ".black().on_red().to_string()),
+			ReportKind::Hint => output.push_str(&" HINT ".black().on_yellow().to_string()),
+			ReportKind::Fatal => output.push_str(&" FATAL ERROR ".black().on_red().to_string()),
+			ReportKind::Help => output.push_str(&" HELP ".black().on_red().to_string()),
+		}
+		output.push('\n');
+
+		output.push_str(&self.error.get_text());
+
+		output.push('\n');
+
+		for x in &self.hints {
+			let hint = match x {
+				Hint::Stateful(x) => x.create_report(
+					ReportKind::Hint,
+					DrawingInfo::from(x.scope, engine, ReportKind::Hint).as_ref(),
+					engine,
+					depth + 1,
+				),
+				Hint::Stateless(x) => x.create_report(kind, info, engine, depth + 1),
+			};
+			output.push_str(&hint);
+		}
+
+		output
+			.split('\n')
+			.fold(String::new(), |mut output, y| {
+				let _ = write!(output, "{}\n{}", " ".repeat(depth * 2), y);
+				output
+			})
+			.trim_start_matches('\n')
+			.to_string()
+	}
 }
 
 /// Returns a line. It will contain pointers to the provided error if the provided error is in the rendered line
@@ -352,14 +391,4 @@ fn draw_line_number(line: usize, info: &DrawingInfo) -> String {
 	}
 	output.push_str("│ ");
 	output
-}
-
-/// Takes a `ScopedError` and renders an error report
-pub fn draw_scoped_error<T: ErrorKind + Debug>(err: &ScopedError<T>, engine: &Kismesis) -> String {
-	draw_error(
-		&err.error,
-		&DrawingInfo::from(err.scope, engine, ReportKind::Error),
-		engine,
-		0,
-	)
 }
