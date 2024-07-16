@@ -85,11 +85,33 @@ impl Hintable for Err {
 			Self::Error(x) | Self::Failure(x) => x.add_hint(hint),
 		}
 	}
+
+	fn get_hints(&self) -> &[Hint] {
+		self.unpack_ref().get_hints()
+    }
+
+	fn get_hints_mut(&mut self) -> &mut [Hint] {
+		self.unpack_mut().get_hints_mut()
+    }
 }
 
 impl Err {
 	#[must_use]
 	pub fn unpack(self) -> ErrorState<ParseError> {
+		match self {
+			Self::Error(x) | Self::Failure(x) => x,
+		}
+	}
+
+	#[must_use]
+	pub const fn unpack_ref(&self) -> &ErrorState<ParseError> {
+		match self {
+			Self::Error(x) | Self::Failure(x) => x,
+		}
+	}
+
+	#[must_use]
+	pub fn unpack_mut(&mut self) -> &mut ErrorState<ParseError> {
 		match self {
 			Self::Error(x) | Self::Failure(x) => x,
 		}
@@ -155,7 +177,7 @@ impl Hints {
 				error: self,
 				text_position: state,
 				hints: vec![],
-			},
+			}.into(),
 			scope,
 		})
 	}
@@ -177,6 +199,8 @@ pub trait Hintable
 where
 	Self: Sized,
 {
+	fn get_hints(&self) -> &[Hint];
+	fn get_hints_mut(&mut self) -> &mut [Hint];
 	fn add_hint(&mut self, hint: Hint);
 	#[must_use]
 	fn with_hint(mut self, hint: Hint) -> Self {

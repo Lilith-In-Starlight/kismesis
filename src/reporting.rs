@@ -3,6 +3,9 @@
 use std::fmt::Debug;
 use std::fmt::Write;
 
+use crate::errors::MaybeStateless;
+use crate::html::MaybeUnscoped;
+use crate::parser::errors::Hintable;
 use crate::KisTokenId;
 use crate::{FileRef, Kismesis};
 
@@ -105,7 +108,7 @@ impl ReportKind {
 impl<T> From<(KisTokenId, ErrorState<T>)> for ScopedError<T> {
 	fn from(value: (KisTokenId, ErrorState<T>)) -> Self {
 		Self {
-			error: value.1,
+			error: value.1.into(),
 			scope: value.0,
 		}
 	}
@@ -133,12 +136,14 @@ pub struct DrawingInfo {
 #[derive(Debug)]
 enum ReportingError {
 	InvalidKismesisID,
+	InvalidTextPositions,
 }
 
 impl ErrorKind for ReportingError {
 	fn get_text(&self) -> String {
 		match self {
 			Self::InvalidKismesisID => "Tried to report an error ocurring on a file with an invalid Kismesis ID.\nPlease contact the developer of the engine you're using.".into(),
+			Self::InvalidTextPositions => "Tried to report an error with invalid text positions".into()
 		}
 	}
 }
@@ -148,6 +153,21 @@ impl Default for DrawingInfo {
 		Self {
 			line_number_length: 3,
 			line_offset: (2, 2),
+		}
+	}
+}
+
+impl<T: Report + ErrorKind + Debug> Report for MaybeUnscoped<T> {
+	fn create_report(
+		&self,
+		kind: ReportKind,
+		info: &DrawingInfo,
+		engine: &Kismesis,
+		depth: usize,
+	) -> String {
+		match self {
+			Self::Scoped(x) => x.create_report(kind, info, engine, depth),
+			Self::Unscoped(x) => x.create_report(kind, info, engine, depth),
 		}
 	}
 }
@@ -167,67 +187,86 @@ where
 			let err = ReportingError::InvalidKismesisID.stateless();
 			return err.create_report(ReportKind::Fatal, info, engine, depth);
 		};
-		let lines: Vec<&[Token]> = scope
-			.tokens
-			.split_inclusive(|x| matches!(x, Token::Newline(_)))
-			.collect();
-		let lines = {
-			let mut out = Vec::new();
-			let mut len: usize = 0;
-			for x in lines {
-				out.push((len, x));
-				len += x.len();
-			}
-			out
-		};
-		let minimum_line = {
-			let x = self.error.text_position.get_start_line();
-			if x < info.line_offset.0 {
-				0
-			} else {
-				x - info.line_offset.0
-			}
-		};
-		let maximum_line = {
-			let x = self.error.text_position.get_end_line();
-			if x + info.line_offset.1 > lines.len() {
-				lines.len()
-			} else {
-				x + info.line_offset.1
-			}
-		};
+		match &self.error {
+			MaybeStateless::Stateful(error) => {
+				let lines: Vec<&[Token]> = scope
+					.tokens
+					.split_inclusive(|x| matches!(x, Token::Newline(_)))
+					.collect();
+				let lines = {
+					let mut out = Vec::new();
+					let mut len: usize = 0;
+					for x in lines {
+						out.push((len, x));
+						len += x.len();
+					}
+					out
+				};
+				let Some((start_line, end_line)) = error
+					.text_position
+					.get_start_line()
+					.and_then(|x| error.text_position.get_end_line().map(|y| (x, y)))
+				else {
+					return StatelessError {
+						error: ReportingError::InvalidTextPositions,
+						hints: vec![],
+					}
+					.create_report(ReportKind::Fatal, info, engine, depth);
+				};
 
-		let mut output = String::new();
+				let minimum_line = {
+					if start_line < info.line_offset.0 {
+						0
+					} else {
+						start_line - info.line_offset.0
+					}
+				};
+				let maximum_line = {
+					if end_line + info.line_offset.1 > lines.len() {
+						lines.len()
+					} else {
+						end_line + info.line_offset.1
+					}
+				};
 
-		output.push_str(&kind.draw_scoped_band(scope));
+				let mut output = String::new();
 
-		output.push('\n');
+				output.push_str(&kind.draw_scoped_band(scope));
 
-		for line_number in minimum_line..=maximum_line {
-			if let Some(string) = draw_line(&lines, line_number, &self.error, info) {
-				output.push_str(&string);
 				output.push('\n');
+
+				for line_number in minimum_line..=maximum_line {
+					if let Some(string) = draw_line(&lines, line_number, error, info) {
+						output.push_str(&string);
+						output.push('\n');
+					}
+				}
+
+				output.push('\n');
+
+				for x in self.get_hints() {
+					let hint = match x {
+						Hint::Stateful(x) => {
+							x.create_report(ReportKind::Hint, info, engine, depth + 1)
+						}
+						Hint::Stateless(x) => {
+							x.create_report(ReportKind::Hint, info, engine, depth + 1)
+						}
+					};
+					output.push_str(&hint);
+				}
+
+				if !error.text_position.is_one_line() {
+					output.push_str(&format!("\n{}", error.error.get_text()));
+				}
+
+				output.split('\n').fold(String::new(), |mut output, y| {
+					let _ = writeln!(output, "{}{y}", " ".repeat(depth));
+					output
+				})
 			}
+			MaybeStateless::Statelss(error) => error.create_report(kind, info, engine, depth),
 		}
-
-		output.push('\n');
-
-		for x in &self.error.hints {
-			let hint = match x {
-				Hint::Stateful(x) => x.create_report(ReportKind::Hint, info, engine, depth + 1),
-				Hint::Stateless(x) => x.create_report(ReportKind::Hint, info, engine, depth + 1),
-			};
-			output.push_str(&hint);
-		}
-
-		if !self.error.text_position.is_one_line() {
-			output.push_str(&format!("\n{}", self.error.error.get_text()));
-		}
-
-		output.split('\n').fold(String::new(), |mut output, y| {
-			let _ = writeln!(output, "{}{y}", " ".repeat(depth));
-			output
-		})
 	}
 }
 

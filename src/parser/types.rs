@@ -525,20 +525,20 @@ pub enum TextPos {
 
 impl TextPos {
 	#[must_use]
-	pub fn get_start_line(&self) -> usize {
+	pub fn get_start_line(&self) -> Option<usize> {
 		match self {
-			Self::Single(x) => x.get_line(),
-			Self::Range(x) => x.0.get_line(),
-			Self::Multi(x) => x[0].get_start_line(),
+			Self::Single(x) => Some(x.get_line()),
+			Self::Range(x) => Some(x.0.get_line()),
+			Self::Multi(x) => x.first().and_then(Self::get_start_line),
 		}
 	}
 
 	#[must_use]
-	pub fn get_end_line(&self) -> usize {
+	pub fn get_end_line(&self) -> Option<usize> {
 		match self {
-			Self::Single(x) => x.get_line(),
-			Self::Range(x) => x.1.get_line(),
-			Self::Multi(x) => unsafe { x.get_unchecked(x.len() - 1).get_end_line() },
+			Self::Single(x) => Some(x.get_line()),
+			Self::Range(x) => Some(x.1.get_line()),
+			Self::Multi(x) => x.last().and_then(Self::get_end_line),
 		}
 	}
 

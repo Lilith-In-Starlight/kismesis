@@ -39,6 +39,7 @@ pub mod reporting;
 
 #[cfg(feature = "plugins")]
 use extism::{convert::Json, Manifest, Plugin, Wasm};
+use html::CompileResult;
 #[cfg(any(feature = "plugins", feature = "pdk"))]
 use parser::types::TextPos;
 
@@ -52,6 +53,7 @@ use serde::{Deserialize, Serialize};
 use self::parser::errors::ParseError;
 use self::parser::types::Ranged;
 
+use std::fmt::Display;
 use std::{
 	collections::HashMap,
 	fs, io,
@@ -141,6 +143,12 @@ pub struct Kismesis {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KisTokenId(usize);
+
+impl Display for KisTokenId {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.0)
+	}
+}
 
 /// IDs for kismesis templates
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -261,15 +269,17 @@ impl Kismesis {
 	pub fn call_post_processing_plugins(
 		&self,
 		input: PostProcPluginInput,
-	) -> Result<(ParsedFile, Vec<ParsedFile>), Err> {
+	) -> CompileResult<(ParsedFile, Vec<ParsedFile>)> {
 		Ok(input.body)
 	}
 
+	/// # Errors
+	/// Whenever any plugin in the post-processing pipeline fails
 	#[cfg(feature = "plugins")]
 	pub fn call_post_processing_plugins(
 		&self,
 		mut input: PostProcPluginInput,
-	) -> Result<(ParsedFile, Vec<ParsedFile>), Err> {
+	) -> CompileResult<(ParsedFile, Vec<ParsedFile>)> {
 		let current_file = input.current_file.clone();
 		for plugin in self.settings.post_processing() {
 			let body = self.call_post_processing_plugin(input, plugin)?;
@@ -282,7 +292,7 @@ impl Kismesis {
 		Ok(input.body)
 	}
 
-	/// Send file to a post_processing plugin with a given `name`
+	/// Send file to a post-processing plugin with a given `name`
 	/// # Errors
 	/// When the plugin cannot be called, and when the pluing returns an error
 	#[cfg(feature = "plugins")]
@@ -290,33 +300,39 @@ impl Kismesis {
 		&self,
 		input: PostProcPluginInput,
 		name: &str,
-	) -> Result<(ParsedFile, Vec<ParsedFile>), Err> {
+	) -> CompileResult<(ParsedFile, Vec<ParsedFile>)> {
 		use errors::ErrorKind;
 
-		use crate::parser::errors::{Hintable, Hints};
+		use crate::{
+			html::CompilerError,
+			parser::errors::{Hintable, Hints},
+		};
 
 		let manifest = match self.plugins.get(name) {
 			Some(x) => x.clone(),
-			None => return todo!(),
+			None => {
+				return Err(vec![
+					CompilerError::PluginDoesntExist(name.to_owned()).unscoped()
+				])
+			}
 		};
 		let mut plugin = match Plugin::new(manifest, [], true) {
 			Ok(x) => x,
-			Err(_) => return todo!(),
+			Err(x) => return Err(vec![CompilerError::ExtismError(format!("{x}")).unscoped()]),
 		};
 		let input = Json(input);
 		match plugin.call::<_, Json<Result<_, PluginParseError>>>("parser", input) {
 			Ok(Json(x)) => match x {
 				Ok(x) => Ok(x),
 				Err(x) => {
-					let error = ParseError::PluginError(x.message);
-					let mut error =
-						ErrorKind::with_state_at(error, x.state.unwrap_or_else(|| todo!()));
+					// TODO let errors be stateless
+					let mut error = CompilerError::PluginError(x.message).stateless();
 					for hint in x.hints {
 						// TODO let plugin hints be stateful
 						let new_hint = Hints::CustomMessage(hint.message).stateless();
 						error.add_hint(new_hint);
 					}
-					Err(Err::Failure(error))
+					Err(vec![error.into()])
 				}
 			},
 			Err(_) => todo!(),

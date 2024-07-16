@@ -4,13 +4,14 @@ use htmlize::escape_all_quotes;
 use std::{collections::HashMap, fmt::Display};
 
 use crate::{
+	errors::{MaybeStateless, StatelessError},
 	parser::types::{Content, FillContent, Paragraph, ParsedFile},
 	plugins::PostProcPluginInput,
 	KisTemplateId, KisTokenId, Kismesis,
 };
 
 use super::{
-	errors::{ErrorKind, ErrorState},
+	errors::ErrorKind,
 	options::Settings,
 	parser::{
 		errors::{Hint, Hintable, Hints},
@@ -21,7 +22,7 @@ use super::{
 	},
 };
 
-type CompileResult<T> = Result<T, Vec<ScopedError<CompilerError>>>;
+pub type CompileResult<T> = Result<T, Vec<MaybeUnscoped<CompilerError>>>;
 
 #[derive(Clone, Debug)]
 pub enum MaybeRaw {
@@ -143,16 +144,16 @@ pub fn compile(file: &ParsedFile, engine: &Kismesis) -> CompileResult<Output> {
 	let first_expansion = expand(file, vec![], engine);
 	let current_file = engine
 		.get_file(first_expansion.0.file_id)
-		.unwrap()
+		.ok_or_else(|| {
+			vec![CompilerError::TriedCompileUnregistered(first_expansion.0.file_id).unscoped()]
+		})?
 		.path
 		.clone();
 
-	let (file, contexts) = engine
-		.call_post_processing_plugins(PostProcPluginInput {
-			body: first_expansion,
-			current_file,
-		})
-		.unwrap();
+	let (file, contexts) = engine.call_post_processing_plugins(PostProcPluginInput {
+		body: first_expansion,
+		current_file,
+	})?;
 	let state = GenerationState {
 		options: &engine.settings,
 		variable_scopes: file.get_variable_scope(&contexts, engine),
@@ -612,13 +613,62 @@ enum ExpressionValues {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ScopedError<T> {
-	pub error: ErrorState<T>,
+	pub error: MaybeStateless<T>,
 	pub scope: KisTokenId,
+}
+
+impl<T> From<ScopedError<T>> for MaybeUnscoped<T> {
+	fn from(value: ScopedError<T>) -> Self {
+		Self::Scoped(value)
+	}
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum MaybeUnscoped<T> {
+	Scoped(ScopedError<T>),
+	Unscoped(StatelessError<T>),
+}
+
+impl<T> From<StatelessError<T>> for MaybeUnscoped<T> {
+	fn from(value: StatelessError<T>) -> Self {
+		Self::Unscoped(value)
+	}
+}
+
+impl<T> Hintable for MaybeUnscoped<T> {
+	fn get_hints(&self) -> &[Hint] {
+		match self {
+			Self::Scoped(x) => x.get_hints(),
+			Self::Unscoped(x) => x.get_hints(),
+		}
+	}
+
+	fn get_hints_mut(&mut self) -> &mut [Hint] {
+		match self {
+			Self::Scoped(x) => x.get_hints_mut(),
+			Self::Unscoped(x) => x.get_hints_mut(),
+		}
+	}
+
+	fn add_hint(&mut self, hint: Hint) {
+		match self {
+			Self::Scoped(x) => x.add_hint(hint),
+			Self::Unscoped(x) => x.add_hint(hint),
+		}
+	}
 }
 
 impl<T> Hintable for ScopedError<T> {
 	fn add_hint(&mut self, hint: Hint) {
-		self.error.hints.push(hint);
+		self.error.add_hint(hint);
+	}
+
+	fn get_hints(&self) -> &[Hint] {
+		self.error.get_hints()
+	}
+
+	fn get_hints_mut(&mut self) -> &mut [Hint] {
+		self.error.get_hints_mut()
 	}
 }
 
@@ -748,6 +798,10 @@ pub enum CompilerError {
 	CantWriteGenericValue,
 	UnsetArgNoDefault(String),
 	UndefinedMacroCall,
+	TriedCompileUnregistered(KisTokenId),
+	PluginError(String),
+	PluginDoesntExist(String),
+	ExtismError(String),
 }
 
 impl ErrorKind for CompilerError {
@@ -770,6 +824,12 @@ impl ErrorKind for CompilerError {
 				"The `{arg}` argument is unset but the macro definition has no default for it"
 			),
 			Self::UndefinedMacroCall => "This macro isn't defined".to_string(),
+			Self::TriedCompileUnregistered(id) => {
+				format!("Tried to compile a file with an unregistered ID: {id}")
+			}
+			Self::PluginError(message)
+			| Self::PluginDoesntExist(message)
+			| Self::ExtismError(message) => message.to_owned(),
 		}
 	}
 }
