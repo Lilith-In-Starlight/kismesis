@@ -3,7 +3,8 @@
 use std::fmt::Debug;
 use std::fmt::Write;
 
-use crate::{FileRef, KisTokenId, Kismesis};
+use crate::KisTokenId;
+use crate::{FileRef, Kismesis};
 
 use super::{
 	errors::{ErrorKind, ErrorState, StatelessError},
@@ -21,33 +22,23 @@ pub enum ReportKind {
 	Help,
 }
 
-pub trait Report {
-	fn create_report(
-		&self,
-		kind: ReportKind,
-		info: Option<&DrawingInfo>,
-		engine: &Kismesis,
-		depth: usize,
-	) -> String;
-	fn report(
-		&self,
-		kind: ReportKind,
-		info: Option<&DrawingInfo>,
-		engine: &Kismesis,
-		depth: usize,
-	) {
-		eprintln!("{}", self.create_report(kind, info, engine, depth));
+impl ReportKind {
+	fn draw_stateless_band(self) -> String {
+		match self {
+			Self::Error => " ERROR ".black().on_red().to_string(),
+			Self::Hint => " HINT ".black().on_yellow().to_string(),
+			Self::Fatal => " FATAL ERROR ".black().on_red().to_string(),
+			Self::Help => " HELP ".black().on_red().to_string(),
+		}
 	}
-}
 
-impl<'a> DrawingInfo<'a> {
-	fn get_header(&self) -> String {
+	fn draw_scoped_band(self, scope: &FileRef) -> String {
 		let mut output = String::new();
-		match self.kind {
-			ReportKind::Error => {
-				output.push_str(&" ERROR ".black().on_red().to_string());
+		match self {
+			Self::Error => {
+				output.push_str(&" ERROR".black().on_red().to_string());
 				output.push_str(&" in `".black().on_red().to_string());
-				match self.scope.path {
+				match scope.path {
 					Some(ref path) => {
 						output.push_str(
 							&path.to_string_lossy().as_ref().black().on_red().to_string(),
@@ -57,10 +48,10 @@ impl<'a> DrawingInfo<'a> {
 					None => output.push_str(&"input` ".black().on_red().to_string()),
 				}
 			}
-			ReportKind::Hint => {
-				output.push_str(&" HINT ".black().on_yellow().to_string());
-				output.push_str(&" in `".black().on_yellow().to_string());
-				match self.scope.path {
+			Self::Hint => {
+				output.push_str(&" HINT".black().on_yellow().to_string());
+				output.push_str(&" for `".black().on_yellow().to_string());
+				match scope.path {
 					Some(ref path) => {
 						output.push_str(
 							&path
@@ -75,10 +66,10 @@ impl<'a> DrawingInfo<'a> {
 					None => output.push_str(&"input` ".black().on_yellow().to_string()),
 				}
 			}
-			ReportKind::Fatal => {
-				output.push_str(&" FATAL ERROR ".black().on_red().to_string());
+			Self::Fatal => {
+				output.push_str(&" FATAL ERROR".black().on_red().to_string());
 				output.push_str(&" in `".black().on_red().to_string());
-				match self.scope.path {
+				match scope.path {
 					Some(ref path) => {
 						output.push_str(
 							&path.to_string_lossy().as_ref().black().on_red().to_string(),
@@ -88,10 +79,10 @@ impl<'a> DrawingInfo<'a> {
 					None => output.push_str(&"input` ".black().on_red().to_string()),
 				}
 			}
-			ReportKind::Help => {
-				output.push_str(&" HELP ".black().on_green().to_string());
-				output.push_str(&" in `".black().on_green().to_string());
-				match self.scope.path {
+			Self::Help => {
+				output.push_str(&" HELP".black().on_green().to_string());
+				output.push_str(&" for `".black().on_green().to_string());
+				match scope.path {
 					Some(ref path) => {
 						output.push_str(
 							&path
@@ -111,13 +102,31 @@ impl<'a> DrawingInfo<'a> {
 	}
 }
 
+impl<T> From<(KisTokenId, ErrorState<T>)> for ScopedError<T> {
+	fn from(value: (KisTokenId, ErrorState<T>)) -> Self {
+		Self {
+			error: value.1,
+			scope: value.0,
+		}
+	}
+}
+pub trait Report {
+	fn create_report(
+		&self,
+		kind: ReportKind,
+		info: &DrawingInfo,
+		engine: &Kismesis,
+		depth: usize,
+	) -> String;
+	fn report(&self, kind: ReportKind, info: &DrawingInfo, engine: &Kismesis, depth: usize) {
+		eprintln!("{}", self.create_report(kind, info, engine, depth));
+	}
+}
+
 /// Information related to how the error reporter will report an error
-pub struct DrawingInfo<'a> {
+pub struct DrawingInfo {
 	pub(crate) line_number_length: usize,
-	pub(crate) scope: &'a FileRef,
-	pub(crate) lines: Vec<(usize, &'a [Token])>,
 	pub(crate) line_offset: (usize, usize),
-	pub(crate) kind: ReportKind,
 }
 
 /// Errors that may occurr during error reporting
@@ -134,10 +143,30 @@ impl ErrorKind for ReportingError {
 	}
 }
 
-impl<'a> DrawingInfo<'a> {
-	#[must_use]
-	pub fn from(scope: KisTokenId, engine: &'a Kismesis, kind: ReportKind) -> Option<Self> {
-		let scope = engine.get_file(scope)?;
+impl Default for DrawingInfo {
+	fn default() -> Self {
+		Self {
+			line_number_length: 3,
+			line_offset: (2, 2),
+		}
+	}
+}
+
+impl<T> Report for ScopedError<T>
+where
+	T: ErrorKind + Debug,
+{
+	fn create_report(
+		&self,
+		kind: ReportKind,
+		info: &DrawingInfo,
+		engine: &Kismesis,
+		depth: usize,
+	) -> String {
+		let Some(scope) = engine.get_file(self.scope) else {
+			let err = ReportingError::InvalidKismesisID.stateless();
+			return err.create_report(ReportKind::Fatal, info, engine, depth);
+		};
 		let lines: Vec<&[Token]> = scope
 			.tokens
 			.split_inclusive(|x| matches!(x, Token::Newline(_)))
@@ -151,48 +180,8 @@ impl<'a> DrawingInfo<'a> {
 			}
 			out
 		};
-		Some(Self {
-			line_number_length: 3,
-			scope,
-			lines,
-			line_offset: (2, 2),
-			kind,
-		})
-	}
-}
-
-impl<T> Report for ScopedError<T>
-where
-	T: ErrorKind + Debug,
-{
-	fn create_report(
-		&self,
-		kind: ReportKind,
-		info: Option<&DrawingInfo>,
-		engine: &Kismesis,
-		depth: usize,
-	) -> String {
-		self.error.create_report(kind, info, engine, depth)
-	}
-}
-
-impl<T> Report for ErrorState<T>
-where
-	T: ErrorKind + Debug,
-{
-	fn create_report(
-		&self,
-		_kind: ReportKind,
-		info: Option<&DrawingInfo>,
-		engine: &Kismesis,
-		depth: usize,
-	) -> String {
-		let Some(info) = info else {
-			let err = ReportingError::InvalidKismesisID.stateless();
-			return err.create_report(ReportKind::Fatal, None, engine, depth);
-		};
 		let minimum_line = {
-			let x = self.text_position.get_start_line();
+			let x = self.error.text_position.get_start_line();
 			if x < info.line_offset.0 {
 				0
 			} else {
@@ -200,9 +189,9 @@ where
 			}
 		};
 		let maximum_line = {
-			let x = self.text_position.get_end_line();
-			if x + info.line_offset.1 > info.lines.len() {
-				info.lines.len()
+			let x = self.error.text_position.get_end_line();
+			if x + info.line_offset.1 > lines.len() {
+				lines.len()
 			} else {
 				x + info.line_offset.1
 			}
@@ -210,12 +199,12 @@ where
 
 		let mut output = String::new();
 
-		output.push_str(&info.get_header());
+		output.push_str(&kind.draw_scoped_band(scope));
 
 		output.push('\n');
 
 		for line_number in minimum_line..=maximum_line {
-			if let Some(string) = draw_line(line_number, self, info) {
+			if let Some(string) = draw_line(&lines, line_number, &self.error, info) {
 				output.push_str(&string);
 				output.push('\n');
 			}
@@ -223,26 +212,22 @@ where
 
 		output.push('\n');
 
-		for x in &self.hints {
+		for x in &self.error.hints {
 			let hint = match x {
-				Hint::Stateful(x) => x.create_report(ReportKind::Hint, Some(info), engine, depth),
-				Hint::Stateless(x) => x.create_report(ReportKind::Hint, Some(info), engine, depth),
+				Hint::Stateful(x) => x.create_report(ReportKind::Hint, info, engine, depth + 1),
+				Hint::Stateless(x) => x.create_report(ReportKind::Hint, info, engine, depth + 1),
 			};
 			output.push_str(&hint);
 		}
 
-		if !self.text_position.is_one_line() {
-			output.push_str(&format!("\n{}", self.error.get_text()));
+		if !self.error.text_position.is_one_line() {
+			output.push_str(&format!("\n{}", self.error.error.get_text()));
 		}
 
-		output
-			.split('\n')
-			.fold(String::new(), |mut output, y| {
-				let _ = write!(output, "{}\n{}", " ".repeat(depth * 2), y);
-				output
-			})
-			.trim_start_matches('\n')
-			.to_string()
+		output.split('\n').fold(String::new(), |mut output, y| {
+			let _ = writeln!(output, "{}{y}", " ".repeat(depth));
+			output
+		})
 	}
 }
 
@@ -253,18 +238,13 @@ where
 	fn create_report(
 		&self,
 		kind: ReportKind,
-		info: Option<&DrawingInfo>,
+		info: &DrawingInfo,
 		engine: &Kismesis,
 		depth: usize,
 	) -> String {
 		let mut output = String::new();
 
-		match kind {
-			ReportKind::Error => output.push_str(&" ERROR ".black().on_red().to_string()),
-			ReportKind::Hint => output.push_str(&" HINT ".black().on_yellow().to_string()),
-			ReportKind::Fatal => output.push_str(&" FATAL ERROR ".black().on_red().to_string()),
-			ReportKind::Help => output.push_str(&" HELP ".black().on_red().to_string()),
-		}
+		output.push_str(&kind.draw_stateless_band());
 		output.push('\n');
 
 		output.push_str(&self.error.get_text());
@@ -273,30 +253,22 @@ where
 
 		for x in &self.hints {
 			let hint = match x {
-				Hint::Stateful(x) => x.create_report(
-					ReportKind::Hint,
-					DrawingInfo::from(x.scope, engine, ReportKind::Hint).as_ref(),
-					engine,
-					depth + 1,
-				),
+				Hint::Stateful(x) => x.create_report(ReportKind::Hint, info, engine, depth + 1),
 				Hint::Stateless(x) => x.create_report(kind, info, engine, depth + 1),
 			};
 			output.push_str(&hint);
 		}
 
-		output
-			.split('\n')
-			.fold(String::new(), |mut output, y| {
-				let _ = write!(output, "{}\n{}", " ".repeat(depth * 2), y);
-				output
-			})
-			.trim_start_matches('\n')
-			.to_string()
+		output.split('\n').fold(String::new(), |mut output, y| {
+			let _ = writeln!(output, "{}{y}", " ".repeat(depth * 2));
+			output
+		})
 	}
 }
 
 /// Returns a line. It will contain pointers to the provided error if the provided error is in the rendered line
 fn draw_line<T: ErrorKind>(
+	lines: &[(usize, &[Token])],
 	line_number: usize,
 	err: &ErrorState<T>,
 	info: &DrawingInfo,
@@ -313,7 +285,7 @@ fn draw_line<T: ErrorKind>(
 	let initial_spaces = error_line.clone();
 	let mut error_spaces = String::new();
 
-	if let Some(line) = info.lines.get(line_number) {
+	if let Some(line) = lines.get(line_number) {
 		let mut char_idx: usize = 0;
 		for (token_idx, token) in line.1.iter().enumerate() {
 			let token_pos = TokenPos::new_at(line.0 + token_idx, line_number, token_idx);
