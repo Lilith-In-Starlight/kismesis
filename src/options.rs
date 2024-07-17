@@ -20,16 +20,16 @@ pub struct Settings {
 	plugins: Vec<String>,
 	#[cfg_attr(feature = "serde", serde(default))]
 	post_processing_pipeline: Vec<String>,
-	#[cfg_attr(feature = "serde", serde(default))]
+	#[cfg_attr(feature = "serde", serde(default = "default_inline"))]
 	#[cfg_attr(feature = "serde", serde(skip_serializing_if = "is_default_inline"))]
 	inline: Vec<String>,
-	#[cfg_attr(feature = "serde", serde(default))]
+	#[cfg_attr(feature = "serde", serde(default = "default_only_closer"))]
 	#[cfg_attr(
 		feature = "serde",
 		serde(skip_serializing_if = "is_default_only_closer")
 	)]
 	only_closer: Vec<String>,
-	#[cfg_attr(feature = "serde", serde(default))]
+	#[cfg_attr(feature = "serde", serde(default = "default_only_opener"))]
 	#[cfg_attr(
 		feature = "serde",
 		serde(skip_serializing_if = "is_default_only_opener")
@@ -47,6 +47,18 @@ fn is_default_only_closer(obj: &[String]) -> bool {
 
 fn is_default_only_opener(obj: &[String]) -> bool {
 	obj == DEFAULT_ONLY_OPENER
+}
+
+fn default_inline() -> Vec<String> {
+	DEFAULT_INLINE.iter().map(ToString::to_string).collect()
+}
+
+fn default_only_closer() -> Vec<String> {
+	DEFAULT_ONLY_CLOSER.iter().map(ToString::to_string).collect()
+}
+
+fn default_only_opener() -> Vec<String> {
+	DEFAULT_ONLY_OPENER.iter().map(ToString::to_string).collect()
 }
 
 impl Default for Settings {
