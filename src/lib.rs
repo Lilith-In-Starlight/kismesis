@@ -223,6 +223,12 @@ impl Kismesis {
 
 		use crate::parser::errors::{Hintable, Hints};
 
+		if self.settings.has_plugin(&name.value) {
+			return Err(ParseError::PluginIsUndeclared
+				.error_at_pos(name.range.clone())
+				.cut());
+		}
+
 		let manifest = match self.plugins.get(&name.value) {
 			Some(x) => x.clone(),
 			None => {

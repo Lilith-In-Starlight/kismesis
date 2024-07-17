@@ -17,6 +17,8 @@ const DEFAULT_ONLY_CLOSER: [&str; 2] = ["br", "hr"];
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Settings {
 	#[cfg_attr(feature = "serde", serde(default))]
+	plugins: Vec<String>,
+	#[cfg_attr(feature = "serde", serde(default))]
 	post_processing_pipeline: Vec<String>,
 	#[cfg_attr(feature = "serde", serde(default))]
 	#[cfg_attr(feature = "serde", serde(skip_serializing_if = "is_default_inline"))]
@@ -54,6 +56,7 @@ impl Default for Settings {
 			only_opener: string_vec(&DEFAULT_ONLY_OPENER),
 			only_closer: string_vec(&DEFAULT_ONLY_CLOSER),
 			post_processing_pipeline: vec![],
+			plugins: vec![],
 		}
 	}
 }
@@ -62,6 +65,11 @@ impl Settings {
 	#[must_use]
 	pub fn post_processing(&self) -> &[String] {
 		&self.post_processing_pipeline
+	}
+
+	#[must_use]
+	pub fn has_plugin(&self, plugin: &str) -> bool {
+		self.plugins.iter().any(|x| x == plugin)
 	}
 
 	#[must_use]

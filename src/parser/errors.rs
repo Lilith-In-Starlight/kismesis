@@ -28,6 +28,7 @@ pub enum ParseError {
 	PluginError(String),
 	ExtismError(String),
 	PluginDoesntExist,
+	PluginIsUndeclared,
 	PluginsDisabled,
 	TriedToParseInvalidID(KisTokenId),
 	WronglyNestedSection,
@@ -299,6 +300,7 @@ impl ErrorKind for ParseError {
 			Self::ReachedEOF => "Reached end of file".into(),
 			Self::EndlessString => "String reaches end of file".into(),
 			Self::ExpectedEquals => "Expected an equals sign `=`".into(),
+			Self::PluginIsUndeclared => "This plugin hasn't been declared in the kismet file".into()
 		}
 	}
 }
