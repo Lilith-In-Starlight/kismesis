@@ -157,7 +157,7 @@ impl Default for DrawingInfo {
 	}
 }
 
-impl<T: Report + ErrorKind + Debug> Report for MaybeUnscoped<T> {
+impl<T: ErrorKind + Debug> Report for MaybeUnscoped<T> {
 	fn create_report(
 		&self,
 		kind: ReportKind,
