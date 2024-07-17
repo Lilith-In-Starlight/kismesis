@@ -6,13 +6,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Settings {
-	#[serde(default)]
+	#[cfg_attr(feature = "serde", serde(default))]
 	post_processing_pipeline: Vec<String>,
-	#[serde(default)]
+	#[cfg_attr(feature = "serde", serde(default))]
 	inline: Vec<String>,
-	#[serde(default)]
+	#[cfg_attr(feature = "serde", serde(default))]
 	only_closer: Vec<String>,
-	#[serde(default)]
+	#[cfg_attr(feature = "serde", serde(default))]
 	only_opener: Vec<String>,
 }
 
