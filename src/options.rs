@@ -1,6 +1,7 @@
 //! Kismesis configuration data structure
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Settings {
 	post_processing_pipeline: Vec<String>,
 	inline: Vec<String>,
