@@ -118,7 +118,7 @@ pub struct Kismesis {
 	/// The loaded plugins.
 	plugins: HashMap<String, Manifest>,
 	/// The settings to be used for this instance of Kismesis
-	settings: Settings,
+	pub settings: Settings,
 	/// The loaded templates.
 	templates: HashMap<KisTemplateId, ParsedFile>,
 	/// The tokens of all the files.
@@ -132,7 +132,7 @@ pub struct Kismesis {
 	/// The next ID to be used for the ID in case templates are registered from input that is not from a file.
 	id: usize,
 	/// The settings to be used for this instance of Kismesis
-	settings: Settings,
+	pub settings: Settings,
 	/// The loaded templates.
 	templates: HashMap<KisTemplateId, ParsedFile>,
 	/// The tokens of all the files.
