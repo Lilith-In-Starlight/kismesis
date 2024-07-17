@@ -9,11 +9,22 @@ pub struct Settings {
 	#[cfg_attr(feature = "serde", serde(default))]
 	post_processing_pipeline: Vec<String>,
 	#[cfg_attr(feature = "serde", serde(default))]
+	#[cfg_attr(feature = "serde", serde(skip_serializing_if = "is_default"))]
 	inline: Vec<String>,
 	#[cfg_attr(feature = "serde", serde(default))]
+	#[cfg_attr(feature = "serde", serde(skip_serializing_if = "is_default"))]
 	only_closer: Vec<String>,
 	#[cfg_attr(feature = "serde", serde(default))]
+	#[cfg_attr(feature = "serde", serde(skip_serializing_if = "is_default"))]
 	only_opener: Vec<String>,
+}
+
+fn is_default<T>(obj: &T) -> bool
+where
+	T: PartialEq + Default,
+{
+	let a = T::default();
+	obj == &a
 }
 
 impl Default for Settings {
