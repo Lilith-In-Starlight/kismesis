@@ -37,28 +37,40 @@ pub struct Settings {
 	only_opener: Vec<String>,
 }
 
+#[cfg(feature = "serde")]
 fn is_default_inline(obj: &[String]) -> bool {
 	obj == DEFAULT_INLINE
 }
 
+#[cfg(feature = "serde")]
 fn is_default_only_closer(obj: &[String]) -> bool {
 	obj == DEFAULT_ONLY_CLOSER
 }
 
+#[cfg(feature = "serde")]
 fn is_default_only_opener(obj: &[String]) -> bool {
 	obj == DEFAULT_ONLY_OPENER
 }
 
+#[cfg(feature = "serde")]
 fn default_inline() -> Vec<String> {
 	DEFAULT_INLINE.iter().map(ToString::to_string).collect()
 }
 
+#[cfg(feature = "serde")]
 fn default_only_closer() -> Vec<String> {
-	DEFAULT_ONLY_CLOSER.iter().map(ToString::to_string).collect()
+	DEFAULT_ONLY_CLOSER
+		.iter()
+		.map(ToString::to_string)
+		.collect()
 }
 
+#[cfg(feature = "serde")]
 fn default_only_opener() -> Vec<String> {
-	DEFAULT_ONLY_OPENER.iter().map(ToString::to_string).collect()
+	DEFAULT_ONLY_OPENER
+		.iter()
+		.map(ToString::to_string)
+		.collect()
 }
 
 impl Default for Settings {
