@@ -487,6 +487,16 @@ pub mod pdk {
 	pub type AST = Vec<HtmlNodes>;
 
 	pub type PlugResult = Result<AST, PluginError>;
+
+	pub trait IntoPush<T> {
+		fn push_into<B: Into<T>>(&mut self, value: B);
+	}
+
+	impl<T> IntoPush<T> for Vec<T> {
+		fn push_into<B: Into<T>>(&mut self, value: B) {
+			self.push(value.into());
+		}
+	}
 }
 
 #[cfg(test)]
