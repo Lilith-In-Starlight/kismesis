@@ -42,7 +42,6 @@ pub mod reporting;
 #[cfg(feature = "plugins")]
 use extism::{convert::Json, Manifest, Plugin, Wasm};
 use html::CompileResult;
-#[cfg(any(feature = "plugins", feature = "pdk"))]
 use parser::types::MultilineRange;
 
 use options::Settings;
@@ -468,6 +467,15 @@ impl From<&Self> for KisTemplateId {
 pub trait PushInto<T> {
 	/// Converts into T before pushing
 	fn push_into<B: Into<T>>(&mut self, value: B);
+}
+
+pub trait GiveRange {
+	fn with_range(self, range: MultilineRange) -> Ranged<Self>
+	where
+		Self: Sized,
+	{
+		Ranged { value: self, range }
+	}
 }
 
 #[cfg(test)]
