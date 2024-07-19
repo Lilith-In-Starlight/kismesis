@@ -10,7 +10,7 @@ use crate::{
 	KisTokenId,
 };
 
-use super::{state::State, types::TextPos};
+use super::{state::State, types::MultilineRange};
 
 #[derive(Clone, Debug)]
 pub enum ParseError {
@@ -173,7 +173,7 @@ impl ErrorKind for Hints {
 
 impl Hints {
 	#[must_use]
-	pub fn with_state_at(self, state: TextPos, scope: KisTokenId) -> Hint {
+	pub fn with_state_at(self, state: MultilineRange, scope: KisTokenId) -> Hint {
 		Hint::Stateful(ScopedError {
 			error: ErrorState {
 				error: self,
@@ -219,11 +219,11 @@ impl ParseError {
 		let pos = state.get_end_position();
 		Err::Error(ErrorState {
 			error: self,
-			text_position: TextPos::Single(pos),
+			text_position: MultilineRange::Single(pos),
 			hints: vec![],
 		})
 	}
-	pub(crate) fn error_at_pos(self, text_position: TextPos) -> Err {
+	pub(crate) fn error_at_pos(self, text_position: MultilineRange) -> Err {
 		Err::Error(ErrorState {
 			error: self,
 			text_position,

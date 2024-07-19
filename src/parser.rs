@@ -310,7 +310,7 @@ fn check_tag_mismatch(state: State) -> ParserResult<()> {
 		return Err(Err::Failure(ErrorState {
 			error: ParseError::TagOpenerMismatch,
 			hints: vec![],
-			text_position: types::TextPos::Single(*opener),
+			text_position: types::MultilineRange::Single(*opener),
 		}));
 	}
 	Ok(((), state))
@@ -759,7 +759,7 @@ fn plugin_head(state: State) -> ParserResult<(Ranged<String>, Ranged<Vec<Token>>
 						name.to_own(),
 						Ranged {
 							value: tokens,
-							range: types::TextPos::Range((start, end)),
+							range: types::MultilineRange::Range(start, end),
 						},
 					),
 					state,
@@ -867,7 +867,7 @@ fn plugin_body(state: State) -> ParserResult<Ranged<Vec<Token>>> {
 				return Ok((
 					Ranged {
 						value: tokens,
-						range: types::TextPos::Range((start, end)),
+						range: types::MultilineRange::Range(start, end),
 					},
 					state,
 				));

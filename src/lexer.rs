@@ -4,7 +4,7 @@ use std::fmt;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::parser::state::TokenPos;
+use crate::parser::state::TextPos;
 
 /// The different tokens that can be in an input string
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -12,32 +12,32 @@ use crate::parser::state::TokenPos;
 pub enum Token {
 	Word {
 		content: String,
-		start: TokenPos,
-		end: TokenPos,
+		start: TextPos,
+		end: TextPos,
 	},
 	Space {
 		content: char,
-		position: TokenPos,
+		position: TextPos,
 	},
 	Newline {
 		content: char,
-		position: TokenPos,
+		position: TextPos,
 	},
 	Indent {
 		content: char,
-		position: TokenPos,
+		position: TextPos,
 	},
 	Symbol {
 		content: char,
-		position: TokenPos,
+		position: TextPos,
 	},
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum TokenRange {
-	Single(TokenPos),
-	Range(TokenPos, TokenPos),
+pub enum Range {
+	Single(TextPos),
+	Range(TextPos, TextPos),
 }
 
 impl fmt::Display for Token {
@@ -54,13 +54,13 @@ impl fmt::Display for Token {
 
 impl Token {
 	#[must_use]
-	pub const fn get_range(&self) -> TokenRange {
+	pub const fn get_range(&self) -> Range {
 		match self {
-			Self::Word { start, end, .. } => TokenRange::Range(*start, *end),
+			Self::Word { start, end, .. } => Range::Range(*start, *end),
 			Self::Space { position, .. }
 			| Self::Newline { position, .. }
 			| Self::Indent { position, .. }
-			| Self::Symbol { position, .. } => TokenRange::Single(*position),
+			| Self::Symbol { position, .. } => Range::Single(*position),
 		}
 	}
 	/// Pushes the content of the token into a string
@@ -77,7 +77,7 @@ impl Token {
 	}
 
 	#[must_use]
-	pub const fn get_end_position(&self) -> TokenPos {
+	pub const fn get_end_position(&self) -> TextPos {
 		match self {
 			Self::Word { end, .. } => end.get_previous_character(),
 			Self::Space { position, .. }
@@ -88,7 +88,7 @@ impl Token {
 	}
 
 	#[must_use]
-	pub const fn get_start_position(&self) -> TokenPos {
+	pub const fn get_start_position(&self) -> TextPos {
 		match self {
 			Self::Word { start, .. } => *start,
 			Self::Space { position, .. }
@@ -128,8 +128,8 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 	};
 
 	let mut output: Vec<Token> = vec![];
-	let mut current_position = TokenPos::default();
-	let mut current_word_start = TokenPos::default();
+	let mut current_position = TextPos::default();
+	let mut current_word_start = TextPos::default();
 
 	for character in s.chars() {
 		match character {
@@ -204,7 +204,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 		output.push(Token::Word {
 			content: word.to_string(),
 			start: current_word_start,
-			end: TokenPos {
+			end: TextPos {
 				idx: s.len() - 1,
 				line: current_position.line,
 				column: current_position.column,
@@ -214,12 +214,7 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 	output
 }
 
-fn push_token(
-	token: Token,
-	list: &mut Vec<Token>,
-	current_word_start: &mut TokenPos,
-	string: &str,
-) {
+fn push_token(token: Token, list: &mut Vec<Token>, current_word_start: &mut TextPos, string: &str) {
 	let current_word_end = token.get_end_position();
 	let word = &string[current_word_start.idx..current_word_end.idx];
 	if !word.is_empty() {

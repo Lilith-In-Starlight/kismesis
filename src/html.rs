@@ -19,8 +19,8 @@ use super::{
 	parser::{
 		errors::{Hint, Hintable, Hints},
 		types::{
-			Attribute, BinFunc, Expression, ForTag, HtmlNodes, HtmlTag, IfTag, Macro, PlugCall,
-			Ranged, Scoped, StringParts, TextPos, TopNodes, UniFunc,
+			Attribute, BinFunc, Expression, ForTag, HtmlNodes, HtmlTag, IfTag, Macro,
+			MultilineRange, PlugCall, Ranged, Scoped, StringParts, TopNodes, UniFunc,
 		},
 	},
 };
@@ -100,7 +100,7 @@ struct GenerationState<'a> {
 	stack_paths: Box<[KisTemplateId]>,
 }
 
-type ValueRef<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, TextPos)>;
+type ValueRef<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, MultilineRange)>;
 
 type VariableScope<'a> = HashMap<String, ValueRef<'a>>;
 
@@ -611,7 +611,7 @@ enum ExpressionValues {
 	None,
 	Generic,
 	Array(Vec<Ranged<Expression>>),
-	Reference(Ranged<Expression>, KisTokenId, TextPos),
+	Reference(Ranged<Expression>, KisTokenId, MultilineRange),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -686,7 +686,7 @@ impl ExpressionValues {
 
 	fn to_string<'a>(
 		&'a self,
-		range: &TextPos,
+		range: &MultilineRange,
 		scope: KisTokenId,
 		state: &GenerationState<'a>,
 	) -> CompileResult<String> {

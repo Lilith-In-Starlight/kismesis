@@ -6,7 +6,7 @@ use std::{
 use super::{
 	errors::{Err, ParseError},
 	state::State,
-	types::{Ranged, TextPos},
+	types::{MultilineRange, Ranged},
 	Parser, ParserResult,
 };
 
@@ -268,9 +268,9 @@ where
 		let end = next_state.get_end_position();
 		let range = {
 			if end.get_idx() == start.get_idx() + 1 {
-				TextPos::Single(start)
+				MultilineRange::Single(start)
 			} else {
-				TextPos::Range((start, end))
+				MultilineRange::Range(start, end)
 			}
 		};
 		Ok((Ranged { value: val, range }, next_state))

@@ -4,7 +4,7 @@ use crate::{lexer::Token, Kismesis};
 
 use super::{
 	errors::{Err, ParseError},
-	types::TextPos,
+	types::MultilineRange,
 };
 
 #[cfg(feature = "serde")]
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 pub struct State<'a> {
 	pub(crate) tokens: &'a [Token],
 	pub(crate) errors: Vec<Err>,
-	pub(crate) tag_openers: Vec<TokenPos>,
+	pub(crate) tag_openers: Vec<TextPos>,
 	pub(crate) section_depth: usize,
 	pub(crate) file_path: Option<PathBuf>,
 	pub(crate) engine: &'a Kismesis,
@@ -36,16 +36,16 @@ impl<'a> State<'a> {
 		}
 	}
 
-	pub(crate) fn get_end_position(&self) -> TokenPos {
+	pub(crate) fn get_end_position(&self) -> TextPos {
 		self.first_token()
-			.map_or_else(TokenPos::default, |first_token| {
+			.map_or_else(TextPos::default, |first_token| {
 				first_token.get_end_position()
 			})
 	}
 
-	pub(crate) fn get_start_position(&self) -> TokenPos {
+	pub(crate) fn get_start_position(&self) -> TextPos {
 		self.first_token()
-			.map_or_else(TokenPos::default, |first_token| {
+			.map_or_else(TextPos::default, |first_token| {
 				first_token.get_start_position()
 			})
 	}
@@ -114,13 +114,13 @@ impl<'a> State<'a> {
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub struct TokenPos {
+pub struct TextPos {
 	pub(crate) idx: usize,
 	pub(crate) line: usize,
 	pub(crate) column: usize,
 }
 
-impl TokenPos {
+impl TextPos {
 	pub const fn new() -> Self {
 		Self {
 			idx: 0,
@@ -144,25 +144,25 @@ impl TokenPos {
 		self.column
 	}
 
-	pub fn is_in(&self, o: &TextPos) -> bool {
+	pub fn is_in(&self, o: &MultilineRange) -> bool {
 		match o {
-			TextPos::Single(x) => x == self,
-			TextPos::Range((st, nd)) => self.idx >= st.idx && self.idx < nd.idx,
-			TextPos::Multi(x) => x.iter().any(|x| self.is_in(x)),
+			MultilineRange::Single(x) => x == self,
+			MultilineRange::Range(st, nd) => self.idx >= st.idx && self.idx < nd.idx,
+			MultilineRange::Multi(x) => x.iter().any(|x| self.is_in(x)),
 		}
 	}
-	pub fn is_at_a_start(&self, o: &TextPos) -> bool {
+	pub fn is_at_a_start(&self, o: &MultilineRange) -> bool {
 		match o {
-			TextPos::Single(x) => x == self,
-			TextPos::Range((st, _)) => self.idx == st.idx,
-			TextPos::Multi(x) => x.iter().any(|x| self.is_at_a_start(x)),
+			MultilineRange::Single(x) => x == self,
+			MultilineRange::Range(st, _) => self.idx == st.idx,
+			MultilineRange::Multi(x) => x.iter().any(|x| self.is_at_a_start(x)),
 		}
 	}
-	pub fn is_at_an_end(&self, o: &TextPos) -> bool {
+	pub fn is_at_an_end(&self, o: &MultilineRange) -> bool {
 		match o {
-			TextPos::Single(x) => x.idx == self.idx,
-			TextPos::Range((_, nd)) => self.idx == nd.idx,
-			TextPos::Multi(x) => x.iter().any(|x| self.is_at_an_end(x)),
+			MultilineRange::Single(x) => x.idx == self.idx,
+			MultilineRange::Range(_, nd) => self.idx == nd.idx,
+			MultilineRange::Multi(x) => x.iter().any(|x| self.is_at_an_end(x)),
 		}
 	}
 

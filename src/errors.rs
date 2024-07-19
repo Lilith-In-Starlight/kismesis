@@ -6,7 +6,7 @@ use super::{
 	html::ScopedError,
 	parser::{
 		errors::{Hint, Hintable},
-		types::TextPos,
+		types::MultilineRange,
 	},
 };
 
@@ -15,14 +15,14 @@ where
 	Self: Sized,
 {
 	fn get_text(&self) -> String;
-	fn with_state_at(self, position: TextPos) -> ErrorState<Self> {
+	fn with_state_at(self, position: MultilineRange) -> ErrorState<Self> {
 		ErrorState {
 			error: self,
 			hints: vec![],
 			text_position: position,
 		}
 	}
-	fn with_scope_at(self, scope: KisTokenId, position: TextPos) -> MaybeUnscoped<Self> {
+	fn with_scope_at(self, scope: KisTokenId, position: MultilineRange) -> MaybeUnscoped<Self> {
 		ScopedError {
 			error: self.with_state_at(position).into(),
 			scope,
@@ -134,6 +134,6 @@ impl<T> Hintable for StatelessError<T> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ErrorState<T> {
 	pub error: T,
-	pub text_position: TextPos,
+	pub text_position: MultilineRange,
 	pub hints: Vec<Hint>,
 }

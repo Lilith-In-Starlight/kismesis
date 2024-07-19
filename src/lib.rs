@@ -43,7 +43,7 @@ pub mod reporting;
 use extism::{convert::Json, Manifest, Plugin, Wasm};
 use html::CompileResult;
 #[cfg(any(feature = "plugins", feature = "pdk"))]
-use parser::types::TextPos;
+use parser::types::MultilineRange;
 
 use options::Settings;
 use plugins::PluginInput;
@@ -85,13 +85,13 @@ pub struct PluginParseError {
 	/// Hints displayed giving more information to the error
 	hints: Vec<PluginParseError>,
 	/// Where the error is located in the text. The Some variant represents a position, whereas the None variant represents statlessness.
-	state: Option<TextPos>,
+	state: Option<MultilineRange>,
 }
 
 #[cfg(any(feature = "plugins", feature = "pdk"))]
 impl PluginParseError {
 	#[must_use]
-	pub fn new(message: String, state: Option<TextPos>) -> Self {
+	pub fn new(message: String, state: Option<MultilineRange>) -> Self {
 		Self {
 			message,
 			hints: vec![],
@@ -99,7 +99,7 @@ impl PluginParseError {
 		}
 	}
 	/// Adds a hint to the error struct
-	pub fn add_hint(&mut self, message: String, state: Option<TextPos>) {
+	pub fn add_hint(&mut self, message: String, state: Option<MultilineRange>) {
 		self.hints.push(Self::new(message, state));
 	}
 }

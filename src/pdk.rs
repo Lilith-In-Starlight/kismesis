@@ -9,11 +9,11 @@ pub use super::parser::types::HtmlNodes;
 pub use super::parser::types::HtmlTag;
 pub use super::parser::types::IfTag;
 pub use super::parser::types::Macro;
+pub use super::parser::types::MultilineRange;
 pub use super::parser::types::Paragraph;
 pub use super::parser::types::Ranged;
 pub use super::parser::types::Section;
 pub use super::parser::types::StringParts;
-pub use super::parser::types::TextPos;
 pub use super::PushInto;
 
 pub use super::plugins::PluginInput;

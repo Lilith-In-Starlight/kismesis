@@ -7,10 +7,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{KisTemplateId, KisTokenId, Kismesis};
 
-use super::state::TokenPos;
+use super::state::TextPos;
 
 pub type Scoped<'a, T> = (T, KisTokenId);
-pub type ScopedExpression<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, TextPos)>;
+pub type ScopedExpression<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, MultilineRange)>;
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -95,7 +95,7 @@ impl Section {
 				HtmlTag {
 					name: Ranged {
 						value: String::from("hgroup"),
-						range: TextPos::Single(TokenPos::new()),
+						range: MultilineRange::Single(TextPos::new()),
 					},
 					attributes: vec![],
 					body: vec![HtmlNodes::HtmlTag(title), HtmlNodes::HtmlTag(subtitle)],
@@ -113,7 +113,7 @@ impl Section {
 					let x = HtmlTag {
 						name: Ranged {
 							value: "p".to_string(),
-							range: TextPos::Single(TokenPos::default()),
+							range: MultilineRange::Single(TextPos::default()),
 						},
 						attributes: vec![],
 						subtags: vec![],
@@ -132,7 +132,7 @@ impl Section {
 		HtmlTag {
 			name: Ranged {
 				value: String::from("section"),
-				range: TextPos::Single(TokenPos::new()),
+				range: MultilineRange::Single(TextPos::new()),
 			},
 			attributes: vec![],
 			body: tags,
@@ -171,7 +171,7 @@ pub struct Paragraph(pub Vec<HtmlNodes>);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Content {
 	pub content: Option<usize>,
-	pub position: TextPos,
+	pub position: MultilineRange,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -502,7 +502,7 @@ pub struct Lambda {
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Ranged<T> {
 	pub value: T,
-	pub range: TextPos,
+	pub range: MultilineRange,
 }
 
 impl Ranged<&str> {
@@ -517,18 +517,18 @@ impl Ranged<&str> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
-pub enum TextPos {
-	Multi(Box<[TextPos]>),
-	Range((TokenPos, TokenPos)),
-	Single(TokenPos),
+pub enum MultilineRange {
+	Multi(Box<[MultilineRange]>),
+	Range(TextPos, TextPos),
+	Single(TextPos),
 }
 
-impl TextPos {
+impl MultilineRange {
 	#[must_use]
 	pub fn get_start_line(&self) -> Option<usize> {
 		match self {
 			Self::Single(x) => Some(x.get_line()),
-			Self::Range(x) => Some(x.0.get_line()),
+			Self::Range(start, _) => Some(start.get_line()),
 			Self::Multi(x) => x.first().and_then(Self::get_start_line),
 		}
 	}
@@ -537,7 +537,7 @@ impl TextPos {
 	pub fn get_end_line(&self) -> Option<usize> {
 		match self {
 			Self::Single(x) => Some(x.get_line()),
-			Self::Range(x) => Some(x.1.get_line()),
+			Self::Range(start, _) => Some(start.get_line()),
 			Self::Multi(x) => x.last().and_then(Self::get_end_line),
 		}
 	}
