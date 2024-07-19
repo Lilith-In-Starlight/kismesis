@@ -1,3 +1,7 @@
+use std::ops::Deref;
+
+use extism_pdk::Json;
+
 /// Exports important types as public for Plugin developers to use
 pub use super::lexer::Token;
 pub use super::parser::types::Argument;
@@ -19,9 +23,11 @@ pub use super::PluginParseError as PluginError;
 
 pub type RangedTokens = Ranged<Vec<Token>>;
 pub type InputTuple = (RangedTokens, Option<RangedTokens>);
-pub type AST = Vec<HtmlNodes>;
+pub type Ast = Vec<HtmlNodes>;
+pub type JsonAst = Json<Ast>;
+pub type JsonResult = Json<PlugResult>;
 
-pub type PlugResult = Result<AST, PluginError>;
+pub type PlugResult = Result<Ast, PluginError>;
 
 impl<T> PushInto<T> for Vec<T> {
 	fn push_into<B: Into<T>>(&mut self, value: B) {
