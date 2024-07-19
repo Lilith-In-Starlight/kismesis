@@ -32,6 +32,8 @@ pub mod html;
 pub mod lexer;
 pub mod options;
 pub mod parser;
+#[cfg(feature = "pdk")]
+pub mod pdk;
 pub mod plugins;
 
 #[cfg(feature = "reporting")]
@@ -462,41 +464,10 @@ impl From<&Self> for KisTemplateId {
 	}
 }
 
-/// Exports important types as public for Plugin developers to use
-#[cfg(feature = "pdk")]
-pub mod pdk {
-	pub use super::lexer::Token;
-	pub use super::parser::types::Argument;
-	pub use super::parser::types::Attribute;
-	pub use super::parser::types::ForTag;
-	pub use super::parser::types::HtmlNodes;
-	pub use super::parser::types::HtmlTag;
-	pub use super::parser::types::IfTag;
-	pub use super::parser::types::Macro;
-	pub use super::parser::types::Paragraph;
-	pub use super::parser::types::Ranged;
-	pub use super::parser::types::Section;
-	pub use super::parser::types::StringParts;
-	pub use super::parser::types::TextPos;
-
-	pub use super::plugins::PluginInput;
-	pub use super::PluginParseError as PluginError;
-
-	pub type RangedTokens = Ranged<Vec<Token>>;
-	pub type InputTuple = (RangedTokens, Option<RangedTokens>);
-	pub type AST = Vec<HtmlNodes>;
-
-	pub type PlugResult = Result<AST, PluginError>;
-
-	pub trait IntoPush<T> {
-		fn push_into<B: Into<T>>(&mut self, value: B);
-	}
-
-	impl<T> IntoPush<T> for Vec<T> {
-		fn push_into<B: Into<T>>(&mut self, value: B) {
-			self.push(value.into());
-		}
-	}
+/// Trait for things that implement Push to convert into that type before pushing
+pub trait PushInto<T> {
+	/// Converts into T before pushing
+	fn push_into<B: Into<T>>(&mut self, value: B);
 }
 
 #[cfg(test)]
