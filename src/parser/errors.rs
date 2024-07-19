@@ -172,7 +172,8 @@ impl ErrorKind for Hints {
 }
 
 impl Hints {
-	#[must_use] pub fn with_state_at(self, state: TextPos, scope: KisTokenId) -> Hint {
+	#[must_use]
+	pub fn with_state_at(self, state: TextPos, scope: KisTokenId) -> Hint {
 		Hint::Stateful(ScopedError {
 			error: ErrorState {
 				error: self,
@@ -215,7 +216,7 @@ impl ParseError {
 	/// containing information about when the parser should stop considering
 	/// options and simply should crash
 	pub(crate) fn error_at(self, state: &State) -> Err {
-		let pos = state.position;
+		let pos = state.get_end_position();
 		Err::Error(ErrorState {
 			error: self,
 			text_position: TextPos::Single(pos),

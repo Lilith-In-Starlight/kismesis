@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug)]
 pub struct State<'a> {
 	pub(crate) tokens: &'a [Token],
-	pub(crate) position: TokenPos,
 	pub(crate) errors: Vec<Err>,
 	pub(crate) tag_openers: Vec<TokenPos>,
 	pub(crate) section_depth: usize,
@@ -29,7 +28,6 @@ impl<'a> State<'a> {
 	) -> Self {
 		Self {
 			tokens,
-			position: TokenPos::new(),
 			errors: vec![],
 			tag_openers: Vec::new(),
 			section_depth: 0,
@@ -37,15 +35,23 @@ impl<'a> State<'a> {
 			file_path,
 		}
 	}
+
+	pub(crate) fn get_end_position(&self) -> TokenPos {
+		self.first_token()
+			.map_or_else(TokenPos::default, |first_token| {
+				first_token.get_end_position()
+			})
+	}
+
+	pub(crate) fn get_start_position(&self) -> TokenPos {
+		self.first_token()
+			.map_or_else(TokenPos::default, |first_token| {
+				first_token.get_start_position()
+			})
+	}
 	pub(crate) fn next_state(self) -> Self {
-		let next_token = self.tokens.first();
-		let position = match next_token {
-			Some(Token::Newline(_)) => self.position.next_line(),
-			_ => self.position.next_character(),
-		};
 		Self {
 			tokens: self.tokens.get(1..).unwrap_or(&[]),
-			position,
 			..self
 		}
 	}
@@ -83,7 +89,7 @@ impl<'a> State<'a> {
 			tag_openers: clone
 				.tag_openers
 				.into_iter()
-				.chain(vec![self.position])
+				.chain(vec![self.get_end_position()])
 				.collect(),
 			..clone
 		}
@@ -109,9 +115,9 @@ impl<'a> State<'a> {
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct TokenPos {
-	idx: usize,
-	line: usize,
-	column: usize,
+	pub(crate) idx: usize,
+	pub(crate) line: usize,
+	pub(crate) column: usize,
 }
 
 impl TokenPos {
@@ -155,24 +161,27 @@ impl TokenPos {
 	pub fn is_at_an_end(&self, o: &TextPos) -> bool {
 		match o {
 			TextPos::Single(x) => x.idx == self.idx,
-			TextPos::Range((_, nd)) => self.idx == nd.idx - 1,
+			TextPos::Range((_, nd)) => self.idx == nd.idx,
 			TextPos::Multi(x) => x.iter().any(|x| self.is_at_an_end(x)),
 		}
 	}
 
-	const fn next_character(self) -> Self {
-		Self {
-			idx: self.idx + 1,
-			column: self.column + 1,
-			..self
-		}
+	pub fn next_character(&mut self) {
+		self.idx += 1;
+		self.column += 1;
 	}
 
-	const fn next_line(self) -> Self {
+	pub fn next_line(&mut self) {
+		self.idx += 1;
+		self.column = 0;
+		self.line += 1;
+	}
+
+	pub const fn get_previous_character(&self) -> Self {
 		Self {
-			idx: self.idx + 1,
-			column: 0,
-			line: self.line + 1,
+			idx: self.idx - 1,
+			column: self.column - 1,
+			..*self
 		}
 	}
 }

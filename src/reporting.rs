@@ -13,7 +13,7 @@ use super::{
 	errors::{ErrorKind, ErrorState, StatelessError},
 	html::ScopedError,
 	lexer::Token,
-	parser::{errors::Hint, state::TokenPos},
+	parser::errors::Hint,
 };
 use colored::Colorize;
 
@@ -121,6 +121,8 @@ pub trait Report {
 		engine: &Kismesis,
 		depth: usize,
 	) -> String;
+
+	/// Prints the error to stderr using `create_report`
 	fn report(&self, kind: ReportKind, info: &DrawingInfo, engine: &Kismesis, depth: usize) {
 		eprintln!("{}", self.create_report(kind, info, engine, depth));
 	}
@@ -191,7 +193,7 @@ where
 			MaybeStateless::Stateful(error) => {
 				let lines: Vec<&[Token]> = scope
 					.tokens
-					.split_inclusive(|x| matches!(x, Token::Newline(_)))
+					.split_inclusive(|x| matches!(x, Token::Newline { .. }))
 					.collect();
 				let lines = {
 					let mut out = Vec::new();
@@ -326,16 +328,17 @@ fn draw_line<T: ErrorKind>(
 
 	if let Some(line) = lines.get(line_number) {
 		let mut char_idx: usize = 0;
-		for (token_idx, token) in line.1.iter().enumerate() {
-			let token_pos = TokenPos::new_at(line.0 + token_idx, line_number, token_idx);
+		for token in line.1 {
+			let token_pos = token.get_start_position();
+			let token_end = token.get_end_position();
 			let tkstr = match token {
-				Token::Newline(_) if token_pos.is_in(&err.text_position) => "~".to_string(),
-				Token::Newline(_) => String::new(),
-				Token::Indent(_) => " ".repeat(4),
-				x => x.get_as_string(),
+				Token::Newline { .. } if token_pos.is_in(&err.text_position) => "~".to_string(),
+				Token::Newline { .. } => String::new(),
+				Token::Indent { .. } => " ".repeat(4),
+				x => x.to_string(),
 			};
 			char_idx += tkstr.len();
-			if char_idx + tkstr.len() >= termsize && token_idx != 0 {
+			if char_idx + tkstr.len() >= termsize && token_pos.idx != 0 {
 				output.push('\n');
 
 				if error_line.chars().any(|x| !x.is_whitespace()) {
@@ -357,7 +360,7 @@ fn draw_line<T: ErrorKind>(
 				' '
 			};
 			error_line.push_str(&turn_to_chars(&tkstr, char));
-			if token_pos.is_at_an_end(&err.text_position) {
+			if token_end.is_at_an_end(&err.text_position) {
 				if err.text_position.is_one_line() {
 					let text = err
 						.error

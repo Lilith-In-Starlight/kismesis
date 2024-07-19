@@ -167,11 +167,11 @@ pub enum HtmlNodes {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Paragraph(pub Vec<HtmlNodes>);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Content {
-	pub position: TextPos,
 	pub content: Option<usize>,
+	pub position: TextPos,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -498,7 +498,7 @@ pub struct Lambda {
 	pub value: Option<Ranged<Expression>>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct Ranged<T> {
 	pub value: T,
@@ -515,7 +515,7 @@ impl Ranged<&str> {
 	}
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum TextPos {
 	Multi(Box<[TextPos]>),

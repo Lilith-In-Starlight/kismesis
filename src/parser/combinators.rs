@@ -263,9 +263,9 @@ where
 	P: Parser<'a, T1>,
 {
 	move |state: State<'a>| {
-		let start = state.position;
+		let start = state.get_start_position();
 		let (val, next_state) = parser.parse(state)?;
-		let end = next_state.position;
+		let end = next_state.get_end_position();
 		let range = {
 			if end.get_idx() == start.get_idx() + 1 {
 				TextPos::Single(start)

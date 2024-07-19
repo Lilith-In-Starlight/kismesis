@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use extism_pdk::Json;
 
 /// Exports important types as public for Plugin developers to use

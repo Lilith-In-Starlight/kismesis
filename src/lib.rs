@@ -475,7 +475,11 @@ pub trait PushInto<T> {
 mod test {
 	use std::{path::PathBuf, str::FromStr};
 
-	use crate::{html, Kismesis};
+	use crate::{
+		html,
+		reporting::{DrawingInfo, Report, ReportKind},
+		Kismesis,
+	};
 
 	#[test]
 	fn test_file() {
@@ -488,6 +492,9 @@ mod test {
 			.register_file(PathBuf::from_str("test/templating/file.kis").unwrap())
 			.unwrap();
 		input.template = Some(template);
-		println!("{:#?}", html::compile(&input, &engine));
+		let x = html::compile(&input, &engine).unwrap_err();
+		for a in x {
+			a.report(ReportKind::Error, &DrawingInfo::default(), &engine, 0);
+		}
 	}
 }

@@ -4,43 +4,104 @@ use std::fmt;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use crate::parser::state::TokenPos;
+
 /// The different tokens that can be in an input string
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Token {
-	Word(String),
-	Space(char),
-	Newline(char),
-	Indent(char),
-	Symbol(char),
+	Word {
+		content: String,
+		start: TokenPos,
+		end: TokenPos,
+	},
+	Space {
+		content: char,
+		position: TokenPos,
+	},
+	Newline {
+		content: char,
+		position: TokenPos,
+	},
+	Indent {
+		content: char,
+		position: TokenPos,
+	},
+	Symbol {
+		content: char,
+		position: TokenPos,
+	},
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum TokenRange {
+	Single(TokenPos),
+	Range(TokenPos, TokenPos),
 }
 
 impl fmt::Display for Token {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{}", self.get_as_string())
+		match self {
+			Self::Word { content: word, .. } => write!(f, "{word}"),
+			Self::Space { content: c, .. }
+			| Self::Newline { content: c, .. }
+			| Self::Indent { content: c, .. }
+			| Self::Symbol { content: c, .. } => write!(f, "{c}"),
+		}
 	}
 }
 
 impl Token {
+	#[must_use]
+	pub const fn get_range(&self) -> TokenRange {
+		match self {
+			Self::Word { start, end, .. } => TokenRange::Range(*start, *end),
+			Self::Space { position, .. }
+			| Self::Newline { position, .. }
+			| Self::Indent { position, .. }
+			| Self::Symbol { position, .. } => TokenRange::Single(*position),
+		}
+	}
 	/// Pushes the content of the token into a string
 	pub fn push_to_string(&self, to: &mut String) {
 		match self {
-			Self::Word(word) => to.push_str(word),
-			Self::Space(c) | Self::Newline(c) | Self::Indent(c) | Self::Symbol(c) => to.push(*c),
+			Self::Word {
+				content: ref word, ..
+			} => to.push_str(word),
+			Self::Space { content: ref c, .. }
+			| Self::Newline { content: ref c, .. }
+			| Self::Indent { content: ref c, .. }
+			| Self::Symbol { content: ref c, .. } => to.push(*c),
 		}
 	}
 
-	/// Returns the content of the token as a string
 	#[must_use]
-	pub fn get_as_string(&self) -> String {
+	pub const fn get_end_position(&self) -> TokenPos {
 		match self {
-			Self::Word(word) => word.clone(),
-			Self::Space(c) | Self::Newline(c) | Self::Indent(c) | Self::Symbol(c) => c.to_string(),
+			Self::Word { end, .. } => end.get_previous_character(),
+			Self::Space { position, .. }
+			| Self::Newline { position, .. }
+			| Self::Indent { position, .. }
+			| Self::Symbol { position, .. } => *position,
+		}
+	}
+
+	#[must_use]
+	pub const fn get_start_position(&self) -> TokenPos {
+		match self {
+			Self::Word { start, .. } => *start,
+			Self::Space { position, .. }
+			| Self::Newline { position, .. }
+			| Self::Indent { position, .. }
+			| Self::Symbol { position, .. } => *position,
 		}
 	}
 }
 
 /// Converts a string into a `Vec<Token>`, ignoring `\r` characters.
+#[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn tokenize(s: &str) -> Vec<Token> {
 	let s: String = {
 		let mut buffer = Vec::new();
@@ -67,62 +128,88 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 	};
 
 	let mut output: Vec<Token> = vec![];
+	let mut current_position = TokenPos::default();
+	let mut current_word_start = TokenPos::default();
 
-	let mut current_word: usize = 0;
-	for (idx, character) in s.char_indices() {
+	for character in s.chars() {
 		match character {
-			'\r' => {
-				let word = &s
-					.get(current_word..idx)
-					.map_or(String::new(), ToString::to_string);
-				if !word.is_empty() {
-					output.push(Token::Word(word.clone()));
-				}
-				current_word = idx + 1;
-				continue;
-			}
 			' ' => {
 				push_token(
-					Token::Space(character),
+					Token::Space {
+						content: character,
+						position: current_position,
+					},
 					&mut output,
-					&mut current_word,
-					idx,
+					&mut current_word_start,
 					&s,
 				);
+				current_position.next_character();
 			}
 			'\n' => {
 				push_token(
-					Token::Newline(character),
+					Token::Newline {
+						content: character,
+						position: current_position,
+					},
 					&mut output,
-					&mut current_word,
-					idx,
+					&mut current_word_start,
 					&s,
 				);
+				current_position.next_line();
+				current_word_start = current_position;
+			}
+			'\r' => {
+				let word = &s
+					.get(current_word_start.idx..current_position.idx)
+					.map_or(String::new(), ToString::to_string);
+				if !word.is_empty() {
+					output.push(Token::Word {
+						content: word.clone(),
+						start: current_word_start,
+						end: current_position,
+					});
+				}
+				current_position.next_character();
+				current_word_start = current_position;
 			}
 			'\t' => {
 				push_token(
-					Token::Indent(character),
+					Token::Indent {
+						content: character,
+						position: current_position,
+					},
 					&mut output,
-					&mut current_word,
-					idx,
+					&mut current_word_start,
 					&s,
 				);
+				current_position.next_character();
 			}
 			x if !x.is_alphanumeric() => {
 				push_token(
-					Token::Symbol(character),
+					Token::Symbol {
+						content: character,
+						position: current_position,
+					},
 					&mut output,
-					&mut current_word,
-					idx,
+					&mut current_word_start,
 					&s,
 				);
+				current_position.next_character();
 			}
-			_ => (),
+			_ => current_position.next_character(),
 		}
 	}
-	let word = &s[current_word..s.len()];
+	let word = &s[current_word_start.idx..current_position.idx];
 	if !word.is_empty() {
-		output.push(Token::Word(word.to_string()));
+		output.push(Token::Word {
+			content: word.to_string(),
+			start: current_word_start,
+			end: TokenPos {
+				idx: s.len() - 1,
+				line: current_position.line,
+				column: current_position.column,
+			},
+		});
 	}
 	output
 }
@@ -130,14 +217,20 @@ pub fn tokenize(s: &str) -> Vec<Token> {
 fn push_token(
 	token: Token,
 	list: &mut Vec<Token>,
-	current_word_start: &mut usize,
-	current_word_end: usize,
+	current_word_start: &mut TokenPos,
 	string: &str,
 ) {
-	let word = &string[*current_word_start..current_word_end];
+	let current_word_end = token.get_end_position();
+	let word = &string[current_word_start.idx..current_word_end.idx];
 	if !word.is_empty() {
-		list.push(Token::Word(word.to_string()));
+		list.push(Token::Word {
+			content: word.to_string(),
+			start: *current_word_start,
+			end: current_word_end,
+		});
 	}
 	list.push(token);
-	*current_word_start = current_word_end + 1;
+	let diff = current_word_end.idx + 1 - current_word_start.idx;
+	current_word_start.idx += diff;
+	current_word_start.column += diff;
 }

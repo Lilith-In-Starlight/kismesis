@@ -1,7 +1,10 @@
 //! Module containing everything that turns kismesis into html.
 
 use htmlize::escape_all_quotes;
-use std::{collections::HashMap, fmt::Display};
+use std::{
+	collections::HashMap,
+	fmt::{Debug, Display},
+};
 
 use crate::{
 	errors::{MaybeStateless, StatelessError},

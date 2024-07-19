@@ -438,7 +438,7 @@ fn pre_tag(state: State) -> ParserResult<HtmlTag> {
 				specific_symbol('\\')
 					.preceding(any)
 					.or(any)
-					.map(Token::get_as_string)
+					.map(Token::to_string)
 					.maybe_until(after_spaces(specific_symbol('>')), true),
 			),
 		)
@@ -637,28 +637,38 @@ fn macro_def(state: State<'_>) -> ParserResult<'_, Macro> {
 
 fn space(state: State) -> ParserResult<&char> {
 	match any.parse(state)? {
-		(Token::Space(space), next_state) => Ok((space, next_state)),
+		(Token::Space { content: space, .. }, next_state) => Ok((space, next_state)),
 		(_, next_state) => Err(ParseError::NotASpace.error_at(&next_state)),
 	}
 }
 
 fn indent(state: State) -> ParserResult<&char> {
 	match any.parse(state)? {
-		(Token::Indent(indent), next_state) => Ok((indent, next_state)),
+		(
+			Token::Indent {
+				content: indent, ..
+			},
+			next_state,
+		) => Ok((indent, next_state)),
 		(_, error_state) => Err(ParseError::NotAnIndent.error_at(&error_state)),
 	}
 }
 
 fn newline(state: State) -> ParserResult<&char> {
 	match any.parse(state)? {
-		(Token::Newline(newline), next_state) => ParserResult::Ok((newline, next_state)),
+		(
+			Token::Newline {
+				content: newline, ..
+			},
+			next_state,
+		) => ParserResult::Ok((newline, next_state)),
 		(_, error_state) => Err(ParseError::NotANewline.error_at(&error_state)),
 	}
 }
 
 fn some_symbol(state: State) -> ParserResult<&char> {
 	match any.parse(state)? {
-		(Token::Symbol(x), next_state) => Ok((x, next_state)),
+		(Token::Symbol { content: x, .. }, next_state) => Ok((x, next_state)),
 		(_, state) => Err(ParseError::NotSymbol.error_at(&state)),
 	}
 }
@@ -672,7 +682,7 @@ fn eof(state: State) -> ParserResult<()> {
 
 fn literal(state: State) -> ParserResult<&str> {
 	match any.parse(state)? {
-		(Token::Word(x), next_state) => Ok((x, next_state)),
+		(Token::Word { content: x, .. }, next_state) => Ok((x, next_state)),
 		(_, state) => Err(ParseError::NotLiteral.error_at(&state)),
 	}
 }
@@ -728,18 +738,22 @@ fn plugin_head(state: State) -> ParserResult<(Ranged<String>, Ranged<Vec<Token>>
 		.followed_by(skip_spaces());
 
 	let (name, mut state) = parser.parse(state)?;
-	let start = state.position;
+	let start = state.get_end_position();
 	let mut tokens = Vec::new();
 	let mut escape = false;
 
 	while let Some(token) = state.first_token() {
 		match token {
-			Token::Symbol(symbol) if symbol == &'\\' && !escape => {
+			Token::Symbol {
+				content: symbol, ..
+			} if symbol == &'\\' && !escape => {
 				escape = true;
 				state = state.next_state();
 			}
-			Token::Symbol(x) if !escape && (x == &'>' || x == &'|' || x == &':') => {
-				let end = state.position;
+			Token::Symbol { content: x, .. }
+				if !escape && (x == &'>' || x == &'|' || x == &':') =>
+			{
+				let end = state.get_end_position();
 				return Ok((
 					(
 						name.to_own(),
@@ -751,7 +765,7 @@ fn plugin_head(state: State) -> ParserResult<(Ranged<String>, Ranged<Vec<Token>>
 					state,
 				));
 			}
-			Token::Newline(_) => return Err(ParseError::ExpectedBodyOpener.error_at(&state)),
+			Token::Newline { .. } => return Err(ParseError::ExpectedBodyOpener.error_at(&state)),
 			tok => {
 				escape = false;
 				tokens.push(tok.clone());
@@ -836,18 +850,20 @@ fn plugin_body(state: State) -> ParserResult<Ranged<Vec<Token>>> {
 	let parser = skip_spaces().preceding(body_opener);
 	let (_, mut state) = parser.parse(state)?;
 
-	let start = state.position;
+	let start = state.get_end_position();
 	let mut tokens = Vec::new();
 	let mut escape = false;
 
 	while let Some(token) = state.first_token() {
 		match token {
-			Token::Symbol(symbol) if symbol == &'\\' && !escape => {
+			Token::Symbol {
+				content: symbol, ..
+			} if symbol == &'\\' && !escape => {
 				escape = true;
 				state = state.next_state();
 			}
-			Token::Symbol(x) if !escape && (x == &'>') => {
-				let end = state.position;
+			Token::Symbol { content: x, .. } if !escape && (x == &'>') => {
+				let end = state.get_end_position();
 				return Ok((
 					Ranged {
 						value: tokens,
@@ -869,9 +885,9 @@ fn plugin_body(state: State) -> ParserResult<Ranged<Vec<Token>>> {
 
 fn string_tagless_content<'a>() -> impl Parser<'a, StringParts> {
 	specific_symbol('\\')
-		.preceding(any.map(|x| StringParts::String(x.get_as_string())))
+		.preceding(any.map(|x| StringParts::String(x.to_string())))
 		.or(specific_symbol('@').preceding(get_range(expression).map(StringParts::Expression)))
-		.or(any.map(|x| StringParts::String(x.get_as_string())))
+		.or(any.map(|x| StringParts::String(x.to_string())))
 }
 
 fn string_tagless(state: State) -> ParserResult<Vec<StringParts>> {
