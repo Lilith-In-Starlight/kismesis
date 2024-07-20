@@ -72,7 +72,7 @@ pub type KisResult<T> = Result<T, KismesisError>;
 #[derive(Debug)]
 pub enum KismesisError {
 	IOError(io::Error, PathBuf),
-	ParseError(Vec<Err>, KisTokenId),
+	ParseError(Vec<Err>),
 }
 
 /// Error struct used in plugin parsing
@@ -85,21 +85,28 @@ pub struct PluginParseError {
 	hints: Vec<PluginParseError>,
 	/// Where the error is located in the text. The Some variant represents a position, whereas the None variant represents statlessness.
 	state: Option<MultilineRange>,
+	file: Option<KisTokenId>,
 }
 
 #[cfg(any(feature = "plugins", feature = "pdk"))]
 impl PluginParseError {
 	#[must_use]
-	pub fn new(message: String, state: Option<MultilineRange>) -> Self {
+	pub fn new(message: String, state: Option<MultilineRange>, file: Option<KisTokenId>) -> Self {
 		Self {
 			message,
 			hints: vec![],
 			state,
+			file,
 		}
 	}
 	/// Adds a hint to the error struct
-	pub fn add_hint(&mut self, message: String, state: Option<MultilineRange>) {
-		self.hints.push(Self::new(message, state));
+	pub fn add_hint(
+		&mut self,
+		message: String,
+		state: Option<MultilineRange>,
+		file: Option<KisTokenId>,
+	) {
+		self.hints.push(Self::new(message, state, file));
 	}
 }
 
@@ -219,14 +226,19 @@ impl Kismesis {
 		&self,
 		name: &Ranged<String>,
 		input: PluginInput,
+		scope: KisTokenId,
 	) -> Result<Vec<HtmlNodes>, Err> {
 		use errors::ErrorKind;
 
-		use crate::parser::errors::{Hintable, Hints};
+		use crate::{
+			errors::MaybeStateless,
+			html::ScopedError,
+			parser::errors::{Hintable, Hints},
+		};
 
 		if self.settings.has_plugin(&name.value) {
 			return Err(ParseError::PluginIsUndeclared
-				.error_at_pos(name.range.clone())
+				.error_at_pos(name.range.clone(), scope)
 				.cut());
 		}
 
@@ -234,7 +246,7 @@ impl Kismesis {
 			Some(x) => x.clone(),
 			None => {
 				return Err(ParseError::PluginDoesntExist
-					.error_at_pos(name.range.clone())
+					.error_at_pos(name.range.clone(), scope)
 					.cut())
 			}
 		};
@@ -242,7 +254,7 @@ impl Kismesis {
 			Ok(x) => x,
 			Err(x) => {
 				return Err(ParseError::ExtismError(format!("{x}"))
-					.error_at_pos(name.range.clone())
+					.error_at_pos(name.range.clone(), scope)
 					.cut())
 			}
 		};
@@ -250,22 +262,28 @@ impl Kismesis {
 		match plugin.call::<_, Json<Result<_, PluginParseError>>>("parser", input) {
 			Ok(Json(x)) => match x {
 				Ok(x) => Ok(x),
-				Err(x) => {
-					let error = ParseError::PluginError(x.message);
+				Err(plugin_parse_error) => {
+					let error = ParseError::PluginError(plugin_parse_error.message);
 					let mut error = ErrorKind::with_state_at(
 						error,
-						x.state.unwrap_or_else(|| name.range.clone()),
+						plugin_parse_error
+							.state
+							.unwrap_or_else(|| name.range.clone()),
 					);
-					for hint in x.hints {
+					for hint in plugin_parse_error.hints {
 						// TODO let plugin hints be stateful
 						let new_hint = Hints::CustomMessage(hint.message).stateless();
 						error.add_hint(new_hint);
 					}
+					let error = ScopedError {
+						error: MaybeStateless::Stateful(error),
+						scope: plugin_parse_error.file.unwrap_or(scope),
+					};
 					Err(Err::Failure(error))
 				}
 			},
 			Err(x) => Err(ParseError::ExtismError(format!("{x}"))
-				.error_at_pos(name.range.clone())
+				.error_at_pos(name.range.clone(), scope)
 				.cut()),
 		}
 	}
@@ -379,7 +397,7 @@ impl Kismesis {
 		let tokens = lexer::tokenize(&text);
 		let tokens = self.register_tokens(tokens, Some(path.clone()));
 		let file = parser::file(tokens, self, None, Some(path))
-			.map_err(|x| KismesisError::ParseError(x, tokens))?;
+			.map_err(|x| KismesisError::ParseError(x))?;
 		Ok(file)
 	}
 
@@ -390,7 +408,7 @@ impl Kismesis {
 		let tokens = lexer::tokenize(string);
 		let tokens = self.register_tokens(tokens, None);
 		let file = parser::file(tokens, self, None, None)
-			.map_err(|x| KismesisError::ParseError(x, tokens))?;
+			.map_err(|x| KismesisError::ParseError(x))?;
 		Ok(file)
 	}
 
@@ -484,11 +502,9 @@ pub trait GiveRange {
 mod test {
 	use std::{path::PathBuf, str::FromStr};
 
-	use crate::{
-		html,
-		reporting::{DrawingInfo, Report, ReportKind},
-		Kismesis,
-	};
+	#[cfg(feature = "reporting")]
+	use crate::reporting::{DrawingInfo, Report, ReportKind};
+	use crate::{html, Kismesis};
 
 	#[test]
 	fn test_file() {
@@ -503,7 +519,10 @@ mod test {
 		input.template = Some(template);
 		let x = html::compile(&input, &engine).unwrap_err();
 		for a in x {
+			#[cfg(feature = "reporting")]
 			a.report(ReportKind::Error, &DrawingInfo::default(), &engine, 0);
+			#[cfg(not(feature = "reporting"))]
+			eprintln!("{a:#?}");
 		}
 	}
 }
