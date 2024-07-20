@@ -396,8 +396,8 @@ impl Kismesis {
 			fs::read_to_string(&path).map_err(|x| KismesisError::IOError(x, path.clone()))?;
 		let tokens = lexer::tokenize(&text);
 		let tokens = self.register_tokens(tokens, Some(path.clone()));
-		let file = parser::file(tokens, self, None, Some(path))
-			.map_err(|x| KismesisError::ParseError(x))?;
+		let file =
+			parser::file(tokens, self, None, Some(path)).map_err(KismesisError::ParseError)?;
 		Ok(file)
 	}
 
@@ -407,8 +407,7 @@ impl Kismesis {
 	pub fn register_str(&mut self, string: &str) -> KisResult<ParsedFile> {
 		let tokens = lexer::tokenize(string);
 		let tokens = self.register_tokens(tokens, None);
-		let file = parser::file(tokens, self, None, None)
-			.map_err(|x| KismesisError::ParseError(x))?;
+		let file = parser::file(tokens, self, None, None).map_err(KismesisError::ParseError)?;
 		Ok(file)
 	}
 
