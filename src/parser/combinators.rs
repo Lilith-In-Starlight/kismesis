@@ -4,7 +4,7 @@ use std::{
 };
 
 use super::{
-	errors::{Err, ParseError},
+	errors::{Err, ParseError, Unpack},
 	state::State,
 	types::{MultilineRange, Ranged},
 	Parser, ParserResult,
@@ -232,7 +232,7 @@ where
 			if failure {
 				Err(Err::Failure(x))
 			} else {
-				x.error = fun();
+				*x.error.unpack_mut() = fun();
 				Err(Err::Error(x))
 			}
 		}

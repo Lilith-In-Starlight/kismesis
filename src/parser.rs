@@ -16,6 +16,8 @@ use combinators::{
 use std::fmt::Debug;
 use std::path::PathBuf;
 
+use crate::errors::MaybeStateless;
+use crate::html::ScopedError;
 use crate::lexer::Token;
 use crate::plugins::PluginInput;
 use crate::{KisTemplateId, KisTokenId, Kismesis};
@@ -307,10 +309,14 @@ fn variable_name(state: State) -> ParserResult<&str> {
 
 fn check_tag_mismatch(state: State) -> ParserResult<()> {
 	if let Some(opener) = state.tag_openers.last() {
-		return Err(Err::Failure(ErrorState {
+		let inside = ErrorState {
 			error: ParseError::TagOpenerMismatch,
 			hints: vec![],
 			text_position: types::MultilineRange::Single(*opener),
+		};
+		return Err(Err::Failure(ScopedError {
+			error: MaybeStateless::Stateful(inside),
+			scope: state.current_file,
 		}));
 	}
 	Ok(((), state))
@@ -599,7 +605,7 @@ fn plug_call(state: State<'_>) -> ParserResult<'_, Box<PlugCall>> {
 		current_file: state.file_path.clone(),
 	};
 
-	let (body, state) = match state.engine.call_plugin(&name, input) {
+	let (body, state) = match state.engine.call_plugin(&name, input, state.current_file) {
 		Ok(x) => (x, state),
 		Err(x) => (vec![], state.with_error(x)),
 	};
@@ -991,6 +997,7 @@ pub(crate) fn file(
 	.followed_by(eof.or(ignore(tag_closer)));
 
 	let state = State::new(
+		tokens_id,
 		&engine
 			.get_file(tokens_id)
 			.expect("Tried to parse a file that does not exist")
@@ -1013,7 +1020,7 @@ pub(crate) fn file(
 		}
 	};
 	drop(parser);
-	semantic_check(&mut ast_nodes)?;
+	semantic_check(&mut ast_nodes, tokens_id)?;
 	let ast_nodes = ast_nodes;
 
 	let mut output = ParsedFile::new(tokens_id);
@@ -1051,10 +1058,10 @@ pub(crate) fn file(
 }
 
 /// Verify that the semantics of the HTML tags at the top of the AST are done correctly
-fn semantic_check(nodes: &mut [BodyNodes]) -> Result<(), Vec<Err>> {
+fn semantic_check(nodes: &mut [BodyNodes], scope: KisTokenId) -> Result<(), Vec<Err>> {
 	let mut errors = vec![];
 
-	let initial_semantics = Semantics::new();
+	let initial_semantics = Semantics::new(scope);
 
 	for node in nodes.iter_mut() {
 		if let Err(ref mut x) = node.check_semantics(&initial_semantics) {

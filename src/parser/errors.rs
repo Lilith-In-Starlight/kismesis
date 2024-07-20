@@ -3,6 +3,7 @@
 use std::ops::Bound;
 use std::fmt::Write;
 
+use crate::errors::MaybeStateless;
 use crate::KisTemplateId;
 use crate::{
 	errors::{ErrorKind, ErrorState, StatelessError},
@@ -76,8 +77,8 @@ pub enum ParseError {
 
 #[derive(Clone, Debug)]
 pub enum Err {
-	Error(ErrorState<ParseError>),
-	Failure(ErrorState<ParseError>),
+	Error(ScopedError<ParseError>),
+	Failure(ScopedError<ParseError>),
 }
 
 impl Hintable for Err {
@@ -96,28 +97,56 @@ impl Hintable for Err {
     }
 }
 
+pub trait Unpack<T> {
+	fn unpack(self) -> T;
+	fn unpack_ref(&self) -> &T;
+	fn unpack_mut(&mut self) -> &mut T;
+}
+
+impl Unpack<ScopedError<ParseError>> for Err {
+	fn unpack(self) -> ScopedError<ParseError> {
+		match self {
+			Self::Error(x) | Self::Failure(x) => x,
+		}
+	}
+
+	fn unpack_ref(&self) -> &ScopedError<ParseError> {
+		match self {
+			Self::Error(x) | Self::Failure(x) => x,
+		}
+	}
+
+	fn unpack_mut(&mut self) -> &mut ScopedError<ParseError> {
+		match self {
+			Self::Error(x) | Self::Failure(x) => x,
+		}
+	}
+}
+
+impl<T> Unpack<T> for MaybeStateless<T> {
+    fn unpack(self) -> T {
+    	match self {
+    		Self::Stateful(x) => x.error,
+    		Self::Statelss(x) => x.error
+    	}
+    }
+
+    fn unpack_ref(&self) -> &T {
+    	match self {
+    		Self::Stateful(x) => &x.error,
+    		Self::Statelss(x) => &x.error
+    	}
+    }
+
+    fn unpack_mut(&mut self) -> &mut T {
+    	match self {
+    		Self::Stateful(x) => &mut x.error,
+    		Self::Statelss(x) => &mut x.error
+    	}
+    }
+}
+
 impl Err {
-	#[must_use]
-	pub fn unpack(self) -> ErrorState<ParseError> {
-		match self {
-			Self::Error(x) | Self::Failure(x) => x,
-		}
-	}
-
-	#[must_use]
-	pub const fn unpack_ref(&self) -> &ErrorState<ParseError> {
-		match self {
-			Self::Error(x) | Self::Failure(x) => x,
-		}
-	}
-
-	#[must_use]
-	pub fn unpack_mut(&mut self) -> &mut ErrorState<ParseError> {
-		match self {
-			Self::Error(x) | Self::Failure(x) => x,
-		}
-	}
-
 	#[must_use]
 	pub fn cut(self) -> Self {
 		match self {
@@ -217,18 +246,20 @@ impl ParseError {
 	/// options and simply should crash
 	pub(crate) fn error_at(self, state: &State) -> Err {
 		let pos = state.get_end_position();
-		Err::Error(ErrorState {
+		let a = ErrorState {
 			error: self,
 			text_position: MultilineRange::Single(pos),
 			hints: vec![],
-		})
+		};
+		Err::Error(ScopedError { error: MaybeStateless::Stateful(a), scope: state.current_file })
 	}
-	pub(crate) fn error_at_pos(self, text_position: MultilineRange) -> Err {
-		Err::Error(ErrorState {
+	pub(crate) fn error_at_pos(self, text_position: MultilineRange, scope: KisTokenId) -> Err {
+		let a = ErrorState {
 			error: self,
 			text_position,
 			hints: vec![],
-		})
+		};
+		Err::Error(ScopedError { error: MaybeStateless::Stateful(a), scope })
 	}
 }
 

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{lexer::Token, Kismesis};
+use crate::{lexer::Token, KisTokenId, Kismesis};
 
 use super::{
 	errors::{Err, ParseError},
@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug)]
 pub struct State<'a> {
+	pub(crate) current_file: KisTokenId,
 	pub(crate) tokens: &'a [Token],
 	pub(crate) errors: Vec<Err>,
 	pub(crate) tag_openers: Vec<TextPos>,
@@ -22,11 +23,13 @@ pub struct State<'a> {
 
 impl<'a> State<'a> {
 	pub(crate) fn new(
+		current_file: KisTokenId,
 		tokens: &'a [Token],
 		file_path: Option<PathBuf>,
 		engine: &'a Kismesis,
 	) -> Self {
 		Self {
+			current_file,
 			tokens,
 			errors: vec![],
 			tag_openers: Vec::new(),

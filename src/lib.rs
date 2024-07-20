@@ -354,10 +354,11 @@ impl Kismesis {
 		&self,
 		name: &Ranged<String>,
 		input: PluginInput,
+		scope: KisTokenId,
 	) -> Result<Vec<HtmlNodes>, Err> {
 		drop(input);
 		Err(ParseError::PluginsDisabled
-			.error_at_pos(name.range.clone())
+			.error_at_pos(name.range.clone(), scope)
 			.cut())
 	}
 
