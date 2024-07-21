@@ -22,7 +22,7 @@ use crate::lexer::Token;
 use crate::plugins::PluginInput;
 use crate::{KisTemplateId, KisTokenId, Kismesis};
 
-use self::errors::{Err, ParseError};
+use self::errors::{Err, Expected, ParseError};
 use self::semantics::{Semantics, Verify};
 use self::state::State;
 use self::types::{
@@ -176,21 +176,21 @@ fn quote_mark(state: State) -> ParserResult<&char> {
 
 fn tag_opener(state: State) -> ParserResult<&char> {
 	match specific_symbol('<').parse(state.open_tag()) {
-		Err(_) => Err(ParseError::ExpectedTagOpener.error_at(&state)),
+		Err(_) => Err(ParseError::Expected(vec![Expected::TagOpener]).error_at(&state)),
 		Ok((char, state)) => Ok((char, state)),
 	}
 }
 
 fn subtag_opener(state: State) -> ParserResult<&char> {
 	match specific_symbol('+').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedTagOpener.error_at(&state)),
+		Err(_) => Err(ParseError::Expected(vec![Expected::TagComposer]).error_at(&state)),
 		ok => ok,
 	}
 }
 
 fn tag_closer(state: State) -> ParserResult<&char> {
 	match after_blanks(specific_symbol('>')).parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedTagCloser.error_at(&state)),
+		Err(_) => Err(ParseError::Expected(vec![Expected::TagCloser]).error_at(&state)),
 		Ok((val, next_state)) => match next_state.close_tag() {
 			Ok(x) => Ok((val, x)),
 			Err(x) => Err(x.error_at(&state).cut()),
@@ -200,35 +200,35 @@ fn tag_closer(state: State) -> ParserResult<&char> {
 
 fn tag_closer_superficial(state: State) -> ParserResult<&char> {
 	match after_blanks(specific_symbol('>')).parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedTagCloser.error_at(&state)),
+		Err(_) => Err(ParseError::Expected(vec![Expected::TagCloser]).error_at(&state)),
 		Ok((val, next_state)) => Ok((val, next_state)),
 	}
 }
 
 fn expr_opener(state: State) -> ParserResult<&char> {
 	match specific_symbol('{').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedExprStart.error_at(&state)),
+		Err(_) => Err(ParseError::Expected(vec![Expected::ExpressionStart]).error_at(&state)),
 		ok => ok,
 	}
 }
 
 fn expr_closer(state: State) -> ParserResult<&char> {
 	match specific_symbol('}').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedExprEnd.error_at(&state)),
+		Err(_) => Err(ParseError::Expected(vec![Expected::ExpressionEnd]).error_at(&state)),
 		ok => ok,
 	}
 }
 
 fn macro_mark(state: State) -> ParserResult<&char> {
 	match specific_symbol('!').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedMacroMark.error_at(&state)),
+		Err(_) => Err(ParseError::Expected(vec![Expected::MacroMark]).error_at(&state)),
 		ok => ok,
 	}
 }
 
 fn plugin_mark(state: State) -> ParserResult<&char> {
 	match specific_symbol('?').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedPluginMark.error_at(&state)),
+		Err(_) => Err(ParseError::Expected(vec![Expected::PluginMark]).error_at(&state)),
 		ok => ok,
 	}
 }
@@ -238,7 +238,7 @@ fn body_opener(state: State) -> ParserResult<&char> {
 		.or(specific_symbol(':'))
 		.parse(state.clone())
 	{
-		Err(_) => Err(ParseError::ExpectedBodyOpener.error_at(&state)),
+		Err(_) => Err(ParseError::Expected(vec![Expected::BodyOpener]).error_at(&state)),
 		ok => ok,
 	}
 }
@@ -246,7 +246,7 @@ fn body_opener(state: State) -> ParserResult<&char> {
 fn macro_name(state: State) -> ParserResult<&str> {
 	match literal.parse(state.clone()) {
 		Ok(ok) if ok.0 != "content" && ok.0 != "if" && ok.0 != "for" => Ok(ok),
-		_ => Err(ParseError::ExpectedTagName.error_at(&state)),
+		_ => Err(ParseError::Expected(vec![Expected::TagName]).error_at(&state)),
 	}
 }
 
@@ -265,7 +265,7 @@ fn attr_name(state: State) -> ParserResult<String> {
 fn set_starter(state: State) -> ParserResult<&str> {
 	match literal.parse(state.clone()) {
 		Ok(ok) if ok.0 == "set" => Ok(ok),
-		_ => Err(ParseError::ExpectedSetStarter.error_at(&state)),
+		_ => Err(ParseError::Expected(vec![Expected::Set]).error_at(&state)),
 	}
 }
 
@@ -296,7 +296,7 @@ fn set_stmt(state: State) -> ParserResult<(String, String)> {
 
 fn equals(state: State) -> ParserResult<&char> {
 	match specific_symbol('=').parse(state.clone()) {
-		Err(_) => Err(ParseError::ExpectedEquals.error_at(&state)),
+		Err(_) => Err(ParseError::Expected(vec![Expected::Equals]).error_at(&state)),
 		ok => ok,
 	}
 }
@@ -304,7 +304,7 @@ fn equals(state: State) -> ParserResult<&char> {
 fn variable_name(state: State) -> ParserResult<&str> {
 	literal
 		.parse(state.clone())
-		.map_err(|_x| ParseError::ExpectedVarName.error_at(&state))
+		.map_err(|_x| ParseError::Expected(vec![Expected::VariableName]).error_at(&state))
 }
 
 fn check_tag_mismatch(state: State) -> ParserResult<()> {
@@ -349,21 +349,21 @@ fn expression(state: State) -> ParserResult<Expression> {
 fn binary_func(state: State) -> ParserResult<BinFunc> {
 	let (val, next_state) = literal
 		.parse(state.clone())
-		.map_err(|_x| ParseError::ExpectedBinFunc.error_at(&state))?;
+		.map_err(|_x| ParseError::Expected(vec![Expected::BinaryFunction]).error_at(&state))?;
 	match val {
 		"and" => Ok((BinFunc::And, next_state)),
 		"or" => Ok((BinFunc::Or, next_state)),
-		_ => Err(ParseError::ExpectedBinFunc.error_at(&state)),
+		_ => Err(ParseError::Expected(vec![Expected::BinaryFunction]).error_at(&state)),
 	}
 }
 
 fn unary_func(state: State) -> ParserResult<UniFunc> {
 	let (val, next_state) = literal
 		.parse(state.clone())
-		.map_err(|_x| ParseError::ExpectedUniFunc.error_at(&state))?;
+		.map_err(|_x| ParseError::Expected(vec![Expected::UnaryFunction]).error_at(&state))?;
 	match val {
 		"not" => Ok((UniFunc::Not, next_state)),
-		_ => Err(ParseError::ExpectedUniFunc.error_at(&state)),
+		_ => Err(ParseError::Expected(vec![Expected::UnaryFunction]).error_at(&state)),
 	}
 }
 
@@ -491,7 +491,15 @@ fn some_tag(state: State) -> ParserResult<Tag> {
 			.or(for_tag.map(Tag::For))
 			.or(pre_tag.map(Tag::Html))
 			.or(tag.map(Tag::Html))
-			.set_err(|| ParseError::ExpectedSpecifierOrTag)
+			.set_err(|| {
+				ParseError::Expected(vec![
+					Expected::PluginMark,
+					Expected::MacroMark,
+					Expected::TagComposer,
+					Expected::Parameter,
+					Expected::BodyOpener,
+				])
+			})
 			.followed_by(tag_closer),
 	)));
 
@@ -509,7 +517,15 @@ fn some_child_tag(state: State) -> ParserResult<BodyTags> {
 				.or(for_tag.map(BodyTags::For))
 				.or(pre_tag.map(BodyTags::HtmlTag))
 				.or(tag.map(|x| BodyTags::HtmlTag(x.merge_subtags())))
-				.set_err(|| ParseError::ExpectedSpecifierOrTag)
+				.set_err(|| {
+					ParseError::Expected(vec![
+						Expected::PluginMark,
+						Expected::MacroMark,
+						Expected::TagComposer,
+						Expected::Parameter,
+						Expected::BodyOpener,
+					])
+				})
 				.followed_by(tag_closer),
 		)))
 		.or(section_block.map(|x| BodyTags::HtmlTag(x.into_tag())));
@@ -681,7 +697,7 @@ fn some_symbol(state: State) -> ParserResult<&char> {
 
 fn eof(state: State) -> ParserResult<()> {
 	match any.parse(state.clone()) {
-		Ok(_) => Err(ParseError::ExpectedEOF.error_at(&state)),
+		Ok(_) => Err(ParseError::Expected(vec![Expected::EOF]).error_at(&state)),
 		Err(_) => Ok(((), state)),
 	}
 }
@@ -695,7 +711,7 @@ fn literal(state: State) -> ParserResult<&str> {
 
 fn non_macro_starter(state: State) -> ParserResult<&str> {
 	literal
-		.set_err(|| ParseError::ExpectedTagName)
+		.set_err(|| ParseError::Expected(vec![Expected::TagName]))
 		.is(|x| x != &"macro" && x != &"if" && x != &"for")
 		.set_err(|| ParseError::UnexpectedMacroDef)
 		.parse(state)
@@ -703,19 +719,19 @@ fn non_macro_starter(state: State) -> ParserResult<&str> {
 
 fn var_def_starter(state: State) -> ParserResult<&str> {
 	(literal.is(|x| x == &"const"))
-		.set_err(|| ParseError::ExpectedLambdaStart)
+		.set_err(|| ParseError::Expected(vec![Expected::Const]))
 		.parse(state)
 }
 
 fn lambda_def_starter(state: State) -> ParserResult<&str> {
 	(literal.is(|x| x == &"mut"))
-		.set_err(|| ParseError::ExpectedLambdaStart)
+		.set_err(|| ParseError::Expected(vec![Expected::Mut]))
 		.parse(state)
 }
 
 fn macro_starter(state: State) -> ParserResult<&str> {
 	literal
-		.set_err(|| ParseError::ExpectedTagNameOrMacroDef)
+		.set_err(|| ParseError::Expected(vec![Expected::TagName, Expected::MacroDefinition]))
 		.is(|x| x == &"macro")
 		.set_err(|| ParseError::NotMacroStart)
 		.parse(state)
@@ -771,7 +787,9 @@ fn plugin_head(state: State) -> ParserResult<(Ranged<String>, Ranged<Vec<Token>>
 					state,
 				));
 			}
-			Token::Newline { .. } => return Err(ParseError::ExpectedBodyOpener.error_at(&state)),
+			Token::Newline { .. } => {
+				return Err(ParseError::Expected(vec![Expected::BodyOpener]).error_at(&state))
+			}
 			tok => {
 				escape = false;
 				tokens.push(tok.clone());
@@ -969,7 +987,7 @@ fn statement(state: State) -> ParserResult<BodyNodes> {
 		.map(BodyNodes::LambdaDef)
 		.or(variable_definition.map(BodyNodes::VarDef))
 		.or(set_stmt.map(|(x, y)| BodyNodes::SetStmt(x, y)))
-		.set_err(|| ParseError::ExpectedStatement);
+		.set_err(|| ParseError::Expected(vec![Expected::Set, Expected::Mut, Expected::Const]));
 
 	parser.parse(state)
 }

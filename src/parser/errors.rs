@@ -1,7 +1,7 @@
 //! Everything related to parsing errors.
 
+use std::fmt::{Display, Write};
 use std::ops::Bound;
-use std::fmt::Write;
 
 use crate::errors::MaybeStateless;
 use crate::KisTemplateId;
@@ -14,12 +14,60 @@ use crate::{
 use super::{state::State, types::MultilineRange};
 
 #[derive(Clone, Debug)]
+pub enum Expected {
+	Mut,
+	Set,
+	Const,
+	Equals,
+	EOF,
+	ExpressionStart,
+	ExpressionEnd,
+	MacroDefinition,
+	MacroMark,
+	PluginMark,
+	UnaryFunction,
+	BinaryFunction,
+	VariableName,
+	TagName,
+	BodyOpener,
+	TagCloser,
+	TagOpener,
+	TagComposer,
+	Parameter,
+}
+
+impl Display for Expected {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Mut => write!(f, "`$mut`"),
+			Self::Set => write!(f, "`$set`"),
+			Self::Const => write!(f, "$const"),
+			Self::Equals => write!(f, "equals sign (`=`)"),
+			Self::EOF => write!(f, "end of file"),
+			Self::ExpressionStart => write!(f, "expression starter (`{{`)"),
+			Self::ExpressionEnd => write!(f, "expression ender (`}}`)"),
+			Self::MacroDefinition => write!(f, "macro definition (the word `macro`)"),
+			Self::MacroMark => write!(f, "macro specifier (`!`)"),
+			Self::PluginMark => write!(f, "plugin specifier (`?`)"),
+			Self::UnaryFunction => write!(f, "unary function (`not`)"),
+			Self::BinaryFunction => write!(f, "binary function (`or` or `and`)"),
+			Self::VariableName => write!(f, "variable name"),
+			Self::TagName => write!(f, "tag name"),
+			Self::BodyOpener => write!(f, "body opener (`:`)"),
+			Self::TagCloser => write!(f, "tag closer (`>`)"),
+			Self::TagOpener => write!(f, "tag opener (`<`)"),
+			Self::TagComposer => write!(f, "tag composition (`+`)"),
+			Self::Parameter => write!(f, "parameter"),
+		}
+	}
+}
+
+#[derive(Clone, Debug)]
 pub enum ParseError {
+	Expected(Vec<Expected>),
 	InvalidAttrName,
 	SuspiciousStmtString,
 	UnregisteredFileID(KisTokenId),
-	ExpectedStatement,
-	ExpectedSpecifierOrTag,
 	HeaderNotAllowedHere,
 	SkippedHeadingLevel(usize),
 	IncorrectHeaderNumber,
@@ -33,31 +81,15 @@ pub enum ParseError {
 	PluginsDisabled,
 	TriedToParseInvalidID(KisTokenId),
 	WronglyNestedSection,
-	ExpectedLambdaStart,
 	ConditionUnmet,
 	NotInRange(Bound<usize>, Bound<usize>),
 	ExpressionInSetStmt,
-	ExpectedSetStarter,
 	TagOpenerMismatch,
 	TagCloserMismatch,
-	ExpectedEOF,
-	ExpectedEquals,
 	LiteralNotMatch {
 		expected: String,
 		got: Option<String>,
 	},
-	ExpectedExprStart,
-	ExpectedExprEnd,
-	ExpectedMacroMark,
-	ExpectedPluginMark,
-	ExpectedUniFunc,
-	ExpectedBinFunc,
-	ExpectedVarName,
-	ExpectedTagNameOrMacroDef,
-	ExpectedBodyOpener,
-	ExpectedTagName,
-	ExpectedTagCloser,
-	ExpectedTagOpener,
 	NotANewline,
 	NotLiteral,
 	UnexpectedMacroDef,
@@ -90,11 +122,11 @@ impl Hintable for Err {
 
 	fn get_hints(&self) -> &[Hint] {
 		self.unpack_ref().get_hints()
-    }
+	}
 
 	fn get_hints_mut(&mut self) -> &mut [Hint] {
 		self.unpack_mut().get_hints_mut()
-    }
+	}
 }
 
 pub trait Unpack<T> {
@@ -124,26 +156,26 @@ impl Unpack<ScopedError<ParseError>> for Err {
 }
 
 impl<T> Unpack<T> for MaybeStateless<T> {
-    fn unpack(self) -> T {
-    	match self {
-    		Self::Stateful(x) => x.error,
-    		Self::Statelss(x) => x.error
-    	}
-    }
+	fn unpack(self) -> T {
+		match self {
+			Self::Stateful(x) => x.error,
+			Self::Statelss(x) => x.error,
+		}
+	}
 
-    fn unpack_ref(&self) -> &T {
-    	match self {
-    		Self::Stateful(x) => &x.error,
-    		Self::Statelss(x) => &x.error
-    	}
-    }
+	fn unpack_ref(&self) -> &T {
+		match self {
+			Self::Stateful(x) => &x.error,
+			Self::Statelss(x) => &x.error,
+		}
+	}
 
-    fn unpack_mut(&mut self) -> &mut T {
-    	match self {
-    		Self::Stateful(x) => &mut x.error,
-    		Self::Statelss(x) => &mut x.error
-    	}
-    }
+	fn unpack_mut(&mut self) -> &mut T {
+		match self {
+			Self::Stateful(x) => &mut x.error,
+			Self::Statelss(x) => &mut x.error,
+		}
+	}
 }
 
 impl Err {
@@ -208,11 +240,13 @@ impl Hints {
 				error: self,
 				text_position: state,
 				hints: vec![],
-			}.into(),
+			}
+			.into(),
 			scope,
 		})
 	}
-	#[must_use] pub fn stateless(self) -> Hint {
+	#[must_use]
+	pub fn stateless(self) -> Hint {
 		Hint::Stateless(StatelessError {
 			error: self,
 			hints: vec![],
@@ -251,7 +285,10 @@ impl ParseError {
 			text_position: MultilineRange::Single(pos),
 			hints: vec![],
 		};
-		Err::Error(ScopedError { error: MaybeStateless::Stateful(a), scope: state.current_file })
+		Err::Error(ScopedError {
+			error: MaybeStateless::Stateful(a),
+			scope: state.current_file,
+		})
 	}
 	pub(crate) fn error_at_pos(self, text_position: MultilineRange, scope: KisTokenId) -> Err {
 		let a = ErrorState {
@@ -259,7 +296,10 @@ impl ParseError {
 			text_position,
 			hints: vec![],
 		};
-		Err::Error(ScopedError { error: MaybeStateless::Stateful(a), scope })
+		Err::Error(ScopedError {
+			error: MaybeStateless::Stateful(a),
+			scope,
+		})
 	}
 }
 
@@ -269,9 +309,18 @@ impl ErrorKind for ParseError {
 			Self::InvalidAttrName => "Invalid attribute name".to_string(),
 			Self::SuspiciousStmtString => r"This looks too much like a statement. If it isn't meant to be one, add a `\` before the first word".to_string(),
 			Self::UnregisteredFileID(id) => format!("No file with the ID {} has been registered", id.0),
-			Self::ExpectedStatement => "Expected `mut`, `const` or `set`".to_string(),
-			Self::ExpectedSpecifierOrTag => 
-				"Expected one of the following:\n - tag specifier (`?` `!`)\n - tag composition (`+`)\n - parameters\n - tag body starter (`|` `:`)".into(),
+			Self::Expected(expected) => {
+				if expected.len() == 1 {
+					let expected = expected.first().expect("It is impossible for this to fail");
+					format!("Expected {expected}")
+				} else {
+					let mut x = String::from("Expected one of the following:\n");
+					for expected in expected {
+						writeln!(x, " - {expected}").unwrap();
+					}
+					x
+				}
+			}
 			Self::HeaderNotAllowedHere => "Headers are not allowed outside sections".into(),
 			Self::SkippedHeadingLevel(expected) => format!("Skipped heading level - expected {expected}"),
 			Self::IncorrectHeaderNumber => "Headers can only go from 1 up to 6".to_string(),
@@ -290,35 +339,16 @@ impl ErrorKind for ParseError {
 				format!("Tried to parse a file with invalid ID: {id:?}")
 			}
 			Self::WronglyNestedSection => "Wrongly nested section".to_string(),
-			Self::ExpectedLambdaStart => "Expected `lambda`".to_string(),
 			Self::ConditionUnmet => "Unmet condition".to_string(),
 			Self::NotInRange(start, end) => format!(
 				"Expected this to repeat from {start:?} to {end:?} times"
 			),
 			Self::ExpressionInSetStmt => "Expressions are not allowed in `set` statements".into(),
-			Self::ExpectedSetStarter => "Expected `set`".into(),
 			Self::TagOpenerMismatch => "This `<` is never closed".into(),
 			Self::TagCloserMismatch => {
 				"This `>` is mismatched. Check if all tags before it are closed correctly".into()
 			}
-			Self::ExpectedEOF => {
-				"Expected the file to end, but it didn't. You might have too many `>`".into()
-			}
 			Self::LiteralNotMatch { expected, .. } => format!("Expected the word `{expected}`"),
-			Self::ExpectedExprStart => "Expected `{` to denote the start of an expression".into(),
-			Self::ExpectedExprEnd => "Expected `}`to denote the end of an expression".into(),
-			Self::ExpectedMacroMark => "Expected `!` to denote a macro call".into(),
-			Self::ExpectedPluginMark => "Expected `?` to denote a plugin call".into(),
-			Self::ExpectedUniFunc => "Expected `not` or some other unary function".into(),
-			Self::ExpectedBinFunc => "Expected `and`, `or` or some other binary function".into(),
-			Self::ExpectedVarName => "Expected a valid variable name".into(),
-			Self::ExpectedTagNameOrMacroDef => "Expected a tag name or the word `macro`".into(),
-			Self::ExpectedBodyOpener => {
-				"Expected a `|` or a newline to denote the start of the tag's body".into()
-			}
-			Self::ExpectedTagName => "Expected a valid tag name".into(),
-			Self::ExpectedTagCloser => "Expected a `>` to denote the end of a tag".into(),
-			Self::ExpectedTagOpener => "Expected a `<` to denote the start of a tag".into(),
 			Self::NotANewline => "Expected a newline".into(),
 			Self::NotLiteral => "Expected a word".into(),
 			Self::UnexpectedMacroDef => "Expected a tag name, not a macro definition".into(),
@@ -331,7 +361,6 @@ impl ErrorKind for ParseError {
 			Self::NotAnIndent => "Expected an indent (tab key)".into(),
 			Self::ReachedEOF => "Reached end of file".into(),
 			Self::EndlessString => "String reaches end of file".into(),
-			Self::ExpectedEquals => "Expected an equals sign `=`".into(),
 			Self::PluginIsUndeclared => "This plugin hasn't been declared in the kismet file".into()
 		}
 	}
