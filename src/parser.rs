@@ -992,6 +992,13 @@ fn statement(state: State) -> ParserResult<BodyNodes> {
 	parser.parse(state)
 }
 
+fn statement_marker(state: State) -> ParserResult<&char> {
+	let parser =
+		specific_symbol('$').set_err(|| ParseError::Expected(vec![Expected::StatementMark]));
+
+	parser.parse(state)
+}
+
 pub(crate) fn file(
 	tokens_id: KisTokenId,
 	engine: &Kismesis,
@@ -1002,7 +1009,7 @@ pub(crate) fn file(
 		skipped_blanks().preceding(
 			some_tag
 				.map(Into::into)
-				.or(specific_symbol('$').preceding(after_spaces(cut(statement))))
+				.or(statement_marker.preceding(after_spaces(cut(statement))))
 				.or(section_block.map(|x| BodyNodes::HtmlTag(Section::into_tag(x))))
 				.or(peek(cut(
 					not(statement).set_err(|| ParseError::SuspiciousStmtString)
