@@ -505,9 +505,9 @@ pub struct Ranged<T> {
 	pub range: MultilineRange,
 }
 
-impl Ranged<&str> {
+impl<T: ToOwned + ?Sized> Ranged<&T> {
 	#[must_use]
-	pub fn to_own(&self) -> Ranged<String> {
+	pub fn cloned(&self) -> Ranged<T::Owned> {
 		Ranged {
 			value: self.value.to_owned(),
 			range: self.range.clone(),

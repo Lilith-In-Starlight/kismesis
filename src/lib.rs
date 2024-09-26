@@ -496,6 +496,8 @@ pub trait GiveRange {
 	}
 }
 
+impl<T> GiveRange for T {}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod test {

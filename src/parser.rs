@@ -406,7 +406,7 @@ fn variable_definition(state: State) -> ParserResult<Variable> {
 	let ((name, value), next_state) = parser.parse(state)?;
 	Ok((
 		Variable {
-			name: name.to_own(),
+			name: name.cloned(),
 			value,
 		},
 		next_state,
@@ -421,7 +421,7 @@ fn lambda_definition(state: State) -> ParserResult<Lambda> {
 	let ((name, value), next_state) = parser.parse(state)?;
 	Ok((
 		Lambda {
-			name: name.to_own(),
+			name: name.cloned(),
 			value,
 		},
 		next_state,
@@ -470,7 +470,7 @@ fn for_tag(state: State) -> ParserResult<ForTag> {
 			.and_also(after_spaces(get_range(expression)))
 			.and_also(maybe(tag_body).map(Option::unwrap_or_default))
 			.map(|((variable, iterator), body)| ForTag {
-				variable: variable.to_own(),
+				variable: variable.cloned(),
 				iterator,
 				body,
 			}),
@@ -751,7 +751,7 @@ fn tag_head(state: State) -> ParserResult<(Ranged<String>, Vec<Attribute>, Vec<H
 
 	let (((name, attributes), subtags), state) = parser.parse(state)?;
 
-	Ok(((name.to_own(), attributes, subtags), state))
+	Ok(((name.cloned(), attributes, subtags), state))
 }
 
 fn plugin_head(state: State) -> ParserResult<(Ranged<String>, Ranged<Vec<Token>>)> {
@@ -778,7 +778,7 @@ fn plugin_head(state: State) -> ParserResult<(Ranged<String>, Ranged<Vec<Token>>
 				let end = state.get_end_position();
 				return Ok((
 					(
-						name.to_own(),
+						name.cloned(),
 						Ranged {
 							value: tokens,
 							range: types::MultilineRange::Range(start, end),
@@ -808,7 +808,7 @@ fn macro_call_head(state: State) -> ParserResult<(Ranged<String>, Vec<Argument>)
 
 	let ((name, attributes), state) = parser.parse(state)?;
 
-	Ok(((name.to_own(), attributes), state))
+	Ok(((name.cloned(), attributes), state))
 }
 
 fn macro_def_head(state: State) -> ParserResult<(Ranged<String>, Vec<Argument>)> {
@@ -818,7 +818,7 @@ fn macro_def_head(state: State) -> ParserResult<(Ranged<String>, Vec<Argument>)>
 
 	let ((name, attributes), state) = parser.parse(state)?;
 
-	Ok(((name.to_own(), attributes), state))
+	Ok(((name.cloned(), attributes), state))
 }
 
 fn skip_spaces<'a>() -> impl Parser<'a, Vec<&'a char>> {
@@ -953,7 +953,7 @@ fn subtag(state: State) -> ParserResult<HtmlTag> {
 	let ((name, attributes), state) = parser.parse(state)?;
 	Ok((
 		HtmlTag {
-			name: name.to_own(),
+			name: name.cloned(),
 			attributes,
 			subtags: vec![],
 			body: vec![],
