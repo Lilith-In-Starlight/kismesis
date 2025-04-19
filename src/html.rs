@@ -104,7 +104,7 @@ type ValueRef<'a> = Scoped<'a, (Option<&'a Ranged<Expression>>, MultilineRange)>
 
 type VariableScope<'a> = HashMap<String, ValueRef<'a>>;
 
-impl<'a> GenerationState<'a> {
+impl GenerationState<'_> {
 	pub(crate) fn nth_scope(&self, nth: usize) -> Self {
 		let next_scope = &self.bottom_scopes[nth];
 		let mut variable_scopes = self.variable_scopes.clone();
@@ -545,7 +545,7 @@ fn tag<'a>(tag: &'a HtmlTag, state: &GenerationState<'a>) -> CompileResult<Outpu
 				output.push_string('\t');
 			}
 		}
-		output.push_string(&format!("</{}>", tag.name.value));
+		output.push_string(format!("</{}>", tag.name.value));
 	}
 
 	if errors.is_empty() {

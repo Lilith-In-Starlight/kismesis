@@ -259,7 +259,7 @@ pub struct ParsedFile {
 
 impl ParsedFile {
 	#[must_use]
-	pub fn new(file_id: KisTokenId) -> Self {
+	pub const fn new(file_id: KisTokenId) -> Self {
 		Self {
 			file_id,
 			body: vec![],
@@ -287,7 +287,7 @@ impl ParsedFile {
 	// }
 
 	#[must_use]
-	pub fn get_path_slice<'a>(&'a self, engine: &'a Kismesis) -> Option<&Path> {
+	pub fn get_path_slice<'a>(&'a self, engine: &'a Kismesis) -> Option<&'a Path> {
 		engine.get_file(self.file_id)?.path.as_deref()
 	}
 
@@ -322,7 +322,7 @@ impl ParsedFile {
 	// }
 
 	#[must_use]
-	pub fn get_macro_scope<'a>(&'a self, engine: &'a Kismesis) -> HashMap<String, Scoped<&Macro>> {
+	pub fn get_macro_scope<'a>(&'a self, engine: &'a Kismesis) -> HashMap<String, Scoped<'a, &'a Macro>> {
 		let mut output = HashMap::new();
 		if let Some(template) = self
 			.template
@@ -347,7 +347,7 @@ impl ParsedFile {
 		&'a self,
 		sub_scope: &'a [Self],
 		engine: &'a Kismesis,
-	) -> HashMap<String, ScopedExpression> {
+	) -> HashMap<String, ScopedExpression<'a>> {
 		let mut out = HashMap::new();
 
 		if let Some(template) = self

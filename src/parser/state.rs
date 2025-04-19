@@ -22,7 +22,7 @@ pub struct State<'a> {
 }
 
 impl<'a> State<'a> {
-	pub(crate) fn new(
+	pub(crate) const fn new(
 		current_file: KisTokenId,
 		tokens: &'a [Token],
 		file_path: Option<PathBuf>,
@@ -79,10 +79,7 @@ impl<'a> State<'a> {
 		} else {
 			let mut clone = self.clone();
 			clone.tag_openers.pop();
-			Ok(Self {
-				tag_openers: clone.tag_openers,
-				..clone
-			})
+			Ok(clone)
 		}
 	}
 

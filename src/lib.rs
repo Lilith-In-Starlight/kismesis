@@ -91,7 +91,7 @@ pub struct PluginParseError {
 #[cfg(any(feature = "plugins", feature = "pdk"))]
 impl PluginParseError {
 	#[must_use]
-	pub fn new(message: String, state: Option<MultilineRange>, file: Option<KisTokenId>) -> Self {
+	pub const fn new(message: String, state: Option<MultilineRange>, file: Option<KisTokenId>) -> Self {
 		Self {
 			message,
 			hints: vec![],

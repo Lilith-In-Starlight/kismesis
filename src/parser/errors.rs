@@ -212,7 +212,7 @@ impl Hints {
 			scope,
 		})
 	}
-	#[must_use] pub fn stateless(self) -> Hint {
+	#[must_use] pub const fn stateless(self) -> Hint {
 		Hint::Stateless(StatelessError {
 			error: self,
 			hints: vec![],
@@ -253,7 +253,7 @@ impl ParseError {
 		};
 		Err::Error(ScopedError { error: MaybeStateless::Stateful(a), scope: state.current_file })
 	}
-	pub(crate) fn error_at_pos(self, text_position: MultilineRange, scope: KisTokenId) -> Err {
+	pub(crate) const fn error_at_pos(self, text_position: MultilineRange, scope: KisTokenId) -> Err {
 		let a = ErrorState {
 			error: self,
 			text_position,
